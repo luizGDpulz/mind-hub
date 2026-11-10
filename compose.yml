@@ -1,0 +1,18 @@
+services:
+  mind-hub:
+    image: ghcr.io/luizgdpulz/mind-hub:latest
+    container_name: mind-hub
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      HOST: 0.0.0.0
+      PORT: 3333
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+    expose:
+      - "3333"
+    networks:
+      - proxy-net
+
+networks:
+  proxy-net:
+    external: true

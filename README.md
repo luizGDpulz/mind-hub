@@ -15,3 +15,8 @@ O **Mind Hub** é a evolução da gestão de conhecimento pessoal e corporativo 
 
 Consulte o documento completo da proposta e especificações de arquitetura no Vault:
 `Projects/Mind Hub/Mind Hub.md` e `Projects/Mind Hub/MIND_HUB_RFC_Manifesto.pdf`.
+
+## 📄 Licença
+
+Este projeto é software livre e de código aberto licenciado sob os termos da [GNU Affero General Public License v3.0 (AGPLv3)](./LICENSE).
+

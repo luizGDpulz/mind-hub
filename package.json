@@ -1,0 +1,29 @@
+{
+  "name": "mind-hub",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Mind Hub - High-performance self-hosted knowledge base with Tiptap v2, native MCP server, pgvector semantic search, BYOK AI and Git sovereignty",
+  "license": "AGPL-3.0-only",
+  "type": "module",
+  "packageManager": "pnpm@12.9.1",
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "scripts": {
+    "dev": "pnpm --parallel -r run dev",
+    "build": "pnpm --filter @mind-hub/shared run build && pnpm --filter @mind-hub/server run build && pnpm --filter @mind-hub/web run build",
+    "lint": "eslint .",
+    "typecheck": "pnpm -r --if-present run typecheck",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "clean": "pnpm -r --if-present run clean"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^26.6.6",
+    "eslint": "^10.14.0",
+    "typescript": "~6.0.3",
+    "typescript-eslint": "^8.72.1",
+    "vitest": "^5.0.5"
+  }
+}

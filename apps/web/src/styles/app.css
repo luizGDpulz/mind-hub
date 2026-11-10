@@ -1,0 +1,142 @@
+:root {
+  --mind-bg: #0b0f19;
+  --mind-surface: #111827;
+  --mind-border: rgba(148, 163, 184, 0.14);
+  --mind-accent: #6366f1;
+}
+
+body {
+  margin: 0;
+  font-family: 'Roboto', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background-color: var(--mind-bg);
+  color: #e2e8f0;
+}
+
+.mind-dark-theme {
+  background-color: #0b0f19;
+  color: #f1f5f9;
+}
+
+.mind-light-theme {
+  background-color: #f8fafc;
+  color: #0f172a;
+}
+
+.mind-header {
+  background: rgba(15, 23, 42, 0.92) !important;
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--mind-border);
+}
+
+.mind-sidebar {
+  background: #0f172a !important;
+  border-color: var(--mind-border) !important;
+}
+
+.search-pill {
+  background: rgba(99, 102, 241, 0.16);
+  border: 1px solid rgba(99, 102, 241, 0.35);
+  border-radius: 8px;
+}
+
+.editor-container {
+  max-width: 860px;
+}
+
+.editor-toolbar {
+  background: rgba(30, 41, 59, 0.65);
+  border: 1px solid var(--mind-border);
+}
+
+.slash-palette {
+  background: #1e293b !important;
+  border-color: rgba(99, 102, 241, 0.4) !important;
+}
+
+.slash-item:hover {
+  background: rgba(99, 102, 241, 0.18);
+}
+
+.mind-dialog-card {
+  background: #111827 !important;
+  color: #f1f5f9 !important;
+  border: 1px solid rgba(99, 102, 241, 0.35);
+}
+
+.ai-msg-card {
+  background: rgba(30, 41, 59, 0.75) !important;
+}
+
+.tiptap-canvas .ProseMirror {
+  min-height: 440px;
+  outline: none;
+  font-size: 1.02rem;
+  line-height: 1.7;
+  padding: 8px 4px;
+}
+
+.tiptap-canvas .ProseMirror h1 {
+  font-size: 1.95rem;
+  font-weight: 700;
+  margin: 1.1rem 0 0.6rem;
+}
+
+.tiptap-canvas .ProseMirror h2 {
+  font-size: 1.45rem;
+  font-weight: 600;
+  margin: 1rem 0 0.5rem;
+}
+
+.tiptap-canvas .ProseMirror h3 {
+  font-size: 1.2rem;
+  font-weight: 600;
+  margin: 0.8rem 0 0.4rem;
+}
+
+.tiptap-canvas .ProseMirror pre {
+  background: #090d16;
+  color: #a5b4fc;
+  padding: 14px 16px;
+  border-radius: 8px;
+  border: 1px solid rgba(99, 102, 241, 0.25);
+  overflow-x: auto;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.tiptap-canvas .ProseMirror blockquote {
+  border-left: 3px solid #6366f1;
+  padding-left: 14px;
+  margin-left: 0;
+  color: #94a3b8;
+  font-style: italic;
+}
+
+.tiptap-canvas .ProseMirror table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1rem 0;
+}
+
+.tiptap-canvas .ProseMirror th,
+.tiptap-canvas .ProseMirror td {
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  padding: 8px 12px;
+  text-align: left;
+}
+
+.tiptap-canvas .ProseMirror th {
+  background: rgba(99, 102, 241, 0.14);
+  font-weight: 600;
+}
+
+.tiptap-canvas .ProseMirror ul[data-type='taskList'] {
+  list-style: none;
+  padding: 0;
+}
+
+.tiptap-canvas .ProseMirror ul[data-type='taskList'] li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 4px 0;
+}

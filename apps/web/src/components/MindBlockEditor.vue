@@ -2,16 +2,28 @@
   <div
     ref="shellRef"
     class="mind-editor-shell tiptap-editor-shell"
+    :class="{ 'is-dragging-block': isDraggingBlock }"
     data-testid="mind-block-editor"
     @mousemove="handleShellMouseMove"
     @mouseleave="handleShellMouseLeave"
+    @dragover="handleCanvasDragOver"
+    @dragleave="handleCanvasDragLeave"
+    @drop="handleCanvasDrop"
   >
+    <!-- Horizontal Drop Indicator Line (Notion standard) -->
+    <div
+      v-if="isDraggingBlock && dropIndicatorTop !== null"
+      class="mind-drop-indicator-line"
+      data-testid="drop-indicator-line"
+      :style="{ top: `${dropIndicatorTop}px` }"
+    />
+
     <!-- Block-Level Left Gutter Controls (+ and ⠿) following active line (Notion-like) -->
     <div class="block-row-shell">
       <div
         v-if="!readOnlyMode"
         class="block-left-gutter"
-        :class="{ 'is-visible': isGutterVisible || showBlockHandleMenu }"
+        :class="{ 'is-visible': isGutterVisible || showBlockHandleMenu || isDraggingBlock }"
         role="toolbar"
         aria-label="Block line controls"
         :style="{ top: `${gutterTop}px` }"
@@ -36,21 +48,25 @@
           <button
             type="button"
             class="gutter-icon-btn gutter-grip-btn"
-            title="Ações do bloco e transformar tipo"
-            aria-label="Open block actions and turn-into menu"
+            draggable="true"
+            title="Arraste para mover / Clique ou ctrl/ para abrir o menu"
+            aria-label="Open block actions or drag to reorder"
             data-testid="block-gutter-handle-btn"
             @click="toggleBlockHandleMenu"
+            @dragstart="handleGripDragStart"
+            @dragend="handleGripDragEnd"
           >
             <GripVertical :size="15" />
           </button>
 
           <!-- Notion-like tooltip matching reference image -->
           <div
-            v-if="isGripHovered && !showBlockHandleMenu"
+            v-if="isGripHovered && !showBlockHandleMenu && !isDraggingBlock"
             class="notion-gutter-tooltip"
             data-testid="gutter-grip-tooltip"
           >
             <div class="tooltip-line"><strong>Arraste</strong> para mover</div>
+            <div class="tooltip-line"><strong>Alt+↑/↓</strong> reordenar linha</div>
             <div class="tooltip-line"><strong>Clique</strong> ou <strong>ctrl/</strong> para abrir o menu</div>
           </div>
         </div>
@@ -347,6 +363,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue';
 import { EditorContent, useEditor } from '@tiptap/vue-3';
+import { NodeSelection } from '@tiptap/pm/state';
 import {
   Bold,
   Code,
@@ -404,6 +421,10 @@ const isGutterHovered = ref(false);
 const isGripHovered = ref(false);
 const hoveredBlockElement = ref<HTMLElement | null>(null);
 const hoveredBlockPos = ref<number | null>(null);
+const isDraggingBlock = ref(false);
+const draggedBlockPos = ref<number | null>(null);
+const dropIndicatorTop = ref<number | null>(null);
+const dropTargetPos = ref<number | null>(null);
 const bubbleMenuCoords = ref<{ top: number; left: number }>({ top: 0, left: 0 });
 const slashFilter = ref('');
 const mentionFilter = ref('');
@@ -777,6 +798,36 @@ function handleCanvasKeydown(event: KeyboardEvent): void {
     return;
   }
 
+  // Shortcuts: Alt+ArrowUp / Alt+ArrowDown to reorder lines/blocks up and down (Tiptap / VS Code standard)
+  if (event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey) {
+    if (event.key === 'ArrowUp') {
+      event.preventDefault();
+      moveActiveBlock(-1);
+      return;
+    }
+    if (event.key === 'ArrowDown') {
+      event.preventDefault();
+      moveActiveBlock(1);
+      return;
+    }
+  }
+
+  // Shortcuts: Shift+Alt+ArrowUp / Shift+Alt+ArrowDown to duplicate block
+  if (event.altKey && event.shiftKey) {
+    if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
+      event.preventDefault();
+      duplicateActiveBlock();
+      return;
+    }
+  }
+
+  // Shortcuts: Ctrl+Shift+Backspace / Ctrl+Shift+Delete to delete active block
+  if ((event.ctrlKey || event.metaKey) && event.shiftKey && (event.key === 'Backspace' || event.key === 'Delete')) {
+    event.preventDefault();
+    deleteActiveBlock();
+    return;
+  }
+
   // Slash menu keyboard navigation
   if (showSlashMenu.value) {
     if (event.key === 'ArrowDown') {
@@ -944,9 +995,21 @@ function handleToggleLink(): void {
 function moveActiveBlock(delta: -1 | 1): void {
   const ed = editor.value;
   if (!ed) return;
-  const { $from } = ed.state.selection;
-  const currentPos = $from.before(1);
-  const node = ed.state.doc.nodeAt(currentPos);
+  const doc = ed.state.doc;
+  const sel = ed.state.selection;
+  let currentPos: number;
+  if (sel instanceof NodeSelection) {
+    currentPos = sel.from;
+  } else if (sel.$from.depth > 0) {
+    currentPos = sel.$from.before(1);
+  } else if (hoveredBlockPos.value !== null) {
+    const $hovered = doc.resolve(hoveredBlockPos.value);
+    currentPos = $hovered.depth > 0 ? $hovered.before(1) : hoveredBlockPos.value;
+  } else {
+    currentPos = 0;
+  }
+
+  const node = doc.nodeAt(currentPos);
   if (!node) {
     showBlockHandleMenu.value = false;
     return;
@@ -958,25 +1021,36 @@ function moveActiveBlock(delta: -1 | 1): void {
         showBlockHandleMenu.value = false;
         return;
       }
-      const prevPos = ed.state.doc.resolve(currentPos - 1).before(1);
+      const prevPos = doc.resolve(currentPos - 1).before(1);
       const tr = ed.state.tr;
       tr.delete(currentPos, currentPos + node.nodeSize);
       tr.insert(prevPos, node);
+      try {
+        tr.setSelection(NodeSelection.create(tr.doc, prevPos));
+      } catch {
+        // ignore
+      }
       ed.view.dispatch(tr);
     } else {
       const nextPos = currentPos + node.nodeSize;
-      if (nextPos >= ed.state.doc.content.size) {
+      if (nextPos >= doc.content.size) {
         showBlockHandleMenu.value = false;
         return;
       }
-      const nextNode = ed.state.doc.nodeAt(nextPos);
+      const nextNode = doc.nodeAt(nextPos);
       if (!nextNode) {
         showBlockHandleMenu.value = false;
         return;
       }
       const tr = ed.state.tr;
       tr.delete(currentPos, currentPos + node.nodeSize);
-      tr.insert(currentPos + nextNode.nodeSize, node);
+      const insertAt = currentPos + nextNode.nodeSize;
+      tr.insert(insertAt, node);
+      try {
+        tr.setSelection(NodeSelection.create(tr.doc, insertAt));
+      } catch {
+        // ignore
+      }
       ed.view.dispatch(tr);
     }
   } catch {
@@ -984,6 +1058,182 @@ function moveActiveBlock(delta: -1 | 1): void {
   }
 
   showBlockHandleMenu.value = false;
+  nextTick(() => {
+    updateGutterPosition();
+  });
+}
+
+function moveBlockTo(fromPos: number, toPos: number): void {
+  const ed = editor.value;
+  if (!ed) return;
+  const doc = ed.state.doc;
+  const sourceNode = doc.nodeAt(fromPos);
+  if (!sourceNode) return;
+
+  const sourceSize = sourceNode.nodeSize;
+  if (toPos >= fromPos && toPos <= fromPos + sourceSize) return;
+
+  const tr = ed.state.tr;
+  if (fromPos < toPos) {
+    const adjustedToPos = toPos - sourceSize;
+    tr.delete(fromPos, fromPos + sourceSize);
+    tr.insert(adjustedToPos, sourceNode);
+    try {
+      tr.setSelection(NodeSelection.create(tr.doc, adjustedToPos));
+    } catch {
+      // ignore
+    }
+  } else {
+    tr.delete(fromPos, fromPos + sourceSize);
+    tr.insert(toPos, sourceNode);
+    try {
+      tr.setSelection(NodeSelection.create(tr.doc, toPos));
+    } catch {
+      // ignore
+    }
+  }
+
+  ed.view.dispatch(tr);
+  nextTick(() => {
+    updateGutterPosition();
+  });
+}
+
+function handleGripDragStart(event: DragEvent): void {
+  const ed = editor.value;
+  if (!ed || props.readOnlyMode) {
+    event.preventDefault();
+    return;
+  }
+
+  let blockPos = hoveredBlockPos.value;
+  if (blockPos === null) {
+    try {
+      blockPos = ed.state.selection.$from.before(1);
+    } catch {
+      blockPos = null;
+    }
+  }
+
+  if (blockPos === null) {
+    event.preventDefault();
+    return;
+  }
+
+  const doc = ed.state.doc;
+  const $pos = doc.resolve(blockPos);
+  const topLevelPos = $pos.depth > 0 ? $pos.before(1) : blockPos;
+  const node = doc.nodeAt(topLevelPos);
+  if (!node) {
+    event.preventDefault();
+    return;
+  }
+
+  draggedBlockPos.value = topLevelPos;
+  isDraggingBlock.value = true;
+  showBlockHandleMenu.value = false;
+  showSlashMenu.value = false;
+  showBubbleMenu.value = false;
+
+  try {
+    const nodeSel = NodeSelection.create(doc, topLevelPos);
+    ed.view.dispatch(ed.state.tr.setSelection(nodeSel));
+    (ed.view as any).dragging = {
+      slice: nodeSel.content(),
+      move: true,
+      node: nodeSel,
+    };
+  } catch {
+    // ignore
+  }
+
+  if (event.dataTransfer) {
+    event.dataTransfer.effectAllowed = 'move';
+    event.dataTransfer.setData('text/plain', node.textContent);
+    event.dataTransfer.setData('application/x-mind-block', String(topLevelPos));
+    if (hoveredBlockElement.value) {
+      event.dataTransfer.setDragImage(hoveredBlockElement.value, 15, 15);
+    }
+  }
+}
+
+function handleCanvasDragOver(event: DragEvent): void {
+  if (!isDraggingBlock.value || draggedBlockPos.value === null) return;
+  const ed = editor.value;
+  const shellEl = shellRef.value;
+  if (!ed || !shellEl) return;
+
+  event.preventDefault();
+  if (event.dataTransfer) {
+    event.dataTransfer.dropEffect = 'move';
+  }
+
+  const target = event.target as HTMLElement | null;
+  if (!target) return;
+
+  const prosemirrorEl = shellEl.querySelector('.ProseMirror');
+  if (!prosemirrorEl) return;
+
+  const blockEl = target.closest('.ProseMirror > *') as HTMLElement | null;
+  if (blockEl && prosemirrorEl.contains(blockEl)) {
+    const shellRect = shellEl.getBoundingClientRect();
+    const blockRect = blockEl.getBoundingClientRect();
+    const isAbove = event.clientY < blockRect.top + blockRect.height / 2;
+
+    dropIndicatorTop.value = Math.max(
+      0,
+      Math.round(isAbove ? blockRect.top - shellRect.top : blockRect.bottom - shellRect.top),
+    );
+
+    try {
+      const targetPos = ed.view.posAtDOM(blockEl, 0);
+      const $targetPos = ed.state.doc.resolve(targetPos);
+      const targetBlockPos = $targetPos.before(1);
+      const targetNode = ed.state.doc.nodeAt(targetBlockPos);
+      if (targetNode) {
+        dropTargetPos.value = isAbove
+          ? targetBlockPos
+          : targetBlockPos + targetNode.nodeSize;
+      }
+    } catch {
+      dropTargetPos.value = null;
+    }
+  }
+}
+
+function handleCanvasDragLeave(event: DragEvent): void {
+  const shellEl = shellRef.value;
+  if (!shellEl) return;
+  const related = event.relatedTarget as Node | null;
+  if (!related || !shellEl.contains(related)) {
+    dropIndicatorTop.value = null;
+    dropTargetPos.value = null;
+  }
+}
+
+function handleCanvasDrop(event: DragEvent): void {
+  if (!isDraggingBlock.value || draggedBlockPos.value === null) return;
+  event.preventDefault();
+  event.stopPropagation();
+
+  const fromPos = draggedBlockPos.value;
+  const toPos = dropTargetPos.value;
+
+  if (fromPos !== null && toPos !== null && fromPos !== toPos) {
+    moveBlockTo(fromPos, toPos);
+  }
+
+  handleGripDragEnd();
+}
+
+function handleGripDragEnd(): void {
+  isDraggingBlock.value = false;
+  draggedBlockPos.value = null;
+  dropIndicatorTop.value = null;
+  dropTargetPos.value = null;
+  if (editor.value) {
+    (editor.value.view as any).dragging = null;
+  }
 }
 
 function duplicateActiveBlock(): void {
@@ -1115,6 +1365,9 @@ defineExpose({
   isGutterVisible,
   isGutterHovered,
   isGripHovered,
+  isDraggingBlock,
+  dropIndicatorTop,
+  dropTargetPos,
   gutterTop,
   showBubbleMenu,
   showSlashMenu,
@@ -1122,6 +1375,11 @@ defineExpose({
   showBlockHandleMenu,
   handleShellMouseMove,
   handleShellMouseLeave,
+  handleGripDragStart,
+  handleGripDragEnd,
+  handleCanvasDragOver,
+  handleCanvasDrop,
+  moveBlockTo,
   applySlashCommand,
   turnActiveLineInto,
   moveActiveBlock,
@@ -1134,6 +1392,28 @@ defineExpose({
 .mind-editor-shell,
 .tiptap-editor-shell {
   position: relative;
+}
+
+/* Drag and Drop Horizontal Indicator Line (Notion standard) */
+.mind-drop-indicator-line {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background-color: var(--mind-accent-primary, #1971c2);
+  border-radius: 1px;
+  pointer-events: none;
+  z-index: 1000;
+  box-shadow: 0 0 6px rgba(25, 113, 194, 0.4);
+}
+
+.gutter-grip-btn[draggable="true"] {
+  cursor: grab;
+}
+
+.gutter-grip-btn:active,
+.is-dragging-block .gutter-grip-btn {
+  cursor: grabbing;
 }
 
 /* Left Block Gutter Controls (+ and ⠿) following hover line (Notion-like) */

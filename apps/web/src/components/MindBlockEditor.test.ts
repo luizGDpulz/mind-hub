@@ -390,4 +390,105 @@ describe('@mind-hub/web — Notion-like MindBlockEditor (Refs #37, #43, #45)', (
     expect(wrapper.find('[data-testid="block-handle-menu"]').exists()).toBe(false);
     wrapper.unmount();
   });
+
+  it('supports moving blocks via Alt+ArrowDown and Alt+ArrowUp keyboard shortcuts', async () => {
+    const twoBlocksDoc: MindDoc = {
+      type: 'doc',
+      content: [
+        { type: 'paragraph', content: [{ type: 'text', text: 'Bloco A' }] },
+        { type: 'paragraph', content: [{ type: 'text', text: 'Bloco B' }] },
+      ],
+    };
+
+    const wrapper = mount(MindBlockEditor, {
+      props: {
+        modelValue: twoBlocksDoc,
+        markdownValue: 'Bloco A\n\nBloco B',
+        readOnlyMode: false,
+      },
+    });
+
+    const vm = wrapper.vm as any;
+    expect(vm.editor.state.doc.content.child(0).textContent).toBe('Bloco A');
+    expect(vm.editor.state.doc.content.child(1).textContent).toBe('Bloco B');
+
+    // Place selection in first block
+    vm.editor.commands.setTextSelection(2);
+
+    const canvas = wrapper.find('.mind-editor-canvas');
+    // Alt+ArrowDown moves Bloco A down
+    await canvas.trigger('keydown', { key: 'ArrowDown', altKey: true });
+    await nextTick();
+
+    expect(vm.editor.state.doc.content.child(0).textContent).toBe('Bloco B');
+    expect(vm.editor.state.doc.content.child(1).textContent).toBe('Bloco A');
+
+    // Alt+ArrowUp moves Bloco A back up
+    await canvas.trigger('keydown', { key: 'ArrowUp', altKey: true });
+    await nextTick();
+
+    expect(vm.editor.state.doc.content.child(0).textContent).toBe('Bloco A');
+    expect(vm.editor.state.doc.content.child(1).textContent).toBe('Bloco B');
+
+    wrapper.unmount();
+  });
+
+  it('supports drag and drop block reordering via grip handle ⠿', async () => {
+    const threeBlocksDoc: MindDoc = {
+      type: 'doc',
+      content: [
+        { type: 'paragraph', content: [{ type: 'text', text: 'Primeiro Bloco' }] },
+        { type: 'paragraph', content: [{ type: 'text', text: 'Segundo Bloco' }] },
+        { type: 'paragraph', content: [{ type: 'text', text: 'Terceiro Bloco' }] },
+      ],
+    };
+
+    const wrapper = mount(MindBlockEditor, {
+      props: {
+        modelValue: threeBlocksDoc,
+        markdownValue: 'Primeiro Bloco\n\nSegundo Bloco\n\nTerceiro Bloco',
+        readOnlyMode: false,
+      },
+    });
+
+    const vm = wrapper.vm as any;
+    expect(vm.editor.state.doc.content.child(0).textContent).toBe('Primeiro Bloco');
+
+    const gripBtn = wrapper.find('[data-testid="block-gutter-handle-btn"]');
+    expect(gripBtn.attributes('draggable')).toBe('true');
+
+    // Mock DragEvent dataTransfer
+    const dataTransfer = {
+      effectAllowed: '',
+      dropEffect: '',
+      setData: vi.fn(),
+      setDragImage: vi.fn(),
+    };
+
+    // Initiate drag on first block (pos 0)
+    vm.hoveredBlockPos = 1;
+    await gripBtn.trigger('dragstart', { dataTransfer });
+    await nextTick();
+
+    expect(vm.isDraggingBlock).toBe(true);
+
+    // Reorder block from pos 0 to end of doc using moveBlockTo
+    const firstNodeSize = vm.editor.state.doc.child(0).nodeSize;
+    const secondNodeSize = vm.editor.state.doc.child(1).nodeSize;
+    const targetPos = firstNodeSize + secondNodeSize;
+
+    vm.moveBlockTo(0, targetPos);
+    await nextTick();
+
+    // Verify first block is now after second block
+    expect(vm.editor.state.doc.content.child(0).textContent).toBe('Segundo Bloco');
+    expect(vm.editor.state.doc.content.child(1).textContent).toBe('Primeiro Bloco');
+
+    // Complete drag
+    await gripBtn.trigger('dragend');
+    await nextTick();
+    expect(vm.isDraggingBlock).toBe(false);
+
+    wrapper.unmount();
+  });
 });

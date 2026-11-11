@@ -64,4 +64,22 @@ describe('@mind-hub/web — Pinia Store, Page Tree, Quick Insight & Search Engin
     expect(snapshot.totalFiles).toBe(4);
     expect(snapshot.files[0]?.markdown).toContain('---');
   });
+
+  it('manages Database tasks (Table & Kanban status cycling) and Page Comments in mind-light-style', () => {
+    const store = useMindStore();
+    expect(store.darkMode).toBe(false);
+    expect(store.databaseRows.length).toBeGreaterThanOrEqual(8);
+
+    const firstRow = store.databaseRows[0]!;
+    expect(firstRow.status).toBe('Backlog');
+    store.cycleDatabaseRowStatus(firstRow.id);
+    expect(store.databaseRows[0]?.status).toBe('In Progress');
+
+    const added = store.addDatabaseTaskRow('In Review');
+    expect(added.status).toBe('In Review');
+
+    const initialReplies = store.pageComments[0]?.replies.length ?? 0;
+    store.addCommentReply('thread-1', 'Aligned with mind-light-style!');
+    expect(store.pageComments[0]?.replies.length).toBe(initialReplies + 1);
+  });
 });

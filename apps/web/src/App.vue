@@ -43,75 +43,40 @@
 
         <q-space />
 
-        <!-- Right Page Controls: Edit | Read, Share, Comments, AI, Overflow (...) & Workspace -->
+        <!-- Right Page Controls: Share, Comments, AI, Actions (...) & Workspace -->
         <div class="topbar-actions-right">
-          <div class="mode-segmented" role="group" aria-label="Document mode">
-            <button
-              type="button"
-              class="mode-segmented-btn"
-              :class="{ 'is-active': !store.editorReadMode && store.activeSurface === 'editor' }"
-              data-testid="mode-edit-btn"
-              @click="
-                store.activeSurface = 'editor';
-                store.editorReadMode = false;
-              "
-            >
-              Edit
-            </button>
-            <button
-              type="button"
-              class="mode-segmented-btn"
-              :class="{ 'is-active': store.editorReadMode && store.activeSurface === 'editor' }"
-              data-testid="mode-read-btn"
-              @click="
-                store.activeSurface = 'editor';
-                store.editorReadMode = true;
-              "
-            >
-              Read
-            </button>
-          </div>
-
-          <button
-            type="button"
-            class="topbar-text-btn gt-xs"
+          <MindIconButton
+            :icon="Share2"
+            label="Share & Export"
+            text="Share"
+            class="gt-xs"
+            data-testid="share-export-btn"
             @click="triggerGitExport"
-          >
-            🌐 Share
-          </button>
+          />
 
-          <button
-            type="button"
-            class="topbar-icon-btn"
-            title="Comments"
-            aria-label="Toggle comments drawer"
+          <MindIconButton
+            :icon="MessageSquare"
+            label="Comments"
             data-testid="toggle-comments-btn"
+            :active="store.isCommentsDrawerOpen && store.rightDrawerMode === 'comments'"
             @click="toggleRightPanel('comments')"
-          >
-            💬
-          </button>
+          />
 
-          <button
-            type="button"
-            class="topbar-icon-btn"
-            title="Copiloto IA"
-            aria-label="Toggle AI assistant"
+          <MindIconButton
+            :icon="Sparkles"
+            label="Copiloto IA"
             data-testid="toggle-ai-btn"
+            :active="store.isCommentsDrawerOpen && store.rightDrawerMode === 'ai'"
             @click="toggleRightPanel('ai')"
-          >
-            ✦
-          </button>
+          />
 
-          <button
-            type="button"
-            class="topbar-icon-btn"
-            title="More page actions"
-            aria-label="More page actions"
+          <MindIconButton
+            :icon="MoreHorizontal"
+            label="More page actions"
             data-testid="page-overflow-trigger"
-            @click="showOverflowMenu = !showOverflowMenu"
-          >
-            ⋯
-          </button>
+            :active="showOverflowMenu"
+            @click.stop="showOverflowMenu = !showOverflowMenu"
+          />
 
           <div class="workspace-switcher gt-xs">
             <span class="workspace-avatar">AI</span>
@@ -121,71 +86,13 @@
         </div>
       </q-toolbar>
 
-      <!-- Secondary Actions Popover Menu (content-first-noise-reduction) -->
-      <div
+      <!-- Notion-like MindActionMenu Popover (Issue #27 & #30) -->
+      <MindActionMenu
         v-if="showOverflowMenu"
-        class="mind-floating-popover overflow-dropdown"
-        data-testid="page-overflow-popover"
-      >
-        <div
-          class="mind-popover-row"
-          data-testid="quick-insight-fab"
-          @click="
-            showOverflowMenu = false;
-            store.isQuickInsightOpen = true;
-          "
-        >
-          <span class="mind-icon-box-28">📥</span>
-          <span class="popover-row-label">Quick capture to Inbox</span>
-        </div>
-        <div
-          class="mind-popover-row"
-          data-testid="open-bulk-import-btn"
-          @click="
-            showOverflowMenu = false;
-            store.isImportModalOpen = true;
-          "
-        >
-          <span class="mind-icon-box-28">📦</span>
-          <span class="popover-row-label">Import Second Brain (.md Bulk)</span>
-        </div>
-        <div
-          class="mind-popover-row"
-          data-testid="export-git-btn"
-          @click="
-            showOverflowMenu = false;
-            triggerGitExport();
-          "
-        >
-          <span class="mind-icon-box-28">⬇</span>
-          <span class="popover-row-label">Export Markdown / Git (.md)</span>
-        </div>
-        <div
-          class="mind-popover-row"
-          data-testid="open-login-screen-btn"
-          @click="
-            showOverflowMenu = false;
-            store.activeSurface = store.activeSurface === 'login' ? 'editor' : 'login';
-          "
-        >
-          <span class="mind-icon-box-28">🔒</span>
-          <span class="popover-row-label">
-            {{ store.activeSurface === 'login' ? 'Back to Document' : 'Preview Login Screen' }}
-          </span>
-        </div>
-        <div
-          v-if="store.activePage && !store.activePage.isInbox"
-          class="mind-popover-row"
-          data-testid="soft-delete-btn"
-          @click="
-            showOverflowMenu = false;
-            store.softDeletePage(store.activePage.id);
-          "
-        >
-          <span class="mind-icon-box-28">🗑</span>
-          <span class="popover-row-label">Move page to Trash</span>
-        </div>
-      </div>
+        :items="actionMenuItems"
+        :page-meta="pageMetadata"
+        @close="showOverflowMenu = false"
+      />
     </q-header>
 
     <!-- Left Sidebar (03-app-shell-editor-comments.jpg: 250px, #f8f9fa) -->
@@ -687,8 +594,23 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue';
+import { computed, onMounted, reactive, ref } from 'vue';
 import { Dark } from 'quasar';
+import {
+  Copy,
+  CopyPlus,
+  Download,
+  FolderDown,
+  Inbox,
+  Link2,
+  Lock,
+  MessageSquare,
+  MoreHorizontal,
+  Share2,
+  Sparkles,
+  Trash2,
+  UserCheck,
+} from 'lucide-vue-next';
 import type { RawMarkdownFileEntry } from '@mind-hub/shared';
 import { useMindStore } from './stores/mind-store.js';
 import PageTreeItem from './components/PageTreeItem.vue';
@@ -696,6 +618,9 @@ import TiptapBlockEditor from './components/TiptapBlockEditor.vue';
 import DatabaseViewBlock from './components/DatabaseViewBlock.vue';
 import DiagramEmbedsBlock from './components/DiagramEmbedsBlock.vue';
 import CleanLoginView from './components/CleanLoginView.vue';
+import MindIconButton from './components/ui/MindIconButton.vue';
+import MindActionMenu from './components/ui/MindActionMenu.vue';
+import type { ActionMenuItem, ActionMenuPageMeta } from './components/ui/types.js';
 
 const store = useMindStore();
 const leftDrawerOpen = ref(true);
@@ -704,6 +629,151 @@ const quickInsightText = ref('');
 const aiPromptInput = ref('');
 const selectedSearchIdx = ref(0);
 const replyBuffers = reactive<Record<string, string>>({});
+
+const actionMenuItems = computed<ActionMenuItem[]>(() => {
+  const current = store.activePage;
+  const isInbox = current?.isInbox ?? false;
+
+  const items: ActionMenuItem[] = [
+    {
+      id: 'copy-link',
+      label: 'Copiar link',
+      icon: Link2,
+      shortcut: 'Ctrl+Alt+L',
+      section: 'actions',
+      handler: () => {
+        if (current) {
+          const url = `${window.location.origin}/#/page/${current.slug}`;
+          void navigator.clipboard?.writeText(url);
+        }
+      },
+    },
+    {
+      id: 'copy-markdown',
+      label: 'Copiar conteúdo Markdown',
+      icon: Copy,
+      shortcut: 'Ctrl+Shift+C',
+      section: 'actions',
+      handler: () => {
+        if (current) {
+          void navigator.clipboard?.writeText(current.contentMarkdown);
+        }
+      },
+    },
+    {
+      id: 'duplicate-page',
+      label: 'Duplicar página',
+      icon: CopyPlus,
+      shortcut: 'Ctrl+D',
+      section: 'actions',
+      handler: () => {
+        if (current) {
+          void store.createPage({
+            title: `${current.title} (Cópia)`,
+            icon: current.icon,
+            parentId: current.parentId,
+            tags: current.tags,
+            contentMarkdown: current.contentMarkdown,
+            contentJson: current.contentJson,
+          });
+        }
+      },
+    },
+    {
+      id: 'lock-page',
+      label: 'Bloquear página / Leitura',
+      icon: Lock,
+      toggle: true,
+      active: store.editorReadMode,
+      section: 'tools',
+      handler: () => {
+        store.editorReadMode = !store.editorReadMode;
+      },
+    },
+    {
+      id: 'quick-capture',
+      label: 'Quick capture to Inbox',
+      icon: Inbox,
+      section: 'tools',
+      handler: () => {
+        store.isQuickInsightOpen = true;
+      },
+    },
+    {
+      id: 'import-bulk',
+      label: 'Import Second Brain (.md Bulk)',
+      icon: FolderDown,
+      section: 'tools',
+      handler: () => {
+        store.isImportModalOpen = true;
+      },
+    },
+    {
+      id: 'export-git',
+      label: 'Export Markdown / Git (.md)',
+      icon: Download,
+      section: 'tools',
+      handler: () => {
+        triggerGitExport();
+      },
+    },
+    {
+      id: 'preview-login',
+      label: store.activeSurface === 'login' ? 'Voltar ao Documento' : 'Preview Login Screen',
+      icon: UserCheck,
+      section: 'tools',
+      handler: () => {
+        store.activeSurface = store.activeSurface === 'login' ? 'editor' : 'login';
+      },
+    },
+  ];
+
+  if (current && !isInbox) {
+    items.push({
+      id: 'delete-page',
+      label: 'Mover para a lixeira',
+      icon: Trash2,
+      danger: true,
+      shortcut: 'Del',
+      section: 'danger',
+      handler: () => {
+        void store.softDeletePage(current.id);
+      },
+    });
+  }
+
+  return items;
+});
+
+const pageMetadata = computed<ActionMenuPageMeta>(() => {
+  const current = store.activePage;
+  const rawText = current?.contentMarkdown ?? '';
+  const words = rawText.trim() ? rawText.trim().split(/\s+/).length : 0;
+  const chars = rawText.length;
+
+  let formattedDate = 'Hoje';
+  if (current?.updatedAt) {
+    try {
+      const d = new Date(current.updatedAt);
+      formattedDate = d.toLocaleDateString('pt-BR', {
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+    } catch {
+      formattedDate = current.updatedAt;
+    }
+  }
+
+  return {
+    lastEditedAuthor: 'Luiz Pulz',
+    lastEditedDate: formattedDate,
+    wordCount: words,
+    characterCount: chars,
+  };
+});
 
 onMounted(() => {
   Dark.set(false);

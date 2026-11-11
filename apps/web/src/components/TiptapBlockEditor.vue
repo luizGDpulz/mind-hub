@@ -231,20 +231,12 @@
         </div>
       </div>
 
-      <!-- Main Tiptap v2 Rich Block Canvas -->
+      <!-- Single Tiptap v2 Rich Block Canvas (prevents DOM detachment on read/edit toggle, closes #37) -->
       <div
-        v-show="!readOnlyMode"
         class="tiptap-canvas"
+        :class="{ 'read-mode-surface': readOnlyMode }"
+        :data-testid="readOnlyMode ? 'editor-read-mode' : 'editor-edit-mode'"
         @keydown="handleCanvasKeydown"
-      >
-        <editor-content :editor="editor" />
-      </div>
-
-      <!-- Read Mode View -->
-      <div
-        v-if="readOnlyMode"
-        class="tiptap-canvas read-mode-surface"
-        data-testid="editor-read-mode"
       >
         <editor-content :editor="editor" />
       </div>

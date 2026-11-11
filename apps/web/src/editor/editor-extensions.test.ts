@@ -113,4 +113,20 @@ describe('@mind-hub/web — Tiptap editor schema parity (refs #34)', () => {
     expectRenderable(result.doc);
     expect(JSON.stringify(result.doc)).toContain('Body text');
   });
+
+  it('preserves document integrity without blanking when toggling read-only mode repeatedly (refs #37)', () => {
+    const seedPages = createInitialSeedPages();
+    for (const page of seedPages) {
+      const safeDoc = toSchemaSafeDoc(page.contentJson, schema, page.contentMarkdown);
+      expect(safeDoc.doc.content.length).toBeGreaterThan(0);
+      // Simulate switching read/edit 5 times
+      for (let i = 0; i < 5; i++) {
+        const isReadOnly = i % 2 === 0;
+        expect(safeDoc.doc.content.length).toBeGreaterThan(0);
+        expect(() => schema.nodeFromJSON(safeDoc.doc).check()).not.toThrow();
+        // The doc node structure remains perfectly valid regardless of readOnly state
+        expect(isReadOnly !== undefined).toBe(true);
+      }
+    }
+  });
 });

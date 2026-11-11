@@ -100,11 +100,15 @@ const props = withDefaults(
     trashCount?: number;
     top?: number;
     left?: number;
+    bottom?: number;
+    right?: number;
   }>(),
   {
     trashCount: 0,
-    top: 48,
-    left: 170,
+    top: undefined,
+    left: undefined,
+    bottom: undefined,
+    right: undefined,
   },
 );
 
@@ -115,10 +119,25 @@ const emit = defineEmits<{
   (e: 'open-tasks'): void;
 }>();
 
-const popoverStyle = computed(() => ({
-  top: `${props.top}px`,
-  left: `${props.left}px`,
-}));
+const popoverStyle = computed(() => {
+  const style: Record<string, string> = {};
+  if (props.bottom !== undefined) {
+    style.bottom = `${props.bottom}px`;
+  } else if (props.top !== undefined) {
+    style.top = `${props.top}px`;
+  } else {
+    style.bottom = '56px';
+  }
+
+  if (props.right !== undefined) {
+    style.right = `${props.right}px`;
+  } else if (props.left !== undefined) {
+    style.left = `${props.left}px`;
+  } else {
+    style.left = '60px';
+  }
+  return style;
+});
 
 function handleAction(action: 'trash' | 'ai-notes' | 'tasks'): void {
   emit('update:modelValue', false);

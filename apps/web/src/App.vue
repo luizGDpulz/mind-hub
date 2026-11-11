@@ -179,17 +179,6 @@
         </div>
         <div
           class="sidebar-nav-item"
-          data-testid="sidebar-trash-btn"
-          @click="isTrashModalOpen = true"
-        >
-          <component :is="Trash2" :size="15" class="nav-item-lucide" />
-          <span class="ellipsis col">Lixeira</span>
-          <span v-if="store.deletedPages.length > 0" class="sidebar-trash-badge">
-            {{ store.deletedPages.length }}
-          </span>
-        </div>
-        <div
-          class="sidebar-nav-item"
           data-testid="sidebar-bulk-import-btn"
           @click="store.isImportModalOpen = true"
         >
@@ -239,7 +228,7 @@
         />
       </div>
 
-      <!-- Sticky Sidebar Footer (Issues #33, #40, #46: User Profile Card & Help/Releases) -->
+      <!-- Sticky Sidebar Footer (Issues #33, #40, #46: User Profile Card & Help/Releases/Apps) -->
       <div class="sidebar-sticky-footer">
         <div
           class="sidebar-user-card"
@@ -253,16 +242,28 @@
             <span class="sidebar-user-role">Workspace Admin · v{{ store.currentVersion }}</span>
           </div>
         </div>
-        <button
-          type="button"
-          class="sidebar-footer-help-btn"
-          title="Ajuda, Documentação & Novidades"
-          aria-label="Ajuda e Novidades"
-          data-testid="sidebar-help-versions-btn"
-          @click="isHelpVersionsMenuOpen = !isHelpVersionsMenuOpen"
-        >
-          <component :is="HelpCircle" :size="15" />
-        </button>
+        <div class="sidebar-footer-actions">
+          <button
+            type="button"
+            class="sidebar-footer-icon-btn sidebar-footer-help-btn"
+            title="Ajuda, Documentação & Novidades"
+            aria-label="Ajuda e Novidades"
+            data-testid="sidebar-help-versions-btn"
+            @click="isHelpVersionsMenuOpen = !isHelpVersionsMenuOpen"
+          >
+            <component :is="HelpCircle" :size="15" />
+          </button>
+          <button
+            type="button"
+            class="sidebar-footer-icon-btn"
+            title="Mais opções e utilitários (Lixeira, IA, Tarefas)"
+            aria-label="Mais opções e utilitários"
+            data-testid="sidebar-footer-apps-btn"
+            @click="isAppsMenuOpen = !isAppsMenuOpen"
+          >
+            <component :is="LayoutGrid" :size="15" />
+          </button>
+        </div>
       </div>
 
       <!-- Drag Resizer Handle on right edge of sidebar (Issue #35) -->
@@ -638,6 +639,8 @@
     <MindSidebarAppsMenu
       v-model="isAppsMenuOpen"
       :trash-count="store.deletedPages.length"
+      :bottom="56"
+      :left="Math.max(10, sidebarWidth - 230)"
       @open-trash="isTrashModalOpen = true"
       @open-ai="
         store.isCommentsDrawerOpen = true;
@@ -1451,7 +1454,15 @@ function splitSnippetSegments(
   background: var(--mind-bg-hover);
 }
 
-.sidebar-footer-help-btn {
+.sidebar-footer-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.sidebar-footer-help-btn,
+.sidebar-footer-icon-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1466,9 +1477,10 @@ function splitSnippetSegments(
   flex-shrink: 0;
 }
 
-.sidebar-footer-help-btn:hover {
-  background: var(--mind-bg-hover);
-  color: var(--mind-text-primary);
+.sidebar-footer-help-btn:hover,
+.sidebar-footer-icon-btn:hover {
+  background: var(--mind-bg-hover, #f1f3f5);
+  color: var(--mind-text-primary, #212529);
 }
 
 .sidebar-user-avatar {

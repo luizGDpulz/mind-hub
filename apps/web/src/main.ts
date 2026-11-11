@@ -19,8 +19,10 @@ app.use(Quasar, {
     Notify,
   },
   config: {
-    dark: true,
+    dark: false,
   },
 });
+
+Dark.set(false);
 
 app.mount('#app');

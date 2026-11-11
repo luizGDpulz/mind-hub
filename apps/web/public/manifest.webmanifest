@@ -1,11 +1,11 @@
 {
-  "name": "Mind Hub — Second Brain & IA Nativa",
+  "name": "Mind Hub — Knowledge Base & Second Brain",
   "short_name": "Mind Hub",
   "description": "Gestão de conhecimento autohospedada com editor em blocos Tiptap v2, servidor MCP nativo e soberania Git.",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#0b0f19",
-  "theme_color": "#6366f1",
+  "background_color": "#ffffff",
+  "theme_color": "#ffffff",
   "icons": [
     {
       "src": "/favicon.svg",

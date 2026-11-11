@@ -32,11 +32,18 @@
   box-sizing: border-box;
 }
 
-body {
+html,
+body,
+body.body--light,
+body.body--dark,
+#app,
+.q-layout,
+.q-page-container,
+.q-page {
   margin: 0;
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  background-color: var(--mind-bg-canvas);
-  color: var(--mind-text-primary);
+  background-color: var(--mind-bg-canvas) !important;
+  color: var(--mind-text-primary) !important;
   -webkit-font-smoothing: antialiased;
 }
 

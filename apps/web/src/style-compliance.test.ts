@@ -4,15 +4,25 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
 const currentDir = path.dirname(fileURLToPath(import.meta.url));
+const webRootDir = path.resolve(currentDir, '..');
 
 function collectSourceFiles(dir: string): string[] {
   const entries = fs.readdirSync(dir, { withFileTypes: true });
   const files: string[] = [];
   for (const entry of entries) {
+    if (entry.name === 'node_modules' || entry.name === 'dist') continue;
     const fullPath = path.join(dir, entry.name);
     if (entry.isDirectory()) {
       files.push(...collectSourceFiles(fullPath));
-    } else if (entry.name.endsWith('.vue') || entry.name.endsWith('.css')) {
+    } else if (
+      entry.name !== 'style-compliance.test.ts' &&
+      (entry.name.endsWith('.vue') ||
+        entry.name.endsWith('.css') ||
+        entry.name.endsWith('.ts') ||
+        entry.name.endsWith('.html') ||
+        entry.name.endsWith('.webmanifest') ||
+        entry.name.endsWith('.svg'))
+    ) {
       files.push(fullPath);
     }
   }
@@ -20,9 +30,9 @@ function collectSourceFiles(dir: string): string[] {
 }
 
 describe('Gatekeeper UI — Validação Rigorosa mind-light-style (Veto ao Azul Escuro IA)', () => {
-  const uiFiles = collectSourceFiles(currentDir);
+  const uiFiles = collectSourceFiles(webRootDir);
 
-  it('proíbe terminantemente cores hex do "azul escuro IA" (#0b0f19, #0f172a, #6366f1, #1e293b, #090d16)', () => {
+  it('proíbe terminantemente cores hex do "azul escuro IA" (#0b0f19, #0f172a, #6366f1, #1e293b, #090d16) e Quasar dark: true', () => {
     const bannedHexes = ['#0b0f19', '#0f172a', '#6366f1', '#1e293b', '#090d16', '#a5b4fc'];
 
     for (const filePath of uiFiles) {
@@ -34,6 +44,10 @@ describe('Gatekeeper UI — Validação Rigorosa mind-light-style (Veto ao Azul 
         ).toBe(false);
       }
     }
+
+    const mainTs = fs.readFileSync(path.join(currentDir, 'main.ts'), 'utf-8');
+    expect(mainTs).toContain('dark: false');
+    expect(mainTs).not.toContain('dark: true');
   });
 
   it('proíbe classes neon Quasar (indigo-*, teal-*, bg-dark) e poluição de telemetria na UI', () => {

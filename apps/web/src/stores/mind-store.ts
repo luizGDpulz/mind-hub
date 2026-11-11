@@ -120,13 +120,17 @@ export const useMindStore = defineStore('mindHub', () => {
           databaseTasks?: DatabaseTaskRow[];
           comments?: PageCommentThread[];
         };
-        if (data.pages && data.pages.length > 0) {
+        if (Array.isArray(data.pages)) {
           pages.value = data.pages;
+          const first = data.pages[0];
+          if (first && !data.pages.some((p) => p.id === activePageId.value)) {
+            activePageId.value = first.id;
+          }
         }
-        if (data.databaseTasks && data.databaseTasks.length > 0) {
+        if (Array.isArray(data.databaseTasks)) {
           databaseRows.value = data.databaseTasks;
         }
-        if (data.comments && data.comments.length > 0) {
+        if (Array.isArray(data.comments)) {
           pageComments.value = data.comments;
         }
         backendConnected.value = true;
@@ -134,8 +138,12 @@ export const useMindStore = defineStore('mindHub', () => {
         const fallbackRes = await fetch('/api/pages?includeDeleted=true');
         if (fallbackRes.ok) {
           const fallbackData = (await fallbackRes.json()) as { pages?: MindPage[] };
-          if (fallbackData.pages && fallbackData.pages.length > 0) {
+          if (Array.isArray(fallbackData.pages)) {
             pages.value = fallbackData.pages;
+            const first = fallbackData.pages[0];
+            if (first && !fallbackData.pages.some((p) => p.id === activePageId.value)) {
+              activePageId.value = first.id;
+            }
             backendConnected.value = true;
           }
         }

@@ -514,6 +514,25 @@
             </div>
           </div>
         </div>
+
+        <!-- Empty State when there are no active pages -->
+        <div v-else class="empty-workspace-state q-pa-xl flex flex-center column" style="min-height: 400px">
+          <span style="font-size: 40px; margin-bottom: 12px">📄</span>
+          <div style="font-size: 16px; font-weight: 600; color: var(--mind-text-primary); margin-bottom: 6px">
+            Nenhuma página encontrada
+          </div>
+          <div style="font-size: 13px; color: var(--mind-text-muted); margin-bottom: 16px">
+            Crie sua primeira página limpa para começar a escrever.
+          </div>
+          <button
+            type="button"
+            class="primary-blue-btn"
+            data-testid="create-first-page-btn"
+            @click="handleCreateRootPage"
+          >
+            + Criar página
+          </button>
+        </div>
       </q-page>
     </q-page-container>
 

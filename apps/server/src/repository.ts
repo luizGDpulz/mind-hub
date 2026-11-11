@@ -718,28 +718,28 @@ export class DurableFilePageRepository extends InMemoryPageRepository {
       const raw = readFileSync(this.filePath, 'utf-8');
       const parsed = JSON.parse(raw) as Partial<DurableStoreSnapshot>;
 
-      if (Array.isArray(parsed.pages) && parsed.pages.length > 0) {
+      if (Array.isArray(parsed.pages)) {
         this.pages.clear();
         for (const p of parsed.pages) {
           this.pages.set(p.id, p);
         }
       }
 
-      if (Array.isArray(parsed.databaseTasks) && parsed.databaseTasks.length > 0) {
+      if (Array.isArray(parsed.databaseTasks)) {
         this.databaseTasks.clear();
         for (const t of parsed.databaseTasks) {
           this.databaseTasks.set(t.id, t);
         }
       }
 
-      if (Array.isArray(parsed.comments) && parsed.comments.length > 0) {
+      if (Array.isArray(parsed.comments)) {
         this.comments.clear();
         for (const c of parsed.comments) {
           this.comments.set(c.id, c);
         }
       }
 
-      if (Array.isArray(parsed.diagrams) && parsed.diagrams.length > 0) {
+      if (Array.isArray(parsed.diagrams)) {
         this.diagrams.clear();
         for (const d of parsed.diagrams) {
           this.diagrams.set(d.id, d);

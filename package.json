@@ -1,6 +1,6 @@
 {
   "name": "mind-hub",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "description": "Mind Hub - High-performance self-hosted knowledge base with Tiptap v2, native MCP server, pgvector semantic search, BYOK AI and Git sovereignty",
   "license": "AGPL-3.0-only",

@@ -15,6 +15,9 @@ import {
   searchPagesEngine,
   slugifyTitle,
   tiptapToMarkdown,
+  CURRENT_MIND_VERSION,
+  MIND_REPO_URL,
+  MIND_VERSION_HISTORY,
 } from './index.js';
 
 describe('@mind-hub/shared — Markdown <-> Tiptap AST & Domain Engine', () => {
@@ -163,5 +166,13 @@ describe('@mind-hub/shared — Markdown <-> Tiptap AST & Domain Engine', () => {
     expect(softDeletePage?.icon).toBe('🛡️');
     expect(softDeletePage?.parentId).toBe('folder-padroes');
     expect(softDeletePage?.contentMarkdown).toContain('(#/page/mind-hub)');
+  });
+
+  it('exposes versioning configuration, release history and repository URL', () => {
+    expect(CURRENT_MIND_VERSION).toBe('0.2.0');
+    expect(MIND_REPO_URL).toBe('https://github.com/luizGDpulz/mind-hub');
+    expect(MIND_VERSION_HISTORY.length).toBeGreaterThanOrEqual(2);
+    expect(MIND_VERSION_HISTORY[0].version).toBe('0.2.0');
+    expect(MIND_VERSION_HISTORY[0].highlights.length).toBeGreaterThan(0);
   });
 });

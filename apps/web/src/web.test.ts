@@ -96,4 +96,34 @@ describe('@mind-hub/web — Pinia Store, Page Tree, Quick Insight & Search Engin
     expect(store.activePages.length).toBeGreaterThan(initialCount);
     expect(store.lastBulkImportReport?.notesProcessed).toBe(4);
   });
+
+  it('does not pollute pages with global fixed Database or Diagram blocks by default (refs #24)', () => {
+    const store = useMindStore();
+    expect(store.showEmbeddedDatabase).toBe(false);
+    expect(store.showEmbeddedDiagrams).toBe(false);
+
+    // Enable blocks only on the active page ('page-manifesto')
+    store.enableDatabaseBlockForActivePage();
+    store.enableDiagramBlockForActivePage('excalidraw');
+    expect(store.showEmbeddedDatabase).toBe(true);
+    expect(store.showEmbeddedDiagrams).toBe(true);
+    expect(store.activeDiagramKind).toBe('excalidraw');
+
+    // Switching to another note must keep the other note clean
+    store.selectPage('page-adr-stack');
+    expect(store.showEmbeddedDatabase).toBe(false);
+    expect(store.showEmbeddedDiagrams).toBe(false);
+
+    // Switching back restores the blocks bound to 'page-manifesto'
+    store.selectPage('page-manifesto');
+    expect(store.showEmbeddedDatabase).toBe(true);
+    expect(store.showEmbeddedDiagrams).toBe(true);
+    expect(store.activeDiagramKind).toBe('excalidraw');
+
+    // Removing blocks from the active page clears them cleanly
+    store.removeDatabaseBlockFromActivePage();
+    store.removeDiagramBlockFromActivePage();
+    expect(store.showEmbeddedDatabase).toBe(false);
+    expect(store.showEmbeddedDiagrams).toBe(false);
+  });
 });

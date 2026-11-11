@@ -471,22 +471,18 @@
 
           <!-- Notion/Docmost Block Editor with Left Gutter (+ / ⠿), Slash (/) & Mention (@) -->
           <TiptapBlockEditor
+            :key="store.activePage.id"
             :model-value="store.activePage.contentJson"
             :markdown-value="store.activePage.contentMarkdown"
             :read-only-mode="store.editorReadMode"
             :mention-pages="store.activePages"
             @update:model-value="store.updateActivePageContent"
             @update:markdown-value="store.updateActivePageMarkdown"
-            @insert-database-block="store.showEmbeddedDatabase = true"
-            @insert-diagram-block="
-              (kind) => {
-                store.activeDiagramKind = kind;
-                store.showEmbeddedDiagrams = true;
-              }
-            "
+            @insert-database-block="store.enableDatabaseBlockForActivePage()"
+            @insert-diagram-block="(kind) => store.enableDiagramBlockForActivePage(kind)"
           />
 
-          <!-- Embedded Database Block: Table & Kanban Board (01 & 02) -->
+          <!-- Embedded Database Block: Table & Kanban Board (only when inserted on this page) -->
           <DatabaseViewBlock
             v-if="store.showEmbeddedDatabase"
             :rows="store.databaseRows"
@@ -494,7 +490,7 @@
             @add-row="store.addDatabaseTaskRow"
           />
 
-          <!-- Embedded Open-Source Diagrams: Mermaid, Excalidraw & Draw.io (04, 05, 06) -->
+          <!-- Embedded Open-Source Diagrams: Mermaid, Excalidraw & Draw.io (only when inserted on this page) -->
           <DiagramEmbedsBlock
             v-if="store.showEmbeddedDiagrams"
             :initial-kind="store.activeDiagramKind"

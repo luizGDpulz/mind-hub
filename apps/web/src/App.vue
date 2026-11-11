@@ -1,527 +1,640 @@
 <template>
-  <q-layout view="lHh Lpr lFf" :class="store.darkMode ? 'mind-dark-theme' : 'mind-light-theme'">
-    <!-- Top Header -->
-    <q-header bordered class="mind-header">
-      <q-toolbar class="q-px-md">
-        <q-btn
-          flat
-          dense
-          round
-          icon="menu"
-          aria-label="Alternar barra lateral"
+  <q-layout view="lHh Lpr lFf" class="mind-light-style mind-light-theme">
+    <!-- Top Header Bar (03-app-shell-editor-comments.jpg) -->
+    <q-header class="mind-header">
+      <q-toolbar>
+        <button
+          type="button"
+          class="topbar-icon-btn"
+          aria-label="Toggle sidebar"
           @click="leftDrawerOpen = !leftDrawerOpen"
-        />
+        >
+          ◧
+        </button>
 
-        <div class="row items-center q-ml-sm no-wrap">
-          <span class="text-subtitle1 text-weight-bold tracking-tight">Mind Hub</span>
-          <q-badge color="indigo-7" text-color="white" class="q-ml-sm">
-            ⚡ {{ store.lastLatencyMs }} ms
-          </q-badge>
-          <q-badge
-            outline
-            color="teal-4"
-            class="q-ml-xs gt-xs cursor-pointer"
-            @click="store.isMcpModalOpen = true"
+        <div class="topbar-brand-group">
+          <span class="topbar-brand-name">Mind Hub</span>
+          <button
+            type="button"
+            class="topbar-text-btn"
+            @click="store.activeSurface = 'editor'"
           >
-            MCP /mcp Ready
-          </q-badge>
+            Home
+          </button>
         </div>
 
-        <!-- Breadcrumbs -->
-        <div class="row items-center q-ml-lg gt-sm text-caption text-grey-5">
+        <!-- Center Page Breadcrumb -->
+        <div v-if="store.activePage" class="topbar-breadcrumb gt-xs">
           <template v-for="(crumb, idx) in store.breadcrumbs" :key="crumb.id">
-            <span v-if="idx > 0" class="q-mx-xs">/</span>
-            <span
-              class="cursor-pointer hover-underline"
-              @click="store.selectPage(crumb.id)"
+            <span v-if="idx > 0" class="crumb-sep">/</span>
+            <button
+              type="button"
+              class="crumb-btn"
+              @click="
+                store.activeSurface = 'editor';
+                store.selectPage(crumb.id);
+              "
             >
-              {{ crumb.icon }} {{ crumb.title }}
-            </span>
+              <span>{{ crumb.icon }}</span>
+              <span>{{ crumb.title }}</span>
+            </button>
           </template>
         </div>
 
         <q-space />
 
-        <!-- Search Trigger -->
-        <q-btn
-          unelevated
-          dense
-          no-caps
-          icon="search"
-          label="Buscar (Textual + pgvector)"
-          class="search-pill q-px-md q-mr-sm"
-          data-testid="open-search-btn"
-          @click="openSearchModal"
-        />
+        <!-- Right Page Controls: Edit | Read, Share, Comments, AI, Overflow (...) & Workspace -->
+        <div class="topbar-actions-right">
+          <div class="mode-segmented" role="group" aria-label="Document mode">
+            <button
+              type="button"
+              class="mode-segmented-btn"
+              :class="{ 'is-active': !store.editorReadMode && store.activeSurface === 'editor' }"
+              data-testid="mode-edit-btn"
+              @click="
+                store.activeSurface = 'editor';
+                store.editorReadMode = false;
+              "
+            >
+              Edit
+            </button>
+            <button
+              type="button"
+              class="mode-segmented-btn"
+              :class="{ 'is-active': store.editorReadMode && store.activeSurface === 'editor' }"
+              data-testid="mode-read-btn"
+              @click="
+                store.activeSurface = 'editor';
+                store.editorReadMode = true;
+              "
+            >
+              Read
+            </button>
+          </div>
 
-        <!-- Git Sovereignty Export Trigger -->
-        <q-btn
-          flat
-          dense
-          no-caps
-          icon="cloud_download"
-          label="Sync Git (.md)"
-          color="indigo-3"
-          class="q-mr-xs gt-xs"
-          data-testid="export-git-btn"
-          @click="triggerGitExport"
-        />
+          <button
+            type="button"
+            class="topbar-text-btn gt-xs"
+            @click="triggerGitExport"
+          >
+            🌐 Share
+          </button>
 
-        <!-- AI Copilot Drawer Toggle -->
-        <q-btn
-          unelevated
-          dense
-          no-caps
-          icon="auto_awesome"
-          label="Copiloto IA"
-          color="indigo-6"
-          class="q-px-sm q-mr-xs"
-          data-testid="toggle-ai-btn"
-          @click="store.isAiDrawerOpen = !store.isAiDrawerOpen"
-        />
+          <button
+            type="button"
+            class="topbar-icon-btn"
+            title="Comments"
+            aria-label="Toggle comments drawer"
+            data-testid="toggle-comments-btn"
+            @click="toggleRightPanel('comments')"
+          >
+            💬
+          </button>
 
-        <!-- Dark Mode Toggle -->
-        <q-btn
-          flat
-          dense
-          round
-          :icon="store.darkMode ? 'light_mode' : 'dark_mode'"
-          @click="toggleTheme"
-        />
+          <button
+            type="button"
+            class="topbar-icon-btn"
+            title="Copiloto IA"
+            aria-label="Toggle AI assistant"
+            data-testid="toggle-ai-btn"
+            @click="toggleRightPanel('ai')"
+          >
+            ✦
+          </button>
+
+          <button
+            type="button"
+            class="topbar-icon-btn"
+            title="More page actions"
+            aria-label="More page actions"
+            data-testid="page-overflow-trigger"
+            @click="showOverflowMenu = !showOverflowMenu"
+          >
+            ⋯
+          </button>
+
+          <div class="workspace-switcher gt-xs">
+            <span class="workspace-avatar">AI</span>
+            <span class="workspace-name">ACME INC</span>
+            <span class="workspace-caret">⌄</span>
+          </div>
+        </div>
       </q-toolbar>
+
+      <!-- Secondary Actions Popover Menu (content-first-noise-reduction) -->
+      <div
+        v-if="showOverflowMenu"
+        class="mind-floating-popover overflow-dropdown"
+        data-testid="page-overflow-popover"
+      >
+        <div
+          class="mind-popover-row"
+          data-testid="quick-insight-fab"
+          @click="
+            showOverflowMenu = false;
+            store.isQuickInsightOpen = true;
+          "
+        >
+          <span class="mind-icon-box-28">📥</span>
+          <span class="popover-row-label">Quick capture to Inbox</span>
+        </div>
+        <div
+          class="mind-popover-row"
+          data-testid="export-git-btn"
+          @click="
+            showOverflowMenu = false;
+            triggerGitExport();
+          "
+        >
+          <span class="mind-icon-box-28">⬇</span>
+          <span class="popover-row-label">Export Markdown / Git (.md)</span>
+        </div>
+        <div
+          class="mind-popover-row"
+          data-testid="open-login-screen-btn"
+          @click="
+            showOverflowMenu = false;
+            store.activeSurface = store.activeSurface === 'login' ? 'editor' : 'login';
+          "
+        >
+          <span class="mind-icon-box-28">🔒</span>
+          <span class="popover-row-label">
+            {{ store.activeSurface === 'login' ? 'Back to Document' : 'Preview Login Screen' }}
+          </span>
+        </div>
+        <div
+          v-if="store.activePage && !store.activePage.isInbox"
+          class="mind-popover-row"
+          data-testid="soft-delete-btn"
+          @click="
+            showOverflowMenu = false;
+            store.softDeletePage(store.activePage.id);
+          "
+        >
+          <span class="mind-icon-box-28">🗑</span>
+          <span class="popover-row-label">Move page to Trash</span>
+        </div>
+      </div>
     </q-header>
 
-    <!-- Left Page Tree Sidebar -->
+    <!-- Left Sidebar (03-app-shell-editor-comments.jpg: 250px, #f8f9fa) -->
     <q-drawer
       v-model="leftDrawerOpen"
       show-if-above
       bordered
-      :width="285"
+      :width="250"
       class="mind-sidebar q-pa-sm column no-wrap"
     >
-      <div class="row items-center justify-between q-px-sm q-py-xs">
-        <span class="text-caption text-weight-bold text-grey-5">SECOND BRAIN</span>
-        <q-btn
-          flat
-          dense
-          size="sm"
-          icon="add_circle"
-          label="Nova Nota"
-          color="indigo-4"
-          no-caps
-          data-testid="new-page-btn"
-          @click="handleCreateRootPage"
-        />
+      <!-- Space Switcher Header -->
+      <div class="space-switcher-row">
+        <span class="space-avatar">PM</span>
+        <span class="space-title">Product Management</span>
+        <span class="space-caret">⌄</span>
       </div>
 
-      <!-- Quick Access: Favorites -->
-      <div v-if="store.favoritePages.length > 0" class="q-mt-xs q-mb-sm">
-        <div class="text-caption text-grey-6 q-px-sm q-mb-xs">⭐ FAVORITOS</div>
+      <!-- 4 Clean Utility Nav Items -->
+      <nav class="sidebar-utility-nav" aria-label="Space navigation">
         <div
-          v-for="fav in store.favoritePages"
-          :key="`fav-${fav.id}`"
-          class="tree-node-row row items-center no-wrap q-px-sm q-py-xs rounded-borders cursor-pointer"
-          :class="{ 'tree-node-active': store.activePageId === fav.id }"
-          @click="store.selectPage(fav.id)"
+          class="sidebar-nav-item"
+          :class="{ 'is-active': store.activeSurface === 'editor' }"
+          @click="store.activeSurface = 'editor'"
         >
-          <span class="q-mr-sm">{{ fav.icon }}</span>
-          <span class="ellipsis col text-body2">{{ fav.title }}</span>
+          <span class="nav-item-icon">⌂</span>
+          <span>Overview</span>
+        </div>
+        <div
+          class="sidebar-nav-item"
+          data-testid="open-search-btn"
+          @click="openSearchModal"
+        >
+          <span class="nav-item-icon">🔍</span>
+          <span>Search</span>
+        </div>
+        <div
+          class="sidebar-nav-item"
+          @click="store.isMcpModalOpen = true"
+        >
+          <span class="nav-item-icon">⚙</span>
+          <span>Space settings</span>
+        </div>
+        <div
+          class="sidebar-nav-item"
+          data-testid="new-page-btn"
+          @click="handleCreateRootPage"
+        >
+          <span class="nav-item-icon">+</span>
+          <span>New page</span>
+        </div>
+      </nav>
+
+      <!-- Pages Section Header -->
+      <div class="pages-section-header">
+        <span class="sidebar-section-label">Pages</span>
+        <div class="pages-section-actions">
+          <button
+            type="button"
+            class="sidebar-mini-btn"
+            title="New page"
+            aria-label="Create page"
+            @click="handleCreateRootPage"
+          >
+            +
+          </button>
         </div>
       </div>
 
-      <q-separator class="q-my-xs" />
-
       <!-- Hierarchical Page Tree -->
-      <div class="col scroll q-mt-xs">
-        <div class="text-caption text-grey-6 q-px-sm q-mb-xs">🗂️ PÁGINAS & ADRs</div>
+      <div class="col scroll">
         <PageTreeItem
           v-for="node in store.pageTree"
           :key="node.id"
           :node="node"
           :active-page-id="store.activePageId"
           :depth="0"
-          @select="store.selectPage"
+          @select="
+            (id) => {
+              store.activeSurface = 'editor';
+              store.selectPage(id);
+            }
+          "
           @create-child="handleCreateChildPage"
         />
 
-        <!-- Soft-Deleted Trash Section -->
-        <div v-if="store.deletedPages.length > 0" class="q-mt-lg">
-          <div class="text-caption text-amber-5 q-px-sm q-mb-xs">
-            🗑️ LIXEIRA (Soft Delete: {{ store.deletedPages.length }})
-          </div>
+        <!-- Collapsible Secondary Trash Section (modern-web-guidance: details) -->
+        <details v-if="store.deletedPages.length > 0" class="trash-details q-mt-md">
+          <summary class="sidebar-section-label cursor-pointer">
+            Trash ({{ store.deletedPages.length }})
+          </summary>
           <div
             v-for="del in store.deletedPages"
             :key="`del-${del.id}`"
-            class="row items-center justify-between q-px-sm q-py-xs text-caption text-grey-5"
+            class="trash-row"
           >
-            <span class="ellipsis col">{{ del.icon }} {{ del.title }}</span>
-            <q-btn
-              flat
-              dense
-              size="xs"
-              icon="restore"
-              color="teal-4"
-              title="Restaurar página"
+            <span class="ellipsis">{{ del.icon }} {{ del.title }}</span>
+            <button
+              type="button"
+              class="sidebar-mini-btn"
+              title="Restore page"
               :data-testid="`restore-${del.id}`"
               @click="store.restorePage(del.id)"
-            />
+            >
+              ↩
+            </button>
           </div>
+        </details>
+      </div>
+    </q-drawer>
+
+    <!-- Right Comments & AI Drawer (03-app-shell-editor-comments.jpg: 300px, #ffffff) -->
+    <q-drawer
+      v-model="store.isCommentsDrawerOpen"
+      side="right"
+      bordered
+      :width="300"
+      class="mind-comments-drawer q-pa-md column no-wrap"
+    >
+      <div class="drawer-header-row">
+        <div class="drawer-tabs">
+          <button
+            type="button"
+            class="drawer-tab-title"
+            :class="{ 'is-active': store.rightDrawerMode === 'comments' }"
+            @click="store.rightDrawerMode = 'comments'"
+          >
+            Comments
+          </button>
+          <button
+            type="button"
+            class="drawer-tab-title"
+            :class="{ 'is-active': store.rightDrawerMode === 'ai' }"
+            @click="store.rightDrawerMode = 'ai'"
+          >
+            AI Assistant
+          </button>
+        </div>
+        <button
+          type="button"
+          class="sidebar-mini-btn"
+          aria-label="Close right drawer"
+          @click="store.isCommentsDrawerOpen = false"
+        >
+          ✕
+        </button>
+      </div>
+
+      <!-- COMMENTS MODE (03-app-shell-editor-comments.jpg) -->
+      <div v-if="store.rightDrawerMode === 'comments'" class="col scroll" data-testid="comments-drawer-list">
+        <div
+          v-for="thread in store.pageComments"
+          :key="thread.id"
+          class="comment-thread-card"
+        >
+          <div class="comment-author-row">
+            <span class="comment-avatar">{{ thread.authorInitials }}</span>
+            <div class="comment-meta">
+              <div class="comment-author-name">{{ thread.authorName }}</div>
+              <div class="comment-time">{{ thread.createdAtLabel }}</div>
+            </div>
+          </div>
+
+          <div class="comment-quote-bar">
+            {{ thread.quotedText }}
+          </div>
+
+          <div class="comment-body-text">
+            {{ thread.body }}
+          </div>
+
+          <!-- Thread Replies -->
+          <div
+            v-for="reply in thread.replies"
+            :key="reply.id"
+            class="comment-reply-item"
+          >
+            <div class="comment-author-row">
+              <span class="comment-avatar">{{ reply.authorInitials }}</span>
+              <div class="comment-meta">
+                <div class="comment-author-name">{{ reply.authorName }}</div>
+                <div class="comment-time">{{ reply.createdAtLabel }}</div>
+              </div>
+            </div>
+            <div class="comment-body-text">{{ reply.body }}</div>
+          </div>
+
+          <input
+            v-model="replyBuffers[thread.id]"
+            type="text"
+            placeholder="Reply..."
+            class="comment-reply-input"
+            :data-testid="`reply-input-${thread.id}`"
+            @keyup.enter="submitThreadReply(thread.id)"
+          />
         </div>
       </div>
 
-      <!-- Footer Telemetry -->
-      <q-separator class="q-my-sm" />
-      <div class="q-px-sm q-py-xs text-caption text-grey-5 row items-center justify-between">
-        <span>Licença AGPLv3</span>
-        <span>{{ store.activePages.length }} notas ativas</span>
+      <!-- AI ASSISTANT MODE -->
+      <div v-else class="col column no-wrap" data-testid="ai-drawer-panel">
+        <input
+          v-model="store.geminiApiKey"
+          type="password"
+          placeholder="Google Gemini API Key (BYOK optional)"
+          class="ai-key-input q-mb-sm"
+        />
+
+        <div class="col scroll">
+          <div
+            v-for="msg in store.aiChatHistory"
+            :key="msg.id"
+            class="comment-thread-card"
+          >
+            <div class="comment-author-name q-mb-xs">
+              {{ msg.role === 'user' ? 'You' : 'Mind Hub AI' }}
+            </div>
+            <div class="comment-body-text" style="white-space: pre-line">{{ msg.text }}</div>
+          </div>
+        </div>
+
+        <div class="ai-input-row">
+          <input
+            v-model="aiPromptInput"
+            type="text"
+            placeholder="Ask about pages or architecture..."
+            class="comment-reply-input col"
+            data-testid="ai-prompt-input"
+            @keyup.enter="sendAiQuestion"
+          />
+          <button
+            type="button"
+            class="ai-send-button"
+            data-testid="ai-send-btn"
+            @click="sendAiQuestion"
+          >
+            Send
+          </button>
+        </div>
       </div>
     </q-drawer>
 
-    <!-- Right AI Copilot & BYOK Drawer -->
-    <q-drawer
-      v-model="store.isAiDrawerOpen"
-      side="right"
-      bordered
-      :width="350"
-      class="mind-sidebar q-pa-md column no-wrap"
-    >
-      <div class="row items-center justify-between q-mb-sm">
-        <div class="text-subtitle2 text-weight-bold">🤖 Copiloto IA & RAG Vetorial</div>
-        <q-btn
-          flat
-          dense
-          round
-          size="sm"
-          icon="close"
-          @click="store.isAiDrawerOpen = false"
-        />
-      </div>
-
-      <q-input
-        v-model="store.geminiApiKey"
-        dense
-        outlined
-        type="password"
-        label="Chave Google Gemini (BYOK Opcional)"
-        placeholder="AIzaSy..."
-        class="q-mb-md"
-      >
-        <template #prepend>
-          <q-icon name="vpn_key" size="xs" />
-        </template>
-      </q-input>
-
-      <div class="col scroll q-gutter-y-sm q-pr-xs">
-        <q-card
-          v-for="msg in store.aiChatHistory"
-          :key="msg.id"
-          flat
-          bordered
-          class="q-pa-sm"
-          :class="msg.role === 'user' ? 'bg-indigo-10 text-white' : 'ai-msg-card'"
-        >
-          <div class="row items-center justify-between text-caption text-grey-4 q-mb-xs">
-            <span>{{ msg.role === 'user' ? 'Você' : 'Mind Hub IA' }}</span>
-            <q-badge v-if="msg.provider" color="teal-8" text-color="white">
-              {{ msg.provider }}
-            </q-badge>
-          </div>
-          <div class="text-body2" style="white-space: pre-line">{{ msg.text }}</div>
-          <div v-if="msg.referencedPages && msg.referencedPages.length > 0" class="q-mt-xs">
-            <q-chip
-              v-for="refPage in msg.referencedPages"
-              :key="refPage.id"
-              dense
-              clickable
-              size="sm"
-              color="indigo-9"
-              text-color="indigo-2"
-              @click="store.selectPage(refPage.id)"
-            >
-              {{ refPage.title }}
-            </q-chip>
-          </div>
-        </q-card>
-      </div>
-
-      <div class="row items-center no-wrap q-mt-sm">
-        <q-input
-          v-model="aiPromptInput"
-          dense
-          outlined
-          placeholder="Pergunte sobre a arquitetura ou notas..."
-          class="col q-mr-xs"
-          data-testid="ai-prompt-input"
-          @keyup.enter="sendAiQuestion"
-        />
-        <q-btn
-          unelevated
-          color="indigo-6"
-          icon="send"
-          data-testid="ai-send-btn"
-          @click="sendAiQuestion"
-        />
-      </div>
-    </q-drawer>
-
-    <!-- Main Document Workspace -->
+    <!-- Main Center Workspace -->
     <q-page-container>
-      <q-page class="q-pa-lg">
-        <div v-if="store.activePage" class="editor-container q-mx-auto">
-          <!-- Page Meta & Actions Header -->
-          <div class="row items-center justify-between q-mb-sm">
-            <div class="row items-center q-gutter-xs">
-              <q-btn
-                flat
-                dense
-                size="sm"
-                :icon="store.activePage.isFavorite ? 'star' : 'star_border'"
-                :color="store.activePage.isFavorite ? 'amber-4' : 'grey-5'"
-                label="Favoritar"
-                no-caps
-                @click="
-                  store.updatePageMeta(store.activePage.id, {
-                    isFavorite: !store.activePage.isFavorite,
-                  })
-                "
-              />
-              <q-chip
-                v-for="tag in store.activePage.tags"
-                :key="tag"
-                dense
-                size="sm"
-                color="indigo-9"
-                text-color="indigo-2"
-              >
-                #{{ tag }}
-              </q-chip>
-            </div>
+      <q-page>
+        <!-- Clean Login Surface (10-auth-login-clean.png) -->
+        <CleanLoginView
+          v-if="store.activeSurface === 'login'"
+          @authenticated="store.activeSurface = 'editor'"
+          @forgot-password="store.activeSurface = 'editor'"
+        />
 
-            <div class="row items-center q-gutter-xs">
-              <span class="text-caption text-grey-5">
-                Slug: <code>/{{ store.activePage.slug }}</code>
-              </span>
-              <q-btn
-                v-if="!store.activePage.isInbox"
-                flat
-                dense
-                size="sm"
-                icon="delete_outline"
-                color="negative"
-                label="Mover p/ Lixeira"
-                no-caps
-                data-testid="soft-delete-btn"
-                @click="store.softDeletePage(store.activePage.id)"
-              />
-            </div>
-          </div>
+        <!-- Main Document + Embedded Database + Open-Source Diagrams -->
+        <div v-else-if="store.activePage" class="editor-container">
+          <!-- Clean H1 Title -->
+          <input
+            :value="store.activePage.title"
+            type="text"
+            class="page-title-h1"
+            data-testid="page-title-input"
+            aria-label="Page title"
+            @input="
+              (e) =>
+                store.activePage &&
+                store.updatePageMeta(store.activePage.id, {
+                  title: (e.target as HTMLInputElement).value,
+                })
+            "
+          />
 
-          <!-- Editable Icon & Title -->
-          <div class="row items-center no-wrap q-mb-md">
-            <span class="text-h3 q-mr-md">{{ store.activePage.icon }}</span>
-            <q-input
-              :model-value="store.activePage.title"
-              borderless
-              class="col page-title-input"
-              input-class="text-h4 text-weight-bold"
-              data-testid="page-title-input"
-              @update:model-value="
-                (val) =>
-                  store.activePage &&
-                  store.updatePageMeta(store.activePage.id, { title: String(val ?? '') })
-              "
-            />
-          </div>
-
-          <!-- Tiptap v2 Block Editor -->
+          <!-- Notion/Docmost Block Editor with Left Gutter (+ / ⠿), Slash (/) & Mention (@) -->
           <TiptapBlockEditor
             :model-value="store.activePage.contentJson"
             :markdown-value="store.activePage.contentMarkdown"
+            :read-only-mode="store.editorReadMode"
+            :mention-pages="store.activePages"
             @update:model-value="store.updateActivePageContent"
             @update:markdown-value="store.updateActivePageMarkdown"
+            @insert-database-block="store.showEmbeddedDatabase = true"
+            @insert-diagram-block="
+              (kind) => {
+                store.activeDiagramKind = kind;
+                store.showEmbeddedDiagrams = true;
+              }
+            "
+          />
+
+          <!-- Embedded Database Block: Table & Kanban Board (01 & 02) -->
+          <DatabaseViewBlock
+            v-if="store.showEmbeddedDatabase"
+            :rows="store.databaseRows"
+            @cycle-status="store.cycleDatabaseRowStatus"
+            @add-row="store.addDatabaseTaskRow"
+          />
+
+          <!-- Embedded Open-Source Diagrams: Mermaid, Excalidraw & Draw.io (04, 05, 06) -->
+          <DiagramEmbedsBlock
+            v-if="store.showEmbeddedDiagrams"
+            :initial-kind="store.activeDiagramKind"
           />
         </div>
       </q-page>
     </q-page-container>
 
-    <!-- Permanent Floating Action Button: 💡 Insight Rápido -->
-    <q-page-sticky position="bottom-right" :offset="[24, 24]">
-      <q-btn
-        fab
-        color="indigo-6"
-        icon="lightbulb"
-        label="💡 Insight Rápido"
-        class="shadow-8 text-weight-bold q-px-md"
-        data-testid="quick-insight-fab"
-        @click="store.isQuickInsightOpen = true"
-      />
-    </q-page-sticky>
-
-    <!-- Quick Insight 2-Second Capture Modal -->
+    <!-- Quick Insight Modal -->
     <q-dialog v-model="store.isQuickInsightOpen">
-      <q-card style="min-width: 420px; max-width: 92vw" class="mind-dialog-card q-pa-md">
-        <div class="row items-center justify-between q-mb-sm">
-          <div class="text-subtitle1 text-weight-bold">💡 Captura de Insight Rápido (Inbox)</div>
-          <q-badge color="teal-7">Salva em &lt; 2ms</q-badge>
-        </div>
-        <div class="text-caption text-grey-4 q-mb-md">
-          Descarregue pensamentos, tarefas ou ideias sem burocracia direto na página
-          <strong>📥 Inbox &amp; Insights Rápidos</strong>.
-        </div>
-        <q-input
+      <div class="mind-search-modal" style="width: 460px; max-width: 92vw; padding: 20px">
+        <div class="modal-clean-title">Quick capture to Inbox</div>
+        <input
           v-model="quickInsightText"
-          outlined
-          autofocus
-          placeholder="Ex: Testar índice HNSW no pgvector amanhã..."
+          type="text"
+          placeholder="Write a quick note or task..."
+          class="clean-modal-input q-my-md"
           data-testid="quick-insight-input"
           @keyup.enter="handleSaveQuickInsight"
         />
-        <q-card-actions align="right" class="q-mt-md q-pb-none">
-          <q-btn flat label="Cancelar" v-close-popup />
-          <q-btn
-            unelevated
-            color="indigo-6"
-            label="Salvar na Inbox"
+        <div class="modal-actions-end">
+          <button
+            type="button"
+            class="topbar-text-btn"
+            @click="store.isQuickInsightOpen = false"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            class="primary-blue-btn"
             data-testid="quick-insight-submit"
             @click="handleSaveQuickInsight"
-          />
-        </q-card-actions>
-      </q-card>
+          >
+            Save to Inbox
+          </button>
+        </div>
+      </div>
     </q-dialog>
 
-    <!-- Hybrid Search Modal (Textual + pgvector Semantic) -->
+    <!-- Clean Search Modal (07-search-modal-results.jpg) -->
     <q-dialog v-model="store.isSearchDialogOpen">
-      <q-card style="min-width: 560px; max-width: 94vw" class="mind-dialog-card q-pa-md">
-        <div class="row items-center justify-between q-mb-sm">
-          <div class="text-subtitle1 text-weight-bold">
-            🔍 Busca Instantânea &amp; Similaridade de Cosseno (pgvector)
-          </div>
-          <q-btn-toggle
-            v-model="store.searchMode"
-            dense
-            unelevated
-            size="sm"
-            toggle-color="indigo-6"
-            :options="[
-              { label: 'Híbrida', value: 'hybrid' },
-              { label: 'Textual', value: 'text' },
-              { label: 'Semântica (Vetorial)', value: 'semantic' },
-            ]"
-            @update:model-value="() => store.runSearch()"
+      <div
+        class="mind-search-modal"
+        style="width: 620px; max-width: 94vw"
+        data-testid="clean-search-modal"
+      >
+        <div class="search-modal-header">
+          <span class="search-lens-icon" aria-hidden="true">🔍</span>
+          <input
+            v-model="store.searchQuery"
+            type="search"
+            enterkeyhint="search"
+            placeholder="software"
+            class="search-modal-bare-input"
+            data-testid="search-modal-input"
+            @input="() => store.runSearch()"
           />
         </div>
 
-        <q-input
-          v-model="store.searchQuery"
-          outlined
-          autofocus
-          placeholder="Busque por conceito, código, tag ou título..."
-          class="q-mb-md"
-          data-testid="search-modal-input"
-          @update:model-value="() => store.runSearch()"
-        />
-
-        <q-list bordered separator class="rounded-borders" style="max-height: 320px; overflow-y: auto">
-          <q-item
-            v-for="item in store.searchResults"
+        <div class="search-results-container">
+          <div
+            v-for="(item, idx) in store.searchResults"
             :key="item.page.id"
-            clickable
+            class="search-result-row"
+            :class="{ 'is-selected': idx === selectedSearchIdx }"
+            :data-testid="`search-result-${item.page.id}`"
+            @mouseenter="selectedSearchIdx = idx"
             @click="selectSearchResult(item.page.id)"
           >
-            <q-item-section avatar>
-              <span class="text-h6">{{ item.page.icon }}</span>
-            </q-item-section>
-            <q-item-section>
-              <q-item-label class="text-weight-bold">
-                {{ item.page.title }}
-              </q-item-label>
-              <q-item-label caption class="text-grey-4">
-                {{ item.snippet }}
-              </q-item-label>
-            </q-item-section>
-            <q-item-section side>
-              <q-badge color="indigo-8">score {{ item.score.toFixed(1) }}</q-badge>
-            </q-item-section>
-          </q-item>
-        </q-list>
-      </q-card>
+            <span class="search-item-emoji">{{ item.page.icon }}</span>
+            <div class="search-item-body">
+              <div class="search-item-title">{{ item.page.title }}</div>
+              <div class="search-result-snippet">
+                <template
+                  v-for="(seg, sIdx) in splitSnippetSegments(item.snippet, store.searchQuery)"
+                  :key="sIdx"
+                >
+                  <strong v-if="seg.bold">{{ seg.text }}</strong>
+                  <span v-else>{{ seg.text }}</span>
+                </template>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
     </q-dialog>
 
-    <!-- MCP Inspector & Git Sovereignty Snapshot Modal -->
+    <!-- Space Settings & Git Markdown Export Modal -->
     <q-dialog v-model="store.isMcpModalOpen">
-      <q-card style="min-width: 580px; max-width: 95vw" class="mind-dialog-card q-pa-md">
-        <div class="text-subtitle1 text-weight-bold q-mb-xs">
-          🔌 Servidor Model Context Protocol Nativo (<code>/mcp</code>) &amp; Soberania Git
+      <div class="mind-search-modal" style="width: 560px; max-width: 95vw; padding: 20px">
+        <div class="modal-clean-title q-mb-xs">Space Settings, Native MCP &amp; Git Export</div>
+        <div class="comment-body-text q-mb-md">
+          JSON-RPC 2.0 endpoint available at <code>POST /mcp</code> (search_pages, get_page, create_page, update_page).
         </div>
-        <div class="text-caption text-grey-4 q-mb-md">
-          Endpoint 100% gratuito e aberto para Claude Desktop, Cursor e Antigravity CLI.
+        <div v-if="store.lastSyncSnapshot" class="q-mb-md">
+          <pre class="exported-md-preview">{{ store.lastSyncSnapshot.files[0]?.markdown }}</pre>
         </div>
-
-        <div class="q-pa-sm rounded-borders bg-dark text-caption font-mono q-mb-md">
-          <div>POST /mcp (JSON-RPC 2.0)</div>
-          <div>Tools: search_pages | get_page | create_page | update_page</div>
+        <div class="modal-actions-end">
+          <button
+            type="button"
+            class="topbar-text-btn"
+            @click="store.isMcpModalOpen = false"
+          >
+            Close
+          </button>
         </div>
-
-        <div v-if="store.lastSyncSnapshot" class="q-mt-sm">
-          <div class="text-caption text-teal-4 q-mb-xs">
-            ✅ Snapshot Markdown Exportado ({{ store.lastSyncSnapshot.totalFiles }} arquivos .md com Frontmatter YAML):
-          </div>
-          <q-card flat bordered class="q-pa-sm bg-dark" style="max-height: 220px; overflow: auto">
-            <pre class="q-ma-none text-caption">{{ store.lastSyncSnapshot.files[0]?.markdown }}</pre>
-          </q-card>
-        </div>
-
-        <q-card-actions align="right" class="q-mt-md">
-          <q-btn flat label="Fechar" v-close-popup />
-        </q-card-actions>
-      </q-card>
+      </div>
     </q-dialog>
   </q-layout>
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from 'vue';
-import { Dark } from 'quasar';
+import { onMounted, reactive, ref } from 'vue';
 import { useMindStore } from './stores/mind-store.js';
 import PageTreeItem from './components/PageTreeItem.vue';
 import TiptapBlockEditor from './components/TiptapBlockEditor.vue';
+import DatabaseViewBlock from './components/DatabaseViewBlock.vue';
+import DiagramEmbedsBlock from './components/DiagramEmbedsBlock.vue';
+import CleanLoginView from './components/CleanLoginView.vue';
 
 const store = useMindStore();
 const leftDrawerOpen = ref(true);
+const showOverflowMenu = ref(false);
 const quickInsightText = ref('');
 const aiPromptInput = ref('');
+const selectedSearchIdx = ref(0);
+const replyBuffers = reactive<Record<string, string>>({});
 
 onMounted(() => {
-  Dark.set(store.darkMode);
   void store.initializeStore();
 });
 
-function toggleTheme(): void {
-  store.darkMode = !store.darkMode;
-  Dark.set(store.darkMode);
+function toggleRightPanel(mode: 'comments' | 'ai'): void {
+  if (store.isCommentsDrawerOpen && store.rightDrawerMode === mode) {
+    store.isCommentsDrawerOpen = false;
+  } else {
+    store.rightDrawerMode = mode;
+    store.isCommentsDrawerOpen = true;
+    store.isAiDrawerOpen = mode === 'ai';
+  }
 }
 
 function handleCreateRootPage(): void {
+  store.activeSurface = 'editor';
   void store.createPage({
-    title: `Nota Técnica ${store.activePages.length + 1}`,
-    icon: '📝',
-    tags: ['arquitetura'],
+    title: `Walkthrough ${store.activePages.length + 1}`,
+    icon: '📄',
+    tags: ['product'],
   });
 }
 
 function handleCreateChildPage(parentId: string): void {
+  store.activeSurface = 'editor';
   void store.createPage({
-    title: 'Subpágina & Especificação',
+    title: 'Subpage Specification',
     icon: '📑',
     parentId,
-    tags: ['subpagina'],
+    tags: ['subpage'],
   });
 }
 
 function handleSaveQuickInsight(): void {
   const text = quickInsightText.value.trim();
   if (!text) return;
-  void store.submitQuickInsight(text, ['insight-rapido']).then((inbox) => {
+  void store.submitQuickInsight(text, ['quick-note']).then((inbox) => {
     quickInsightText.value = '';
     store.isQuickInsightOpen = false;
     store.selectPage(inbox.id);
@@ -529,13 +642,22 @@ function handleSaveQuickInsight(): void {
 }
 
 function openSearchModal(): void {
+  selectedSearchIdx.value = 0;
   store.isSearchDialogOpen = true;
   store.runSearch();
 }
 
 function selectSearchResult(pageId: string): void {
+  store.activeSurface = 'editor';
   store.selectPage(pageId);
   store.isSearchDialogOpen = false;
+}
+
+function submitThreadReply(threadId: string): void {
+  const text = (replyBuffers[threadId] ?? '').trim();
+  if (!text) return;
+  store.addCommentReply(threadId, text);
+  replyBuffers[threadId] = '';
 }
 
 function sendAiQuestion(): void {
@@ -549,4 +671,441 @@ function triggerGitExport(): void {
   store.exportMarkdownVault();
   store.isMcpModalOpen = true;
 }
+
+function splitSnippetSegments(
+  snippet: string,
+  rawQuery: string,
+): Array<{ text: string; bold: boolean }> {
+  const q = rawQuery.trim();
+  if (!q) return [{ text: snippet, bold: false }];
+  const escaped = q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const regex = new RegExp(`(${escaped})`, 'gi');
+  const parts = snippet.split(regex);
+  return parts
+    .filter((p) => p.length > 0)
+    .map((part) => ({
+      text: part,
+      bold: part.toLowerCase() === q.toLowerCase(),
+    }));
+}
 </script>
+
+<style scoped>
+/* Topbar Elements */
+.topbar-icon-btn {
+  min-inline-size: 28px;
+  min-block-size: 28px;
+  border: none;
+  background: transparent;
+  color: var(--mind-text-secondary);
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.topbar-icon-btn:hover {
+  background: var(--mind-bg-hover);
+  color: var(--mind-text-primary);
+}
+
+.topbar-brand-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: 6px;
+}
+
+.topbar-brand-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--mind-text-primary);
+}
+
+.topbar-text-btn {
+  border: none;
+  background: transparent;
+  color: var(--mind-text-secondary);
+  font-size: 13px;
+  font-weight: 500;
+  padding: 4px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.topbar-text-btn:hover {
+  background: var(--mind-bg-hover);
+  color: var(--mind-text-primary);
+}
+
+.topbar-breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: 20px;
+  font-size: 13px;
+}
+
+.crumb-sep {
+  color: var(--mind-text-muted);
+}
+
+.crumb-btn {
+  border: none;
+  background: transparent;
+  color: var(--mind-text-secondary);
+  font-size: 13px;
+  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 6px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.crumb-btn:hover {
+  background: var(--mind-bg-hover);
+}
+
+.topbar-actions-right {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.workspace-switcher {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.workspace-switcher:hover {
+  background: var(--mind-bg-hover);
+}
+
+.workspace-avatar {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #e03131;
+  color: #ffffff;
+  font-size: 10px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.workspace-name {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--mind-text-primary);
+}
+
+.workspace-caret {
+  font-size: 11px;
+  color: var(--mind-text-muted);
+}
+
+.overflow-dropdown {
+  position: absolute;
+  right: 16px;
+  top: 46px;
+  width: 240px;
+}
+
+.popover-row-label {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--mind-text-primary);
+}
+
+/* Sidebar Elements */
+.space-switcher-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  margin-bottom: 6px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.space-switcher-row:hover {
+  background: var(--mind-bg-hover);
+}
+
+.space-avatar {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #e03131;
+  color: #ffffff;
+  font-size: 10px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.space-title {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--mind-text-primary);
+  flex: 1;
+}
+
+.space-caret {
+  font-size: 11px;
+  color: var(--mind-text-muted);
+}
+
+.sidebar-utility-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: 14px;
+}
+
+.nav-item-icon {
+  width: 18px;
+  text-align: center;
+  font-size: 13px;
+  color: var(--mind-text-muted);
+}
+
+.pages-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 4px;
+}
+
+.pages-section-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.sidebar-mini-btn {
+  min-inline-size: 22px;
+  min-block-size: 22px;
+  border: none;
+  background: transparent;
+  color: var(--mind-text-muted);
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.sidebar-mini-btn:hover {
+  background: var(--mind-bg-hover);
+  color: var(--mind-text-primary);
+}
+
+.trash-details {
+  border-top: 1px solid var(--mind-border-subtle);
+  padding-top: 8px;
+}
+
+.trash-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 10px;
+  font-size: 12.5px;
+  color: var(--mind-text-muted);
+}
+
+/* Right Comments Drawer */
+.drawer-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.drawer-tabs {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.drawer-tab-title {
+  border: none;
+  background: transparent;
+  padding: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--mind-text-muted);
+  cursor: pointer;
+}
+
+.drawer-tab-title.is-active {
+  color: var(--mind-text-primary);
+}
+
+.comment-author-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.comment-avatar {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--mind-bg-surface-subtle);
+  color: var(--mind-text-primary);
+  font-size: 10.5px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.comment-author-name {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--mind-text-primary);
+  line-height: 1.2;
+}
+
+.comment-time {
+  font-size: 11px;
+  color: var(--mind-text-muted);
+}
+
+.comment-body-text {
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--mind-text-primary);
+  margin: 6px 0;
+}
+
+.comment-reply-item {
+  border-top: 1px solid var(--mind-border-subtle);
+  padding-top: 8px;
+  margin-top: 8px;
+}
+
+.comment-reply-input,
+.ai-key-input {
+  width: 100%;
+  height: 32px;
+  border: 1px solid var(--mind-border-subtle);
+  border-radius: 6px;
+  padding: 0 10px;
+  font-size: 12.5px;
+  background: var(--mind-bg-canvas);
+  color: var(--mind-text-primary);
+  outline: none;
+  margin-top: 6px;
+}
+
+.ai-input-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.ai-send-button,
+.primary-blue-btn {
+  height: 32px;
+  padding: 0 12px;
+  background: var(--mind-accent-solid);
+  color: #ffffff;
+  border: none;
+  border-radius: 6px;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+/* Search Modal (07-search-modal-results.jpg) */
+.search-modal-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--mind-border-subtle);
+}
+
+.search-lens-icon {
+  font-size: 18px;
+  color: var(--mind-text-muted);
+}
+
+.search-modal-bare-input {
+  width: 100%;
+  border: none;
+  outline: none;
+  background: transparent;
+  font-size: 18px;
+  color: var(--mind-text-primary);
+}
+
+.search-results-container {
+  padding: 10px;
+  max-height: 380px;
+  overflow-y: auto;
+}
+
+.search-item-emoji {
+  font-size: 20px;
+  margin-top: 2px;
+}
+
+.search-item-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.search-item-title {
+  font-size: 15.5px;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.modal-clean-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--mind-text-primary);
+}
+
+.clean-modal-input {
+  width: 100%;
+  height: 38px;
+  padding: 0 12px;
+  background: var(--mind-bg-surface-subtle);
+  border: 1px solid var(--mind-border-control);
+  border-radius: 6px;
+  font-size: 13.5px;
+  color: var(--mind-text-primary);
+  outline: none;
+}
+
+.modal-actions-end {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.exported-md-preview {
+  background: var(--mind-bg-sidebar);
+  border: 1px solid var(--mind-border-subtle);
+  border-radius: 6px;
+  padding: 10px;
+  font-size: 11.5px;
+  max-height: 200px;
+  overflow: auto;
+  margin: 0;
+}
+</style>

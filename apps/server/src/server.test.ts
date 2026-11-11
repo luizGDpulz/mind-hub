@@ -1,8 +1,12 @@
+import { rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { buildApp } from './app.js';
+import { DurableFilePageRepository } from './repository.js';
 
-describe('@mind-hub/server — Fastify API, Soft Delete, MCP & AI Integration', () => {
-  it('responds to /healthz and lists initial seed pages in under 10ms', async () => {
+describe('@mind-hub/server — Fastify API, Soft Delete, Durable Persistence, MCP & AI Integration', () => {
+  it('responds to /healthz and /api/workspace/bootstrap in under 50ms', async () => {
     const app = await buildApp();
     const start = performance.now();
     const healthRes = await app.inject({ method: 'GET', url: '/healthz' });
@@ -10,9 +14,29 @@ describe('@mind-hub/server — Fastify API, Soft Delete, MCP & AI Integration', 
 
     expect(healthRes.statusCode).toBe(200);
     expect(elapsed).toBeLessThan(50);
-    const body = healthRes.json<{ status: string; activePages: number }>();
+    const body = healthRes.json<{
+      status: string;
+      activePages: number;
+      activeTasks: number;
+      activeComments: number;
+    }>();
     expect(body.status).toBe('ok');
     expect(body.activePages).toBe(4);
+    expect(body.activeTasks).toBe(8);
+    expect(body.activeComments).toBe(2);
+
+    const bootstrapRes = await app.inject({ method: 'GET', url: '/api/workspace/bootstrap' });
+    expect(bootstrapRes.statusCode).toBe(200);
+    const bootstrapBody = bootstrapRes.json<{
+      pages: unknown[];
+      databaseTasks: unknown[];
+      comments: unknown[];
+      diagrams: unknown[];
+    }>();
+    expect(bootstrapBody.pages.length).toBe(4);
+    expect(bootstrapBody.databaseTasks.length).toBe(8);
+    expect(bootstrapBody.comments.length).toBe(2);
+    expect(bootstrapBody.diagrams.length).toBe(3);
 
     const treeRes = await app.inject({ method: 'GET', url: '/api/pages/tree' });
     expect(treeRes.statusCode).toBe(200);
@@ -72,6 +96,124 @@ describe('@mind-hub/server — Fastify API, Soft Delete, MCP & AI Integration', 
     expect(restoreRes.json<{ page: { deletedAt: string | null } }>().page.deletedAt).toBeNull();
 
     await app.close();
+  });
+
+  it('manages Database Tasks, Page Comments, Diagrams and Auth SSO with Soft Delete', async () => {
+    const app = await buildApp();
+
+    // 1. Database Tasks CRUD + Status Cycling + Soft Delete
+    const createTaskRes = await app.inject({
+      method: 'POST',
+      url: '/api/database/tasks',
+      payload: {
+        task: 'Deploy pgvector HNSW index',
+        status: 'Backlog',
+        priority: 'Urgent',
+        budget: 14500,
+        effort: 5,
+      },
+    });
+    expect(createTaskRes.statusCode).toBe(201);
+    const createdTask = createTaskRes.json<{ task: { id: string; status: string } }>().task;
+    expect(createdTask.status).toBe('Backlog');
+
+    const cycleRes = await app.inject({
+      method: 'POST',
+      url: `/api/database/tasks/${createdTask.id}/cycle-status`,
+    });
+    expect(cycleRes.statusCode).toBe(200);
+    expect(cycleRes.json<{ task: { status: string } }>().task.status).toBe('In Progress');
+
+    const delTaskRes = await app.inject({
+      method: 'DELETE',
+      url: `/api/database/tasks/${createdTask.id}`,
+    });
+    expect(delTaskRes.statusCode).toBe(200);
+    expect(delTaskRes.json<{ task: { deletedAt: string | null } }>().task.deletedAt).not.toBeNull();
+
+    // 2. Page Comments + Thread Replies + Soft Delete
+    const commentRes = await app.inject({
+      method: 'POST',
+      url: '/api/pages/page-manifesto/comments',
+      payload: {
+        authorName: 'Luiz Pulz',
+        quotedText: 'Fastify + Drizzle ORM',
+        body: 'Latência sub-milissegundo validada.',
+      },
+    });
+    expect(commentRes.statusCode).toBe(201);
+    const createdThread = commentRes.json<{
+      comment: { id: string; authorInitials: string; replies: unknown[] };
+    }>().comment;
+    expect(createdThread.authorInitials).toBe('LP');
+
+    const replyRes = await app.inject({
+      method: 'POST',
+      url: `/api/comments/${createdThread.id}/replies`,
+      payload: {
+        authorName: 'Antigravity',
+        body: '100% alinhado com o ADR 001.',
+      },
+    });
+    expect(replyRes.statusCode).toBe(200);
+    expect(
+      replyRes.json<{ comment: { replies: Array<{ body: string }> } }>().comment.replies.length,
+    ).toBe(1);
+
+    // 3. Diagram Upsert
+    const diagRes = await app.inject({
+      method: 'POST',
+      url: '/api/diagrams',
+      payload: {
+        pageId: 'page-manifesto',
+        kind: 'mermaid',
+        title: 'Data Pipeline',
+        mermaidCode: 'flowchart LR\n  A[Markdown] --> B[pgvector]',
+      },
+    });
+    expect(diagRes.statusCode).toBe(201);
+
+    // 4. Auth SSO Login
+    const authRes = await app.inject({
+      method: 'POST',
+      url: '/api/auth/login',
+      payload: {
+        email: 'luiz@pulz.dev.br',
+        ssoProvider: 'Okta',
+      },
+    });
+    expect(authRes.statusCode).toBe(200);
+    const session = authRes.json<{ authenticated: boolean; user: { authMethod: string } }>();
+    expect(session.authenticated).toBe(true);
+    expect(session.user.authMethod).toBe('Okta');
+
+    await app.close();
+  });
+
+  it('persists state atomically across restarts with DurableFilePageRepository', async () => {
+    const tempStorePath = join(tmpdir(), `mind-hub-test-${Date.now()}.json`);
+    try {
+      const repo1 = new DurableFilePageRepository(tempStorePath);
+      const createdPage = await repo1.createPage({
+        title: 'Nota Persistente no Disco',
+        contentMarkdown: '# Persistência Real\nSobrevive a restart do container.',
+      });
+      await repo1.createDatabaseTask({
+        task: 'Validar snapshot atômico JSON',
+        status: 'Done',
+      });
+
+      // Simulate container restart by creating a brand new repository instance from the same file
+      const repo2 = new DurableFilePageRepository(tempStorePath);
+      const loadedPage = await repo2.getPageById(createdPage.id);
+      expect(loadedPage).not.toBeNull();
+      expect(loadedPage?.title).toBe('Nota Persistente no Disco');
+
+      const tasks = await repo2.listDatabaseTasks();
+      expect(tasks.some((t) => t.task === 'Validar snapshot atômico JSON')).toBe(true);
+    } finally {
+      rmSync(tempStorePath, { force: true });
+    }
   });
 
   it('captures Quick Insight into Inbox in 1 request and exports Git sovereignty Markdown snapshot', async () => {
@@ -134,6 +276,9 @@ describe('@mind-hub/server — Fastify API, Soft Delete, MCP & AI Integration', 
       'get_page',
       'create_page',
       'update_page',
+      'list_database_tasks',
+      'create_database_task',
+      'add_page_comment',
     ]);
 
     const mcpCreate = await app.inject({
@@ -178,6 +323,25 @@ describe('@mind-hub/server — Fastify API, Soft Delete, MCP & AI Integration', 
     expect(
       mcpGet.json<{ result: { content: Array<{ text: string }> } }>().result.content[0]?.text,
     ).toContain('Criada remotamente pelo Claude/Antigravity');
+
+    const mcpCreateTask = await app.inject({
+      method: 'POST',
+      url: '/mcp',
+      payload: {
+        jsonrpc: '2.0',
+        id: 5,
+        method: 'tools/call',
+        params: {
+          name: 'create_database_task',
+          arguments: {
+            task: 'Revisar código via MCP',
+            status: 'In Progress',
+            priority: 'High',
+          },
+        },
+      },
+    });
+    expect(mcpCreateTask.statusCode).toBe(200);
 
     const aiRes = await app.inject({
       method: 'POST',

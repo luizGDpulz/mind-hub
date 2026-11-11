@@ -1,6 +1,11 @@
 import { markdownToTiptap } from './markdown-ast.js';
 import { generateDeterministicEmbedding, slugifyTitle } from './tree-and-search.js';
-import type { MindPage } from './types.js';
+import type {
+  DatabaseTaskRow,
+  DiagramBlockItem,
+  MindPage,
+  PageCommentThread,
+} from './types.js';
 
 function createSeedPage(params: {
   id: string;
@@ -142,5 +147,209 @@ export function createInitialSeedPages(): MindPage[] {
         '- [ ] Testar captura de insight rápido em 2 segundos pelo modal atalho',
       ].join('\n'),
     }),
+  ];
+}
+
+export function createInitialSeedDatabaseTasks(): DatabaseTaskRow[] {
+  return [
+    {
+      id: 'task-1',
+      rowNumber: 1,
+      task: 'Audit the expense workflow',
+      team: { label: 'Operations', tone: 'gray' },
+      tags: [
+        { label: 'Documentation', tone: 'gray' },
+        { label: 'Infra', tone: 'orange' },
+      ],
+      assignees: ['Philip Okugbe'],
+      dueDate: 'Sep 26, 2026',
+      dueDateIso: '2026-09-26',
+      budget: 5600,
+      effort: 3,
+      status: 'Backlog',
+      priority: 'High',
+      deletedAt: null,
+    },
+    {
+      id: 'task-2',
+      rowNumber: 2,
+      task: 'Wireframe the dashboard',
+      team: { label: 'Design', tone: 'pink' },
+      tags: [{ label: 'Polish', tone: 'yellow' }],
+      assignees: ['Philip', 'Barbara'],
+      dueDate: 'Jul 4, 2026',
+      dueDateIso: '2026-07-04',
+      budget: 13000,
+      effort: 1,
+      status: 'In Progress',
+      priority: 'High',
+      deletedAt: null,
+    },
+    {
+      id: 'task-3',
+      rowNumber: 3,
+      task: 'Prioritize SSO support',
+      team: { label: 'Product', tone: 'gray' },
+      tags: [{ label: 'Improvement', tone: 'green' }],
+      assignees: ['Philip'],
+      dueDate: 'Sep 28, 2026',
+      dueDateIso: '2026-09-28',
+      budget: 9100,
+      effort: 1,
+      status: 'Backlog',
+      priority: 'Medium',
+      deletedAt: null,
+    },
+    {
+      id: 'task-4',
+      rowNumber: 4,
+      task: 'Review the engineering offsite',
+      team: { label: 'People', tone: 'pink' },
+      tags: [{ label: 'Improvement', tone: 'green' }],
+      assignees: ['Barbara'],
+      dueDate: 'Jun 22, 2026',
+      dueDateIso: '2026-06-22',
+      budget: 11900,
+      effort: 5,
+      status: 'In Review',
+      priority: 'Low',
+      deletedAt: null,
+    },
+    {
+      id: 'task-5',
+      rowNumber: 5,
+      task: 'Restyle the dashboard',
+      team: { label: 'Design', tone: 'pink' },
+      tags: [{ label: 'Polish', tone: 'yellow' }],
+      assignees: ['John'],
+      dueDate: 'Jun 19, 2026',
+      dueDateIso: '2026-06-19',
+      budget: 2800,
+      effort: 5,
+      status: 'Blocked',
+      priority: 'Urgent',
+      deletedAt: null,
+    },
+    {
+      id: 'task-6',
+      rowNumber: 6,
+      task: 'Review the exit interviews',
+      team: { label: 'People', tone: 'pink' },
+      tags: [{ label: 'Documentation', tone: 'gray' }],
+      assignees: ['John'],
+      dueDate: 'Apr 16, 2026',
+      dueDateIso: '2026-04-16',
+      budget: 35700,
+      effort: 3,
+      status: 'Done',
+      priority: 'Urgent',
+      deletedAt: null,
+    },
+    {
+      id: 'task-7',
+      rowNumber: 7,
+      task: 'Plan the permissions model',
+      team: { label: 'Product', tone: 'gray' },
+      tags: [{ label: 'Feature', tone: 'blue' }],
+      assignees: ['Barbara'],
+      dueDate: 'Jun 19, 2026',
+      dueDateIso: '2026-06-19',
+      budget: 30400,
+      effort: 13,
+      status: 'In Review',
+      priority: 'Low',
+      deletedAt: null,
+    },
+    {
+      id: 'task-8',
+      rowNumber: 8,
+      task: 'Follow up with Acme Corp',
+      team: { label: 'Sales', tone: 'green' },
+      tags: [
+        { label: 'Research', tone: 'gray' },
+        { label: 'Growth', tone: 'pink' },
+      ],
+      assignees: ['John'],
+      dueDate: 'Jun 25, 2026',
+      dueDateIso: '2026-06-25',
+      budget: 10800,
+      effort: 1,
+      status: 'In Progress',
+      priority: 'Urgent',
+      deletedAt: null,
+    },
+  ];
+}
+
+export function createInitialSeedComments(): PageCommentThread[] {
+  return [
+    {
+      id: 'thread-1',
+      pageId: 'page-manifesto',
+      authorName: 'Philip',
+      authorInitials: 'PH',
+      createdAtLabel: '4 days ago',
+      quotedText: 'Company Overview page',
+      body: "We've got a lot to do. We should revisit this in the near future.",
+      deletedAt: null,
+      replies: [
+        {
+          id: 'reply-1',
+          authorName: 'Philip',
+          authorInitials: 'PH',
+          createdAtLabel: '4 days ago',
+          body: 'Got it.',
+        },
+      ],
+    },
+    {
+      id: 'thread-2',
+      pageId: 'page-manifesto',
+      authorName: 'Philip',
+      authorInitials: 'PH',
+      createdAtLabel: '4 days ago',
+      quotedText: 'Two',
+      body: 'Looks good.',
+      deletedAt: null,
+      replies: [],
+    },
+  ];
+}
+
+export function createInitialSeedDiagrams(): DiagramBlockItem[] {
+  return [
+    {
+      id: 'diag-mermaid-1',
+      pageId: 'page-manifesto',
+      kind: 'mermaid',
+      title: 'Christmas Shopping Flowchart',
+      mermaidCode: [
+        'flowchart TD',
+        '  A[Christmas] -->|Get money| B(Go shopping)',
+        '  B --> C{Let me think}',
+        '  C -->|One| D[Laptop]',
+        '  C -->|Two| E[iPhone]',
+        '  C -->|Three| F[fa:fa-car Car]',
+      ].join('\n'),
+      updatedAt: '2026-11-10T18:00:00.000Z',
+      deletedAt: null,
+    },
+    {
+      id: 'diag-excalidraw-1',
+      pageId: 'page-manifesto',
+      kind: 'excalidraw',
+      title: 'System Design Interview Whiteboard',
+      excalidrawZoom: 52,
+      updatedAt: '2026-11-10T18:00:00.000Z',
+      deletedAt: null,
+    },
+    {
+      id: 'diag-drawio-1',
+      pageId: 'page-manifesto',
+      kind: 'drawio',
+      title: 'Enterprise IoT & Cloud Architecture',
+      updatedAt: '2026-11-10T18:00:00.000Z',
+      deletedAt: null,
+    },
   ];
 }

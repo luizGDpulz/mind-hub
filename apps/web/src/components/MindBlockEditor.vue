@@ -1,34 +1,59 @@
 <template>
-  <div class="mind-editor-shell tiptap-editor-shell" data-testid="mind-block-editor">
+  <div
+    ref="shellRef"
+    class="mind-editor-shell tiptap-editor-shell"
+    data-testid="mind-block-editor"
+    @mousemove="handleShellMouseMove"
+    @mouseleave="handleShellMouseLeave"
+  >
     <!-- Block-Level Left Gutter Controls (+ and ⠿) following active line (Notion-like) -->
     <div class="block-row-shell">
       <div
         v-if="!readOnlyMode"
-        class="block-left-gutter is-visible"
+        class="block-left-gutter"
+        :class="{ 'is-visible': isGutterVisible || showBlockHandleMenu }"
         role="toolbar"
         aria-label="Block line controls"
         :style="{ top: `${gutterTop}px` }"
+        @mouseenter="isGutterHovered = true"
+        @mouseleave="isGutterHovered = false"
       >
         <button
           type="button"
-          class="gutter-icon-btn"
+          class="gutter-icon-btn gutter-add-btn"
           title="Adicionar linha abaixo (/)"
           aria-label="Add block below"
           data-testid="block-gutter-add-btn"
           @click="handleGutterAddBlock"
         >
-          <Plus :size="14" />
+          <Plus :size="15" />
         </button>
-        <button
-          type="button"
-          class="gutter-icon-btn"
-          title="Ações do bloco e transformar tipo"
-          aria-label="Open block actions and turn-into menu"
-          data-testid="block-gutter-handle-btn"
-          @click="toggleBlockHandleMenu"
+        <div
+          class="gutter-grip-wrapper"
+          @mouseenter="isGripHovered = true"
+          @mouseleave="isGripHovered = false"
         >
-          <GripVertical :size="14" />
-        </button>
+          <button
+            type="button"
+            class="gutter-icon-btn gutter-grip-btn"
+            title="Ações do bloco e transformar tipo"
+            aria-label="Open block actions and turn-into menu"
+            data-testid="block-gutter-handle-btn"
+            @click="toggleBlockHandleMenu"
+          >
+            <GripVertical :size="15" />
+          </button>
+
+          <!-- Notion-like tooltip matching reference image -->
+          <div
+            v-if="isGripHovered && !showBlockHandleMenu"
+            class="notion-gutter-tooltip"
+            data-testid="gutter-grip-tooltip"
+          >
+            <div class="tooltip-line"><strong>Arraste</strong> para mover</div>
+            <div class="tooltip-line"><strong>Clique</strong> ou <strong>ctrl/</strong> para abrir o menu</div>
+          </div>
+        </div>
       </div>
 
       <!-- Floating Left Handle Menu: Move Up/Down, Duplicate, Delete & Turn Into -->
@@ -356,6 +381,7 @@ import {
 const props = defineProps<{
   modelValue: MindDoc;
   markdownValue: string;
+  pageTitle?: string;
   readOnlyMode?: boolean;
   mentionPages?: ReadonlyArray<{ id: string; title: string; icon: string }>;
 }>();
@@ -368,10 +394,16 @@ const emit = defineEmits<{
   (e: 'create-subpage'): void;
 }>();
 
+const shellRef = ref<HTMLElement | null>(null);
 const showSlashMenu = ref(false);
 const showMentionMenu = ref(false);
 const showBlockHandleMenu = ref(false);
 const showBubbleMenu = ref(false);
+const isGutterVisible = ref(false);
+const isGutterHovered = ref(false);
+const isGripHovered = ref(false);
+const hoveredBlockElement = ref<HTMLElement | null>(null);
+const hoveredBlockPos = ref<number | null>(null);
 const bubbleMenuCoords = ref<{ top: number; left: number }>({ top: 0, left: 0 });
 const slashFilter = ref('');
 const mentionFilter = ref('');
@@ -443,15 +475,48 @@ const filteredMentionPages = computed(() => {
 const editorExtensions = createEditorExtensions();
 const editorSchema = createEditorSchema(editorExtensions);
 
-function resolveSafeDoc(doc: MindDoc, markdown: string): MindDoc {
-  const result = toSchemaSafeDoc(doc, editorSchema, markdown);
+function stripDuplicateTitleHeading(doc: MindDoc, title?: string): MindDoc {
+  if (!doc || !Array.isArray(doc.content) || doc.content.length === 0) {
+    return doc;
+  }
+  const first = doc.content[0];
+  if (first && first.type === 'heading' && first.attrs?.level === 1) {
+    const headingText = (first.content ?? [])
+      .map((c: any) => c.text ?? '')
+      .join('')
+      .trim();
+    const cleanTitle = (title ?? '').trim();
+    const normHeading = headingText.toLowerCase().replace(/^[^\w\s]+/, '').trim();
+    const normTitle = cleanTitle.toLowerCase().replace(/^[^\w\s]+/, '').trim();
+
+    if (
+      normHeading &&
+      normTitle &&
+      (normHeading === normTitle ||
+        normHeading.startsWith(normTitle) ||
+        normTitle.startsWith(normHeading))
+    ) {
+      const rest = doc.content.slice(1);
+      return {
+        ...doc,
+        content: rest.length > 0 ? rest : [{ type: 'paragraph' }],
+      };
+    }
+  }
+  return doc;
+}
+
+function resolveSafeDoc(doc: MindDoc, markdown: string, title?: string): MindDoc {
+  const currentTitle = title ?? props.pageTitle;
+  const strippedDoc = stripDuplicateTitleHeading(doc, currentTitle);
+  const result = toSchemaSafeDoc(strippedDoc, editorSchema, markdown);
   if (result.dropped.length > 0 || result.usedMarkdownFallback) {
     console.warn('[mind-hub/editor] document sanitized before render', {
       dropped: result.dropped,
       usedMarkdownFallback: result.usedMarkdownFallback,
     });
   }
-  return result.doc;
+  return stripDuplicateTitleHeading(result.doc, currentTitle);
 }
 
 const popoverCoords = ref<{ top: number; left: number }>({ top: 40, left: 24 });
@@ -498,9 +563,94 @@ function updateGutterPosition(): void {
     if (container && coords) {
       const rect = container.getBoundingClientRect();
       gutterTop.value = Math.max(4, coords.top - rect.top - 2);
+      isGutterVisible.value = true;
     }
   } catch {
     // fallback
+  }
+}
+
+function handleShellMouseMove(event: MouseEvent): void {
+  if (props.readOnlyMode) return;
+  if (showBlockHandleMenu.value) return;
+
+  const shellEl = shellRef.value;
+  if (!shellEl || !editor.value) return;
+
+  const target = event.target as HTMLElement | null;
+  if (!target) return;
+
+  // If hovering over the gutter controls, keep them visible
+  if (target.closest('.block-left-gutter')) {
+    isGutterVisible.value = true;
+    return;
+  }
+
+  const prosemirrorEl = shellEl.querySelector('.ProseMirror');
+  if (!prosemirrorEl) return;
+
+  const blockEl = target.closest('.ProseMirror > *') as HTMLElement | null;
+  if (blockEl && prosemirrorEl.contains(blockEl)) {
+    hoveredBlockElement.value = blockEl;
+    const shellRect = shellEl.getBoundingClientRect();
+    const blockRect = blockEl.getBoundingClientRect();
+
+    const blockTop = blockRect.top - shellRect.top;
+    const tag = blockEl.tagName.toLowerCase();
+    let lineOffset = 2;
+    if (tag === 'h1') lineOffset = 8;
+    else if (tag === 'h2') lineOffset = 5;
+    else if (tag === 'h3') lineOffset = 3;
+
+    gutterTop.value = Math.max(0, Math.round(blockTop + lineOffset));
+    isGutterVisible.value = true;
+
+    try {
+      hoveredBlockPos.value = editor.value.view.posAtDOM(blockEl, 0);
+    } catch {
+      hoveredBlockPos.value = null;
+    }
+  } else {
+    // Check if mouse is hovering in the left gutter area
+    const clientX = event.clientX;
+    const clientY = event.clientY;
+    const prosemirrorRect = prosemirrorEl.getBoundingClientRect();
+    if (clientX < prosemirrorRect.left && clientX > prosemirrorRect.left - 65) {
+      const elAtY = document.elementFromPoint(prosemirrorRect.left + 20, clientY);
+      const marginBlockEl = elAtY?.closest('.ProseMirror > *') as HTMLElement | null;
+      if (marginBlockEl && prosemirrorEl.contains(marginBlockEl)) {
+        hoveredBlockElement.value = marginBlockEl;
+        const shellRect = shellEl.getBoundingClientRect();
+        const blockRect = marginBlockEl.getBoundingClientRect();
+        const blockTop = blockRect.top - shellRect.top;
+        const tag = marginBlockEl.tagName.toLowerCase();
+        let lineOffset = 2;
+        if (tag === 'h1') lineOffset = 8;
+        else if (tag === 'h2') lineOffset = 5;
+        else if (tag === 'h3') lineOffset = 3;
+
+        gutterTop.value = Math.max(0, Math.round(blockTop + lineOffset));
+        isGutterVisible.value = true;
+        try {
+          hoveredBlockPos.value = editor.value.view.posAtDOM(marginBlockEl, 0);
+        } catch {
+          hoveredBlockPos.value = null;
+        }
+        return;
+      }
+    }
+
+    if (!isGutterHovered.value) {
+      isGutterVisible.value = false;
+    }
+  }
+}
+
+function handleShellMouseLeave(): void {
+  if (showBlockHandleMenu.value) return;
+  if (!isGutterHovered.value) {
+    isGutterVisible.value = false;
+    isGripHovered.value = false;
   }
 }
 
@@ -607,7 +757,26 @@ watch(
   },
 );
 
+watch(
+  () => props.pageTitle,
+  (newTitle) => {
+    if (!editor.value || isLocalInput) return;
+    const currentJson = editor.value.getJSON() as MindDoc;
+    const sanitized = stripDuplicateTitleHeading(currentJson, newTitle);
+    if (JSON.stringify(sanitized) !== JSON.stringify(currentJson)) {
+      editor.value.commands.setContent(sanitized, false);
+    }
+  },
+);
+
 function handleCanvasKeydown(event: KeyboardEvent): void {
+  // Shortcut: Ctrl+/ or Cmd+/ to toggle block actions menu (as described in Notion tooltip)
+  if ((event.ctrlKey || event.metaKey) && (event.key === '/' || event.key === ';')) {
+    event.preventDefault();
+    toggleBlockHandleMenu();
+    return;
+  }
+
   // Slash menu keyboard navigation
   if (showSlashMenu.value) {
     if (event.key === 'ArrowDown') {
@@ -710,8 +879,29 @@ function handleGutterAddBlock(): void {
   const ed = editor.value;
   if (!ed) return;
 
-  // Insert a new paragraph below current block and set focus
-  ed.chain().focus().createParagraphNear().run();
+  let insertPos: number | null = null;
+  if (hoveredBlockPos.value !== null) {
+    try {
+      const $pos = ed.state.doc.resolve(hoveredBlockPos.value);
+      insertPos = $pos.after(1);
+    } catch {
+      insertPos = null;
+    }
+  }
+  if (insertPos === null) {
+    try {
+      insertPos = ed.state.selection.$from.after(1);
+    } catch {
+      insertPos = ed.state.selection.to;
+    }
+  }
+
+  ed.chain()
+    .focus()
+    .insertContentAt(insertPos, { type: 'paragraph' })
+    .setTextSelection(insertPos + 1)
+    .run();
+
   nextTick(() => {
     updateCursorCoords();
     updateGutterPosition();
@@ -723,6 +913,15 @@ function handleGutterAddBlock(): void {
 }
 
 function toggleBlockHandleMenu(): void {
+  const ed = editor.value;
+  if (hoveredBlockPos.value !== null && ed) {
+    try {
+      const $pos = ed.state.doc.resolve(hoveredBlockPos.value);
+      ed.chain().setTextSelection($pos.start(1)).run();
+    } catch {
+      // ignore
+    }
+  }
   updateGutterPosition();
   showBlockHandleMenu.value = !showBlockHandleMenu.value;
   showSlashMenu.value = false;
@@ -913,10 +1112,16 @@ onBeforeUnmount(() => {
 
 defineExpose({
   editor,
+  isGutterVisible,
+  isGutterHovered,
+  isGripHovered,
+  gutterTop,
   showBubbleMenu,
   showSlashMenu,
   showMentionMenu,
   showBlockHandleMenu,
+  handleShellMouseMove,
+  handleShellMouseLeave,
   applySlashCommand,
   turnActiveLineInto,
   moveActiveBlock,
@@ -931,14 +1136,93 @@ defineExpose({
   position: relative;
 }
 
+/* Left Block Gutter Controls (+ and ⠿) following hover line (Notion-like) */
+.block-row-shell {
+  position: relative;
+  padding-left: 0;
+}
+
+.block-left-gutter {
+  position: absolute;
+  left: -46px;
+  top: 4px;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.12s ease;
+  z-index: 50;
+  user-select: none;
+}
+
+.block-left-gutter.is-visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.gutter-icon-btn {
+  width: 22px;
+  height: 24px;
+  border: none;
+  background: transparent;
+  color: var(--mind-text-muted);
+  border-radius: 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+  transition: background-color 0.1s ease, color 0.1s ease;
+}
+
+.gutter-icon-btn:hover {
+  background: var(--mind-bg-hover);
+  color: var(--mind-text-primary);
+}
+
+.gutter-grip-wrapper {
+  position: relative;
+  display: inline-flex;
+}
+
+/* Notion-like Tooltip on Hover matching reference image */
+.notion-gutter-tooltip {
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  margin-top: 6px;
+  background: #202124;
+  color: #ffffff;
+  padding: 6px 10px;
+  border-radius: 6px;
+  font-size: 11.5px;
+  line-height: 1.4;
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 200;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  text-align: center;
+}
+
+.notion-gutter-tooltip strong {
+  color: #ffffff;
+  font-weight: 600;
+}
+
 /* Block Handle Popover */
 .block-handle-popover {
   position: absolute;
-  left: 48px;
+  left: -46px;
   width: 270px;
   max-height: 380px;
   overflow-y: auto;
   z-index: 100;
+  margin-top: 26px;
 }
 
 /* Slash Command Popover */

@@ -19,9 +19,23 @@ function createSeedPage(params: {
   markdown: string;
 }): MindPage {
   const now = '2026-11-10T18:00:00.000Z';
-  const contentJson = markdownToTiptap(params.markdown);
+  // Strip leading H1 title if it repeats or matches title (Notion standard)
+  let cleanMarkdown = params.markdown.trim();
+  const leadingH1Regex = /^#\s+(.+)$/m;
+  const match = leadingH1Regex.exec(cleanMarkdown);
+  if (match && match[1]) {
+    const headingText = match[1].trim();
+    if (
+      headingText.toLowerCase() === params.title.toLowerCase() ||
+      headingText.toLowerCase().replace(/^[^\w\s]+/, '').trim() ===
+        params.title.toLowerCase().replace(/^[^\w\s]+/, '').trim()
+    ) {
+      cleanMarkdown = cleanMarkdown.replace(/^#\s+[^\n]+(?:\n+|$)/, '').trim();
+    }
+  }
+  const contentJson = markdownToTiptap(cleanMarkdown);
   const embedding = generateDeterministicEmbedding(
-    `${params.title} ${params.tags.join(' ')} ${params.markdown}`,
+    `${params.title} ${params.tags.join(' ')} ${cleanMarkdown}`,
   );
   return {
     id: params.id,
@@ -30,7 +44,7 @@ function createSeedPage(params: {
     icon: params.icon,
     parentId: params.parentId,
     sortOrder: params.sortOrder,
-    contentMarkdown: params.markdown,
+    contentMarkdown: cleanMarkdown,
     contentJson,
     isFavorite: params.isFavorite ?? false,
     isInbox: params.isInbox ?? false,

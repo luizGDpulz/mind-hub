@@ -283,11 +283,22 @@ export function parseMarkdownNoteFile(entry: RawMarkdownFileEntry): ParsedMarkdo
   const folderTags = folderSegments.map((seg) => slugifyTitle(seg.replace(/^_+/, ''))).filter(Boolean);
   const mergedTags = Array.from(new Set([...frontmatter.tags, ...folderTags]));
 
-  const finalMarkdown = /^#\s+/m.test(normalizedMarkdown)
-    ? normalizedMarkdown
-    : `# ${resolvedTitle}\n\n${normalizedMarkdown}`.trim();
+  // Strip leading H1 title if present in body, because page.title is the authoritative single title (Notion standard)
+  let cleanBodyMarkdown = normalizedMarkdown.trim();
+  const leadingH1Regex = /^#\s+(.+)$/m;
+  const match = leadingH1Regex.exec(cleanBodyMarkdown);
+  if (match && match[1]) {
+    const headingText = match[1].trim();
+    if (
+      headingText.toLowerCase() === resolvedTitle.toLowerCase() ||
+      headingText.toLowerCase().replace(/^[^\w\s]+/, '').trim() ===
+        resolvedTitle.toLowerCase().replace(/^[^\w\s]+/, '').trim()
+    ) {
+      cleanBodyMarkdown = cleanBodyMarkdown.replace(/^#\s+[^\n]+(?:\n+|$)/, '').trim();
+    }
+  }
 
-  const tiptapDoc = markdownToTiptap(finalMarkdown);
+  const tiptapDoc = markdownToTiptap(cleanBodyMarkdown);
   const slug = frontmatter.slug ? slugifyTitle(frontmatter.slug) : slugifyTitle(resolvedTitle);
   const icon = inferIconForPath(folderSegments, resolvedTitle, mergedTags, frontmatter.icon);
   const sourceHash = computeMarkdownHash(`${cleanRelPath}::${entry.content}`);
@@ -303,7 +314,7 @@ export function parseMarkdownNoteFile(entry: RawMarkdownFileEntry): ParsedMarkdo
       ...frontmatter,
       tags: mergedTags,
     },
-    normalizedMarkdown: finalMarkdown,
+    normalizedMarkdown: cleanBodyMarkdown,
     tiptapDoc,
     wikiLinks,
     sourceHash,

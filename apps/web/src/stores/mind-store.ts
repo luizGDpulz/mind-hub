@@ -220,7 +220,7 @@ export const useMindStore = defineStore('mindHub', () => {
     const title = input.title.trim() || 'Nova Página';
     const id = input.id ?? `page-${Math.random().toString(36).slice(2, 10)}`;
     const slug = input.slug ?? slugifyTitle(title);
-    const contentMarkdown = input.contentMarkdown ?? `# ${title}\n\nComece a digitar ou use \`/\` para comandos de bloco...`;
+    const contentMarkdown = input.contentMarkdown ?? 'Comece a digitar ou use `/` para comandos de bloco...';
     const contentJson = input.contentJson ?? markdownToTiptap(contentMarkdown);
     const tags = input.tags ? [...input.tags] : ['nota'];
 

@@ -464,6 +464,7 @@
             :key="store.activePage.id"
             :model-value="store.activePage.contentJson"
             :markdown-value="store.activePage.contentMarkdown"
+            :page-title="store.activePage.title"
             :read-only-mode="store.editorReadMode"
             :mention-pages="store.activePages"
             @update:model-value="store.updateActivePageContent"
@@ -1602,7 +1603,7 @@ function splitSnippetSegments(
   display: flex;
   align-items: center;
   gap: 12px;
-  margin-bottom: 8px;
+  margin-bottom: 16px;
 }
 
 .page-header-icon-box {

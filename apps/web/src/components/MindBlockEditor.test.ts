@@ -316,4 +316,78 @@ describe('@mind-hub/web — Notion-like MindBlockEditor (Refs #37, #43, #45)', (
     // Clean unmount cancels any pending timers cleanly
     wrapper.unmount();
   });
+
+  it('strips duplicate title H1 heading when pageTitle is provided (Notion single-title invariant)', () => {
+    const wrapper = mount(MindBlockEditor, {
+      props: {
+        modelValue: initialDoc,
+        markdownValue: sampleMarkdown,
+        pageTitle: 'Arquitetura do Homelab',
+        readOnlyMode: false,
+      },
+    });
+
+    const currentDoc = (wrapper.vm as any).editor?.getJSON();
+    expect(currentDoc).toBeDefined();
+    // First node must NOT be the duplicate H1 heading
+    const firstNode = currentDoc.content[0];
+    const firstText = firstNode.content?.[0]?.text ?? '';
+    expect(firstText).not.toBe('Arquitetura do Homelab');
+    // Content starts with the actual body paragraph
+    expect(firstText).toBe('Este documento descreve a infraestrutura.');
+    wrapper.unmount();
+  });
+
+  it('displays Notion-like tooltip when hovering over grip handle ⠿', async () => {
+    const wrapper = mount(MindBlockEditor, {
+      props: {
+        modelValue: initialDoc,
+        markdownValue: sampleMarkdown,
+        readOnlyMode: false,
+      },
+    });
+
+    expect(wrapper.find('[data-testid="gutter-grip-tooltip"]').exists()).toBe(false);
+
+    const gripWrapper = wrapper.find('.gutter-grip-wrapper');
+    expect(gripWrapper.exists()).toBe(true);
+
+    await gripWrapper.trigger('mouseenter');
+    await nextTick();
+
+    const tooltip = wrapper.find('[data-testid="gutter-grip-tooltip"]');
+    expect(tooltip.exists()).toBe(true);
+    expect(tooltip.text()).toContain('Arraste para mover');
+    expect(tooltip.text()).toContain('Clique ou ctrl/ para abrir o menu');
+
+    await gripWrapper.trigger('mouseleave');
+    await nextTick();
+    expect(wrapper.find('[data-testid="gutter-grip-tooltip"]').exists()).toBe(false);
+    wrapper.unmount();
+  });
+
+  it('toggles block actions menu with Ctrl+/ shortcut as advertised in tooltip', async () => {
+    const wrapper = mount(MindBlockEditor, {
+      props: {
+        modelValue: initialDoc,
+        markdownValue: sampleMarkdown,
+        readOnlyMode: false,
+      },
+    });
+
+    expect(wrapper.find('[data-testid="block-handle-menu"]').exists()).toBe(false);
+
+    const canvas = wrapper.find('.mind-editor-canvas');
+    await canvas.trigger('keydown', { key: '/', ctrlKey: true });
+    await nextTick();
+
+    expect(wrapper.find('[data-testid="block-handle-menu"]').exists()).toBe(true);
+
+    // Pressing again closes it
+    await canvas.trigger('keydown', { key: '/', ctrlKey: true });
+    await nextTick();
+
+    expect(wrapper.find('[data-testid="block-handle-menu"]').exists()).toBe(false);
+    wrapper.unmount();
+  });
 });

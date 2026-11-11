@@ -8,6 +8,9 @@ import MindSidebarSearch from './MindSidebarSearch.vue';
 import MindTrashModal from './MindTrashModal.vue';
 import MindSearchModal from './MindSearchModal.vue';
 import MindIconPickerModal from './MindIconPickerModal.vue';
+import MindWorkspaceMenu from './MindWorkspaceMenu.vue';
+import MindSidebarAppsMenu from './MindSidebarAppsMenu.vue';
+import MindVersionHistoryModal from './MindVersionHistoryModal.vue';
 import type { ActionMenuItem } from './types.js';
 import type { MindPage } from '@mind-hub/shared';
 
@@ -271,5 +274,141 @@ describe('@mind-hub/web — Atomic UI Components (Refs #27, #30, #31, #32, #33)'
     const removeBtn = wrapper.find('[data-testid="icon-picker-remove-btn"]');
     await removeBtn.trigger('click');
     expect(wrapper.emitted('select')?.[1]?.[0]).toBe('');
+  });
+
+  it('MindTrashModal supports permanent delete and empty trash with two-step confirmation (Issue #46)', async () => {
+    const sampleDeleted: MindPage[] = [
+      {
+        id: 'del-purge-1',
+        slug: 'nota-lixo',
+        title: 'Nota Para Apagar',
+        icon: '🗑️',
+        parentId: null,
+        sortOrder: 1,
+        contentMarkdown: 'Conteúdo para expurgar',
+        contentJson: { type: 'doc', content: [] },
+        isFavorite: false,
+        isInbox: false,
+        tags: ['teste'],
+        embedding: [],
+        createdAt: '2026-09-01T10:00:00Z',
+        updatedAt: '2026-09-02T10:00:00Z',
+        deletedAt: '2026-10-01T10:00:00Z',
+      },
+    ];
+
+    const wrapper = mount(MindTrashModal, {
+      props: {
+        modelValue: true,
+        deletedPages: sampleDeleted,
+      },
+      global: {
+        stubs: {
+          'q-dialog': {
+            template: '<div><slot /></div>',
+          },
+        },
+      },
+    });
+
+    // 1. Permanent delete: first click asks confirmation
+    const purgeBtn = wrapper.find('[data-testid="purge-btn-del-purge-1"]');
+    expect(purgeBtn.exists()).toBe(true);
+    await purgeBtn.trigger('click');
+    expect(purgeBtn.text()).toContain('Confirmar exclusão?');
+    expect(wrapper.emitted('permanent-delete')).toBeUndefined();
+
+    // Second click emits permanent-delete
+    await purgeBtn.trigger('click');
+    expect(wrapper.emitted('permanent-delete')?.[0]?.[0]).toBe('del-purge-1');
+
+    // 2. Empty all trash: first click asks confirmation
+    const emptyAllBtn = wrapper.find('[data-testid="empty-trash-btn"]');
+    expect(emptyAllBtn.exists()).toBe(true);
+    await emptyAllBtn.trigger('click');
+    expect(emptyAllBtn.text()).toContain('Confirmar esvaziar tudo?');
+    expect(wrapper.emitted('empty-trash')).toBeUndefined();
+
+    // Second click emits empty-trash
+    await emptyAllBtn.trigger('click');
+    expect(wrapper.emitted('empty-trash')).toHaveLength(1);
+  });
+
+  it('MindWorkspaceMenu renders profile, version badge and triggers actions (Issue #46)', async () => {
+    const wrapper = mount(MindWorkspaceMenu, {
+      props: {
+        modelValue: true,
+        workspaceName: 'Mind de Teste',
+        userEmail: 'user@pulz.dev.br',
+        currentVersion: '0.2.0',
+        repoUrl: 'https://github.com/luizGDpulz/mind-hub',
+      },
+    });
+
+    expect(wrapper.find('[data-testid="workspace-menu-popover"]').exists()).toBe(true);
+    expect(wrapper.text()).toContain('Mind de Teste');
+    expect(wrapper.text()).toContain('v0.2.0');
+
+    // Click settings action
+    const settingsBtn = wrapper.find('[data-testid="workspace-settings-btn"]');
+    await settingsBtn.trigger('click');
+    expect(wrapper.emitted('open-settings')).toHaveLength(1);
+
+    // Click versions action
+    const versionsBtn = wrapper.find('[data-testid="workspace-versions-btn"]');
+    await versionsBtn.trigger('click');
+    expect(wrapper.emitted('open-versions')).toHaveLength(1);
+  });
+
+  it('MindSidebarAppsMenu renders utility shortcuts and emits events (Issue #46)', async () => {
+    const wrapper = mount(MindSidebarAppsMenu, {
+      props: {
+        modelValue: true,
+        trashCount: 3,
+      },
+    });
+
+    expect(wrapper.find('[data-testid="sidebar-apps-popover"]').exists()).toBe(true);
+    expect(wrapper.text()).toContain('Lixeira');
+    expect(wrapper.text()).toContain('3');
+
+    // Click trash option
+    const trashItem = wrapper.find('[data-testid="apps-trash-btn"]');
+    await trashItem.trigger('click');
+    expect(wrapper.emitted('open-trash')).toHaveLength(1);
+  });
+
+  it('MindVersionHistoryModal renders timeline and release highlights (Issue #46)', async () => {
+    const sampleHistory = [
+      {
+        version: '0.2.0',
+        releaseDate: '2026-11-11',
+        milestoneTitle: 'M9: Notion-like UI',
+        summary: 'Resumo da release 0.2.0',
+        highlights: ['Destaque 1', 'Destaque 2'],
+      },
+    ];
+
+    const wrapper = mount(MindVersionHistoryModal, {
+      props: {
+        modelValue: true,
+        currentVersion: '0.2.0',
+        repoUrl: 'https://github.com/luizGDpulz/mind-hub',
+        versionHistory: sampleHistory,
+      },
+      global: {
+        stubs: {
+          'q-dialog': {
+            template: '<div><slot /></div>',
+          },
+        },
+      },
+    });
+
+    expect(wrapper.find('[data-testid="version-history-modal"]').exists()).toBe(true);
+    expect(wrapper.text()).toContain('v0.2.0');
+    expect(wrapper.text()).toContain('M9: Notion-like UI');
+    expect(wrapper.text()).toContain('Resumo da release 0.2.0');
+    expect(wrapper.text()).toContain('Destaque 1');
   });
 });

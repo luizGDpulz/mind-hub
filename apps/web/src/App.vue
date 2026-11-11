@@ -224,6 +224,12 @@
             }
           "
           @create-child="handleCreateChildPage"
+          @more-options="
+            (id) => {
+              store.selectPage(id);
+              showOverflowMenu = true;
+            }
+          "
         />
       </div>
 

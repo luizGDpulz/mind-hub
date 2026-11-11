@@ -1,4 +1,4 @@
-import type { SearchMode } from '@mind-hub/shared';
+import type { DatabasePriority, DatabaseStatus, SearchMode } from '@mind-hub/shared';
 import type { PageRepository } from './repository.js';
 
 export interface JsonRpcRequest {
@@ -90,6 +90,58 @@ export const MCP_TOOLS: ReadonlyArray<McpToolSchema> = [
       required: ['page_id', 'content'],
     },
   },
+  {
+    name: 'list_database_tasks',
+    description: 'Lista todas as tarefas ativas da Database (Table & Kanban Board).',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        status: {
+          type: 'string',
+          enum: ['Backlog', 'In Progress', 'In Review', 'Blocked', 'Done'],
+          description: 'Filtro opcional de status',
+        },
+      },
+      required: [],
+    },
+  },
+  {
+    name: 'create_database_task',
+    description: 'Cria uma nova linha/tarefa na Database do Mind Hub (Table & Kanban).',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        task: { type: 'string', description: 'Nome da tarefa' },
+        status: {
+          type: 'string',
+          enum: ['Backlog', 'In Progress', 'In Review', 'Blocked', 'Done'],
+          description: 'Status inicial',
+        },
+        priority: {
+          type: 'string',
+          enum: ['Low', 'Medium', 'High', 'Urgent'],
+          description: 'Prioridade',
+        },
+        budget: { type: 'number', description: 'Orçamento em USD' },
+        effort: { type: 'number', description: 'Pontos de esforço' },
+      },
+      required: ['task'],
+    },
+  },
+  {
+    name: 'add_page_comment',
+    description: 'Adiciona um comentário em linha ou revisão em uma página do Mind Hub.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        page_id: { type: 'string', description: 'ID da página comentada' },
+        quoted_text: { type: 'string', description: 'Trecho citado da página' },
+        body: { type: 'string', description: 'Conteúdo do comentário' },
+        author_name: { type: 'string', description: 'Autor do comentário' },
+      },
+      required: ['page_id', 'body'],
+    },
+  },
 ];
 
 export class McpHandler {
@@ -116,7 +168,7 @@ export class McpHandler {
               protocolVersion: '2024-11-05',
               serverInfo: {
                 name: 'mind-hub-mcp',
-                version: '0.1.0',
+                version: '0.2.0',
               },
               capabilities: {
                 tools: {},
@@ -326,6 +378,104 @@ export class McpHandler {
                   null,
                   2,
                 ),
+              },
+            ],
+          },
+        };
+      }
+
+      case 'list_database_tasks': {
+        const statusFilter = typeof args.status === 'string' ? args.status : undefined;
+        const allTasks = await this.repo.listDatabaseTasks(false);
+        const filtered = statusFilter
+          ? allTasks.filter((t) => t.status === statusFilter)
+          : allTasks;
+
+        return {
+          jsonrpc: '2.0',
+          id,
+          result: {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify(filtered, null, 2),
+              },
+            ],
+          },
+        };
+      }
+
+      case 'create_database_task': {
+        const task = typeof args.task === 'string' ? args.task : '';
+        if (!task) {
+          return {
+            jsonrpc: '2.0',
+            id,
+            error: { code: -32602, message: 'Missing required parameter: task' },
+          };
+        }
+        const status =
+          typeof args.status === 'string' ? (args.status as DatabaseStatus) : 'Backlog';
+        const priority =
+          typeof args.priority === 'string'
+            ? (args.priority as DatabasePriority)
+            : 'Medium';
+        const budget = typeof args.budget === 'number' ? args.budget : 7500;
+        const effort = typeof args.effort === 'number' ? args.effort : 2;
+
+        const created = await this.repo.createDatabaseTask({
+          task,
+          status,
+          priority,
+          budget,
+          effort,
+        });
+
+        return {
+          jsonrpc: '2.0',
+          id,
+          result: {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify(created, null, 2),
+              },
+            ],
+          },
+        };
+      }
+
+      case 'add_page_comment': {
+        const pageId = typeof args.page_id === 'string' ? args.page_id : '';
+        const body = typeof args.body === 'string' ? args.body : '';
+        if (!pageId || !body) {
+          return {
+            jsonrpc: '2.0',
+            id,
+            error: {
+              code: -32602,
+              message: 'Missing required parameters: page_id, body',
+            },
+          };
+        }
+        const quotedText = typeof args.quoted_text === 'string' ? args.quoted_text : 'General';
+        const authorName = typeof args.author_name === 'string' ? args.author_name : 'AI Agent';
+
+        const comment = await this.repo.createPageComment({
+          pageId,
+          quotedText,
+          body,
+          authorName,
+        });
+
+        return {
+          jsonrpc: '2.0',
+          id,
+          result: {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify(comment, null, 2),
               },
             ],
           },

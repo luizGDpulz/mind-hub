@@ -4,19 +4,32 @@ import Fastify, { type FastifyInstance } from 'fastify';
 import cors from '@fastify/cors';
 import fastifyStatic from '@fastify/static';
 import type {
+  AddCommentReplyInput,
   AiChatRequest,
+  AuthLoginInput,
+  AuthSessionResponse,
+  CreateDatabaseTaskInput,
+  CreatePageCommentInput,
   CreatePageInput,
   QuickInsightInput,
   SearchMode,
+  UpdateDatabaseTaskInput,
   UpdatePageInput,
+  UpsertDiagramInput,
 } from '@mind-hub/shared';
-import { InMemoryPageRepository, type PageRepository } from './repository.js';
+import {
+  DurableFilePageRepository,
+  InMemoryPageRepository,
+  type PageRepository,
+} from './repository.js';
 import { AiService } from './ai-service.js';
 import { McpHandler, type JsonRpcRequest } from './mcp-handler.js';
 
 export interface BuildAppOptions {
   repository?: PageRepository;
+  dataFilePath?: string;
   geminiApiKey?: string;
+  nvidiaApiKey?: string;
   staticDir?: string;
 }
 
@@ -30,8 +43,17 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   });
 
-  const repo = options.repository ?? new InMemoryPageRepository();
-  const aiService = new AiService(options.geminiApiKey ?? process.env.GEMINI_API_KEY);
+  const dataFilePath = options.dataFilePath ?? process.env.DATA_FILE_PATH;
+  const repo =
+    options.repository ??
+    (dataFilePath
+      ? new DurableFilePageRepository(dataFilePath)
+      : new InMemoryPageRepository());
+
+  const aiService = new AiService(
+    options.geminiApiKey ?? process.env.GEMINI_API_KEY,
+    options.nvidiaApiKey ?? process.env.NVIDIA_API_KEY,
+  );
   const mcpHandler = new McpHandler(repo);
 
   app.setErrorHandler(async (error, request, reply) => {
@@ -46,20 +68,50 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
     return reply.code(500).send({ error: message });
   });
 
-  app.addHook('onSend', async (request, reply, payload) => {
+  app.addHook('onSend', async (_request, reply, payload) => {
     reply.header('X-Engine', 'Mind-Hub-Fastify-Drizzle');
     return payload;
   });
 
   app.get('/healthz', async () => {
-    const pages = await repo.listPages(false);
+    const [pages, tasks, comments] = await Promise.all([
+      repo.listPages(false),
+      repo.listDatabaseTasks(false),
+      repo.listPageComments(undefined, false),
+    ]);
     return {
       status: 'ok',
       service: 'mind-hub-server',
+      persistence: dataFilePath ? 'durable-file' : 'in-memory',
       activePages: pages.length,
+      activeTasks: tasks.length,
+      activeComments: comments.length,
       timestamp: new Date().toISOString(),
     };
   });
+
+  // =========================================================================
+  // WORKSPACE BOOTSTRAP (Single Sub-Millisecond Hydration Payload)
+  // =========================================================================
+
+  app.get('/api/workspace/bootstrap', async () => {
+    const [pages, databaseTasks, comments, diagrams] = await Promise.all([
+      repo.listPages(true),
+      repo.listDatabaseTasks(false),
+      repo.listPageComments(undefined, false),
+      repo.listDiagrams(undefined, false),
+    ]);
+    return {
+      pages,
+      databaseTasks,
+      comments,
+      diagrams,
+    };
+  });
+
+  // =========================================================================
+  // PAGES & SEMANTIC SEARCH
+  // =========================================================================
 
   app.get<{ Querystring: { includeDeleted?: string } }>(
     '/api/pages',
@@ -162,6 +214,207 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
       return reply.code(201).send({ page: inboxPage });
     },
   );
+
+  // =========================================================================
+  // DATABASE TASKS (TABLE & KANBAN BOARD)
+  // =========================================================================
+
+  app.get<{ Querystring: { includeDeleted?: string } }>(
+    '/api/database/tasks',
+    async (request) => {
+      const includeDeleted = request.query.includeDeleted === 'true';
+      const tasks = await repo.listDatabaseTasks(includeDeleted);
+      return { tasks };
+    },
+  );
+
+  app.post<{ Body: CreateDatabaseTaskInput }>(
+    '/api/database/tasks',
+    async (request, reply) => {
+      const body = request.body ?? { task: 'New Task' };
+      const created = await repo.createDatabaseTask({
+        ...body,
+        task: body.task ?? 'New Task',
+      });
+      return reply.code(201).send({ task: created });
+    },
+  );
+
+  app.patch<{ Params: { id: string }; Body: UpdateDatabaseTaskInput }>(
+    '/api/database/tasks/:id',
+    async (request, reply) => {
+      const updated = await repo.updateDatabaseTask(
+        request.params.id,
+        request.body ?? {},
+      );
+      if (!updated) {
+        return reply.code(404).send({ error: 'Database task not found' });
+      }
+      return { task: updated };
+    },
+  );
+
+  app.post<{ Params: { id: string } }>(
+    '/api/database/tasks/:id/cycle-status',
+    async (request, reply) => {
+      const updated = await repo.cycleDatabaseTaskStatus(request.params.id);
+      if (!updated) {
+        return reply.code(404).send({ error: 'Database task not found' });
+      }
+      return { task: updated };
+    },
+  );
+
+  app.delete<{ Params: { id: string } }>(
+    '/api/database/tasks/:id',
+    async (request, reply) => {
+      const deleted = await repo.softDeleteDatabaseTask(request.params.id);
+      if (!deleted) {
+        return reply.code(404).send({ error: 'Database task not found' });
+      }
+      return { task: deleted };
+    },
+  );
+
+  // =========================================================================
+  // PAGE COMMENTS & REPLIES
+  // =========================================================================
+
+  app.get<{ Querystring: { pageId?: string; includeDeleted?: string } }>(
+    '/api/comments',
+    async (request) => {
+      const includeDeleted = request.query.includeDeleted === 'true';
+      const comments = await repo.listPageComments(request.query.pageId, includeDeleted);
+      return { comments };
+    },
+  );
+
+  app.get<{ Params: { id: string } }>(
+    '/api/pages/:id/comments',
+    async (request) => {
+      const comments = await repo.listPageComments(request.params.id, false);
+      return { comments };
+    },
+  );
+
+  app.post<{ Params: { id: string }; Body: Omit<CreatePageCommentInput, 'pageId'> }>(
+    '/api/pages/:id/comments',
+    async (request, reply) => {
+      const bodyText = request.body?.body?.trim();
+      if (!bodyText) {
+        return reply.code(400).send({ error: 'Comment body is required' });
+      }
+      const created = await repo.createPageComment({
+        pageId: request.params.id,
+        authorName: request.body.authorName,
+        authorInitials: request.body.authorInitials,
+        quotedText: request.body.quotedText ?? 'Selected text',
+        body: bodyText,
+      });
+      return reply.code(201).send({ comment: created });
+    },
+  );
+
+  app.post<{ Params: { threadId: string }; Body: AddCommentReplyInput }>(
+    '/api/comments/:threadId/replies',
+    async (request, reply) => {
+      const bodyText = request.body?.body?.trim();
+      if (!bodyText) {
+        return reply.code(400).send({ error: 'Reply body is required' });
+      }
+      const updated = await repo.addCommentReply(request.params.threadId, {
+        authorName: request.body.authorName,
+        authorInitials: request.body.authorInitials,
+        body: bodyText,
+      });
+      if (!updated) {
+        return reply.code(404).send({ error: 'Comment thread not found' });
+      }
+      return { comment: updated };
+    },
+  );
+
+  app.delete<{ Params: { threadId: string } }>(
+    '/api/comments/:threadId',
+    async (request, reply) => {
+      const deleted = await repo.softDeletePageComment(request.params.threadId);
+      if (!deleted) {
+        return reply.code(404).send({ error: 'Comment thread not found' });
+      }
+      return { comment: deleted };
+    },
+  );
+
+  // =========================================================================
+  // DIAGRAMS (MERMAID, EXCALIDRAW, DRAW.IO)
+  // =========================================================================
+
+  app.get<{ Querystring: { pageId?: string } }>('/api/diagrams', async (request) => {
+    const diagrams = await repo.listDiagrams(request.query.pageId, false);
+    return { diagrams };
+  });
+
+  app.post<{ Body: UpsertDiagramInput }>('/api/diagrams', async (request, reply) => {
+    const body = request.body;
+    if (!body || !body.pageId || !body.kind) {
+      return reply.code(400).send({ error: 'pageId and kind are required' });
+    }
+    const diagram = await repo.upsertDiagram({
+      ...body,
+      title: body.title ?? `${body.kind} Diagram`,
+    });
+    return reply.code(201).send({ diagram });
+  });
+
+  app.delete<{ Params: { id: string } }>(
+    '/api/diagrams/:id',
+    async (request, reply) => {
+      const deleted = await repo.softDeleteDiagram(request.params.id);
+      if (!deleted) {
+        return reply.code(404).send({ error: 'Diagram not found' });
+      }
+      return { diagram: deleted };
+    },
+  );
+
+  // =========================================================================
+  // AUTH / SSO SESSION
+  // =========================================================================
+
+  app.post<{ Body: AuthLoginInput }>('/api/auth/login', async (request, reply) => {
+    const body = request.body ?? {};
+    const email = body.email?.trim() || 'philip@acme.inc';
+    const authMethod = body.ssoProvider ?? 'Email & Password';
+
+    if (!body.ssoProvider && !body.email) {
+      return reply.code(400).send({ error: 'Email or SSO provider is required' });
+    }
+
+    const namePart = email.split('@')[0] ?? 'Philip';
+    const displayName =
+      namePart.charAt(0).toUpperCase() + namePart.slice(1).replace(/[._-]/g, ' ');
+    const initials = displayName.slice(0, 2).toUpperCase();
+
+    const session: AuthSessionResponse = {
+      authenticated: true,
+      user: {
+        id: 'user-philip-1',
+        name: displayName,
+        initials,
+        email,
+        workspace: 'Product Management',
+        authMethod,
+      },
+      token: `mh_sess_${Buffer.from(`${email}:${Date.now()}`).toString('base64url')}`,
+      issuedAt: new Date().toISOString(),
+    };
+
+    return reply.code(200).send(session);
+  });
+
+  // =========================================================================
+  // AI COPILOT (NVIDIA NIM / GEMINI BYOK / LOCAL RAG) & GIT EXPORT & MCP
+  // =========================================================================
 
   app.post<{ Body: AiChatRequest }>('/api/ai/chat', async (request, reply) => {
     const question = request.body?.question?.trim();

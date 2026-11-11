@@ -20,11 +20,21 @@ interface GeminiGenerateContentResponse {
   }>;
 }
 
+interface NvidiaNimChatResponse {
+  choices?: Array<{
+    message?: {
+      content?: string;
+    };
+  }>;
+}
+
 export class AiService {
   private readonly defaultApiKey: string | undefined;
+  private readonly defaultNvidiaKey: string | undefined;
 
-  constructor(defaultApiKey?: string) {
+  constructor(defaultApiKey?: string, defaultNvidiaKey?: string) {
     this.defaultApiKey = defaultApiKey;
+    this.defaultNvidiaKey = defaultNvidiaKey ?? process.env.NVIDIA_API_KEY;
   }
 
   async generateEmbedding(text: string, customApiKey?: string): Promise<number[]> {
@@ -66,8 +76,9 @@ export class AiService {
     repo: PageRepository,
     req: AiChatRequest,
   ): Promise<AiChatResponse> {
-    const apiKey = (req.apiKey ?? this.defaultApiKey)?.trim();
-    const queryEmbedding = await this.generateEmbedding(req.question, apiKey);
+    const geminiKey = (req.apiKey ?? this.defaultApiKey)?.trim();
+    const nvidiaKey = (req.nvidiaApiKey ?? this.defaultNvidiaKey)?.trim();
+    const queryEmbedding = await this.generateEmbedding(req.question, geminiKey);
 
     const searchResults = await repo.searchPages(
       {
@@ -84,9 +95,27 @@ export class AiService {
       score: r.score,
     }));
 
-    if (apiKey) {
+    // 1. Try NVIDIA NIM if preferred or provided
+    if (
+      nvidiaKey &&
+      (req.preferredProvider === 'nvidia-nim' || !geminiKey)
+    ) {
       try {
-        const answer = await this.callGeminiChat(apiKey, req.question, searchResults);
+        const answer = await this.callNvidiaNimChat(nvidiaKey, req.question, searchResults);
+        return {
+          answer,
+          referencedPages,
+          provider: 'nvidia-nim',
+        };
+      } catch {
+        // Fallback to Gemini or Local RAG
+      }
+    }
+
+    // 2. Try Google Gemini BYOK
+    if (geminiKey && req.preferredProvider !== 'local-rag') {
+      try {
+        const answer = await this.callGeminiChat(geminiKey, req.question, searchResults);
         return {
           answer,
           referencedPages,
@@ -97,11 +126,60 @@ export class AiService {
       }
     }
 
+    // 3. Deterministic Local RAG fallback
     return {
       answer: this.synthesizeLocalRagAnswer(req.question, searchResults),
       referencedPages,
       provider: 'local-rag',
     };
+  }
+
+  private async callNvidiaNimChat(
+    nvidiaApiKey: string,
+    question: string,
+    results: ReadonlyArray<SearchResultItem>,
+  ): Promise<string> {
+    const contextBlocks = results
+      .map(
+        (r, i) =>
+          `[Fonte ${i + 1}: ${r.page.title}]\n${r.page.contentMarkdown.slice(0, 1200)}`,
+      )
+      .join('\n\n---\n\n');
+
+    const response = await fetch('https://integrate.api.nvidia.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${nvidiaApiKey}`,
+      },
+      body: JSON.stringify({
+        model: 'mistralai/mistral-large-2-instruct',
+        messages: [
+          {
+            role: 'system',
+            content:
+              'Você é o arquiteto e copiloto técnico oficial do Mind Hub (Second Brain). Responda em português claro, preciso e direto.',
+          },
+          {
+            role: 'user',
+            content: `Contexto do Second Brain:\n${contextBlocks || 'Nenhuma página específica encontrada.'}\n\nPergunta: ${question}`,
+          },
+        ],
+        temperature: 0.2,
+        max_tokens: 1024,
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`NVIDIA NIM API returned ${response.status}`);
+    }
+
+    const data = (await response.json()) as NvidiaNimChatResponse;
+    const text = data.choices?.[0]?.message?.content?.trim();
+    if (!text) {
+      throw new Error('Empty NVIDIA NIM response');
+    }
+    return text;
   }
 
   private async callGeminiChat(
@@ -177,7 +255,7 @@ export class AiService {
     }
 
     lines.push(
-      '*Dica: Informe sua chave Google Gemini (BYOK) no painel de IA para habilitar geração neural completa com `gemini-2.5-flash`.*',
+      '*Dica: Informe sua chave Google Gemini ou NVIDIA NIM (BYOK) no painel de IA para habilitar geração neural completa.*',
     );
 
     return lines.join('\n');

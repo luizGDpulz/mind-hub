@@ -34,6 +34,8 @@ export interface MindPage {
   createdAt: string;
   updatedAt: string;
   deletedAt: string | null;
+  sourcePath?: string | null;
+  sourceHash?: string | null;
 }
 
 export interface PageTreeNode extends MindPage {
@@ -52,6 +54,8 @@ export interface CreatePageInput {
   isFavorite?: boolean;
   isInbox?: boolean;
   tags?: string[];
+  sourcePath?: string | null;
+  sourceHash?: string | null;
 }
 
 export interface UpdatePageInput {
@@ -64,6 +68,8 @@ export interface UpdatePageInput {
   isFavorite?: boolean;
   isInbox?: boolean;
   tags?: string[];
+  sourcePath?: string | null;
+  sourceHash?: string | null;
 }
 
 export interface QuickInsightInput {
@@ -126,6 +132,21 @@ export interface PageCommentThread {
   quotedText: string;
   body: string;
   replies: PageCommentReply[];
+  deletedAt?: string | null;
+}
+
+export interface CreatePageCommentInput {
+  pageId: string;
+  authorName?: string;
+  authorInitials?: string;
+  quotedText: string;
+  body: string;
+}
+
+export interface AddCommentReplyInput {
+  authorName?: string;
+  authorInitials?: string;
+  body: string;
 }
 
 export type DatabaseStatus = 'Backlog' | 'In Progress' | 'In Review' | 'Blocked' | 'Done';
@@ -150,6 +171,34 @@ export interface DatabaseTaskRow {
   effort: number;
   status: DatabaseStatus;
   priority: DatabasePriority;
+  deletedAt?: string | null;
+}
+
+export interface CreateDatabaseTaskInput {
+  id?: string;
+  task: string;
+  team?: DatabaseTagBadge;
+  tags?: DatabaseTagBadge[];
+  assignees?: string[];
+  dueDate?: string;
+  dueDateIso?: string;
+  budget?: number;
+  effort?: number;
+  status?: DatabaseStatus;
+  priority?: DatabasePriority;
+}
+
+export interface UpdateDatabaseTaskInput {
+  task?: string;
+  team?: DatabaseTagBadge;
+  tags?: DatabaseTagBadge[];
+  assignees?: string[];
+  dueDate?: string;
+  dueDateIso?: string;
+  budget?: number;
+  effort?: number;
+  status?: DatabaseStatus;
+  priority?: DatabasePriority;
 }
 
 export type DiagramKind = 'mermaid' | 'excalidraw' | 'drawio';
@@ -185,18 +234,56 @@ export interface DiagramBlockItem {
   excalidrawShapes?: ExcalidrawShapeItem[];
   drawioNodes?: DrawioLayerNode[];
   drawioXml?: string;
+  updatedAt?: string;
+  deletedAt?: string | null;
 }
+
+export interface UpsertDiagramInput {
+  id?: string;
+  pageId: string;
+  kind: DiagramKind;
+  title: string;
+  mermaidCode?: string;
+  excalidrawZoom?: number;
+  excalidrawShapes?: ExcalidrawShapeItem[];
+  drawioNodes?: DrawioLayerNode[];
+  drawioXml?: string;
+}
+
+export type AiProviderKind = 'gemini-byok' | 'nvidia-nim' | 'local-rag';
 
 export interface AiChatRequest {
   question: string;
   pageId?: string | null;
   apiKey?: string;
+  nvidiaApiKey?: string;
+  preferredProvider?: AiProviderKind;
 }
 
 export interface AiChatResponse {
   answer: string;
   referencedPages: Array<{ id: string; title: string; score: number }>;
-  provider: 'gemini-byok' | 'local-rag';
+  provider: AiProviderKind;
+}
+
+export interface AuthLoginInput {
+  email?: string;
+  password?: string;
+  ssoProvider?: 'Okta' | 'Azure Entra' | 'Google SSOX' | 'OneLogin';
+}
+
+export interface AuthSessionResponse {
+  authenticated: boolean;
+  user: {
+    id: string;
+    name: string;
+    initials: string;
+    email: string;
+    workspace: string;
+    authMethod: string;
+  };
+  token: string;
+  issuedAt: string;
 }
 
 export interface GitSyncSnapshot {

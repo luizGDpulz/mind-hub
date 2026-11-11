@@ -30,7 +30,7 @@ export interface AiChatEntry {
   id: string;
   role: 'user' | 'assistant';
   text: string;
-  provider?: 'gemini-byok' | 'local-rag';
+  provider?: 'gemini-byok' | 'nvidia-nim' | 'local-rag';
   referencedPages?: Array<{ id: string; title: string; score: number }>;
   createdAt: string;
 }

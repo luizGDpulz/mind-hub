@@ -22,7 +22,7 @@ import type {
 } from '@mind-hub/shared';
 
 export const pagesTable = pgTable(
-  'mind_pages',
+  'pages',
   {
     id: varchar('id', { length: 64 }).primaryKey(),
     slug: varchar('slug', { length: 255 }).notNull(),
@@ -43,20 +43,20 @@ export const pagesTable = pgTable(
     deletedAt: timestamp('deleted_at', { withTimezone: true }),
   },
   (table) => [
-    uniqueIndex('mind_pages_slug_unique').on(table.slug),
-    index('mind_pages_parent_id_idx').on(table.parentId),
-    index('mind_pages_deleted_at_idx').on(table.deletedAt),
-    index('mind_pages_is_inbox_idx').on(table.isInbox),
-    index('mind_pages_source_path_idx').on(table.sourcePath),
-    index('mind_pages_embedding_idx').using(
+    uniqueIndex('pages_slug_unique').on(table.slug),
+    index('pages_parent_id_idx').on(table.parentId),
+    index('pages_deleted_at_idx').on(table.deletedAt),
+    index('pages_is_inbox_idx').on(table.isInbox),
+    index('pages_source_path_idx').on(table.sourcePath),
+    index('pages_embedding_idx').using(
       'hnsw',
       table.embedding.op('vector_cosine_ops'),
     ),
   ],
 );
 
-export const databaseTasksTable = pgTable(
-  'mind_database_tasks',
+export const tasksTable = pgTable(
+  'tasks',
   {
     id: varchar('id', { length: 64 }).primaryKey(),
     rowNumber: integer('row_number').notNull(),
@@ -75,13 +75,13 @@ export const databaseTasksTable = pgTable(
     deletedAt: timestamp('deleted_at', { withTimezone: true }),
   },
   (table) => [
-    index('mind_db_tasks_status_idx').on(table.status),
-    index('mind_db_tasks_deleted_at_idx').on(table.deletedAt),
+    index('tasks_status_idx').on(table.status),
+    index('tasks_deleted_at_idx').on(table.deletedAt),
   ],
 );
 
 export const pageCommentsTable = pgTable(
-  'mind_page_comments',
+  'page_comments',
   {
     id: varchar('id', { length: 64 }).primaryKey(),
     pageId: varchar('page_id', { length: 64 }).notNull(),
@@ -96,13 +96,13 @@ export const pageCommentsTable = pgTable(
     deletedAt: timestamp('deleted_at', { withTimezone: true }),
   },
   (table) => [
-    index('mind_page_comments_page_id_idx').on(table.pageId),
-    index('mind_page_comments_deleted_at_idx').on(table.deletedAt),
+    index('page_comments_page_id_idx').on(table.pageId),
+    index('page_comments_deleted_at_idx').on(table.deletedAt),
   ],
 );
 
 export const diagramsTable = pgTable(
-  'mind_diagrams',
+  'diagrams',
   {
     id: varchar('id', { length: 64 }).primaryKey(),
     pageId: varchar('page_id', { length: 64 }).notNull(),
@@ -118,14 +118,14 @@ export const diagramsTable = pgTable(
     deletedAt: timestamp('deleted_at', { withTimezone: true }),
   },
   (table) => [
-    index('mind_diagrams_page_id_idx').on(table.pageId),
-    index('mind_diagrams_kind_idx').on(table.kind),
-    index('mind_diagrams_deleted_at_idx').on(table.deletedAt),
+    index('diagrams_page_id_idx').on(table.pageId),
+    index('diagrams_kind_idx').on(table.kind),
+    index('diagrams_deleted_at_idx').on(table.deletedAt),
   ],
 );
 
 export type DbPage = typeof pagesTable.$inferSelect;
 export type DbPageInsert = typeof pagesTable.$inferInsert;
-export type DbDatabaseTask = typeof databaseTasksTable.$inferSelect;
+export type DbTask = typeof tasksTable.$inferSelect;
 export type DbPageComment = typeof pageCommentsTable.$inferSelect;
 export type DbDiagram = typeof diagramsTable.$inferSelect;

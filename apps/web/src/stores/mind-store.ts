@@ -340,7 +340,7 @@ export const useMindStore = defineStore('mindHub', () => {
       ...target,
       title: updatedTitle,
       slug: input.title !== undefined ? slugifyTitle(updatedTitle) : target.slug,
-      icon: input.icon ?? target.icon,
+      icon: input.icon !== undefined ? input.icon : target.icon,
       parentId: input.parentId !== undefined ? input.parentId : target.parentId,
       isFavorite: input.isFavorite ?? target.isFavorite,
       tags: input.tags ? [...input.tags] : target.tags,

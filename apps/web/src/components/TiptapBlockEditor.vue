@@ -90,74 +90,11 @@
         </div>
       </div>
 
-      <!-- Interactive Block Outline & Line Mover Strip (for multi-block precision) -->
-      <div v-if="docBlocksCount > 1" class="block-navigator-bar">
-        <span class="block-nav-label">
-          Bloco ativo: <strong>{{ activeBlockIndex + 1 }} / {{ docBlocksCount }}</strong>
-          ({{ activeBlockTypeName }})
-        </span>
-        <div class="block-nav-controls">
-          <button
-            type="button"
-            class="block-step-btn"
-            :disabled="activeBlockIndex <= 0"
-            title="Selecionar bloco anterior"
-            @click="activeBlockIndex = Math.max(0, activeBlockIndex - 1)"
-          >
-            ‹ Anterior
-          </button>
-          <button
-            type="button"
-            class="block-step-btn"
-            :disabled="activeBlockIndex >= docBlocksCount - 1"
-            title="Selecionar próximo bloco"
-            @click="activeBlockIndex = Math.min(docBlocksCount - 1, activeBlockIndex + 1)"
-          >
-            Próximo ›
-          </button>
-          <button
-            type="button"
-            class="block-step-btn"
-            title="Subir bloco atual"
-            data-testid="quick-move-up-btn"
-            @click="moveActiveBlock(-1)"
-          >
-            ↑ Subir
-          </button>
-          <button
-            type="button"
-            class="block-step-btn"
-            title="Descer bloco atual"
-            data-testid="quick-move-down-btn"
-            @click="moveActiveBlock(1)"
-          >
-            ↓ Descer
-          </button>
-          <button
-            type="button"
-            class="block-step-btn"
-            title="Abrir menu / Slash Commands"
-            data-testid="slash-menu-trigger"
-            @click="toggleSlashPopover"
-          >
-            / Comandos
-          </button>
-          <button
-            type="button"
-            class="block-step-btn"
-            title="Abrir menu @ Mention"
-            data-testid="mention-menu-trigger"
-            @click="toggleMentionPopover"
-          >
-            @ Mencionar
-          </button>
-        </div>
-      </div>
-
       <!-- FLOATING SLASH COMMAND MENU (09-slash-command-menu.png) -->
       <div
         v-if="showSlashMenu"
         class="mind-floating-popover slash-command-popover"
+        :style="slashPopoverStyle"
         data-testid="slash-command-menu"
       >
         <div class="slash-filter-bar">
@@ -192,6 +129,7 @@
       <div
         v-if="showMentionMenu"
         class="mind-floating-popover mention-popover"
+        :style="mentionPopoverStyle"
         data-testid="mention-menu-popover"
       >
         <div class="slash-filter-bar">
@@ -245,7 +183,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref, watch } from 'vue';
+import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue';
 import { EditorContent, useEditor } from '@tiptap/vue-3';
 import {
   createEditorExtensions,
@@ -272,6 +210,7 @@ const emit = defineEmits<{
   (e: 'update:markdownValue', md: string): void;
   (e: 'insert-database-block'): void;
   (e: 'insert-diagram-block', kind: DiagramKind): void;
+  (e: 'create-subpage'): void;
 }>();
 
 const showSlashMenu = ref(false);
@@ -392,15 +331,54 @@ watch(
   },
 );
 
+const popoverCoords = ref<{ top: number; left: number }>({ top: 40, left: 24 });
+
+const slashPopoverStyle = computed(() => ({
+  position: 'absolute' as const,
+  top: `${popoverCoords.value.top}px`,
+  left: `${popoverCoords.value.left}px`,
+  zIndex: 60,
+}));
+
+const mentionPopoverStyle = computed(() => ({
+  position: 'absolute' as const,
+  top: `${popoverCoords.value.top}px`,
+  left: `${popoverCoords.value.left}px`,
+  zIndex: 60,
+}));
+
+function updateCursorCoords(): void {
+  if (!editor.value) return;
+  try {
+    const { from } = editor.value.state.selection;
+    const coords = editor.value.view.coordsAtPos(from);
+    const container = editor.value.view.dom.closest('.tiptap-editor-shell') as HTMLElement | null;
+    if (container && coords) {
+      const rect = container.getBoundingClientRect();
+      const top = Math.max(10, coords.bottom - rect.top + 6);
+      const left = Math.max(10, Math.min(coords.left - rect.left, rect.width - 340));
+      popoverCoords.value = { top, left };
+    }
+  } catch {
+    // fallback if selection is outside
+  }
+}
+
 function handleCanvasKeydown(event: KeyboardEvent): void {
   if (event.key === '/' && !event.ctrlKey && !event.metaKey) {
-    showSlashMenu.value = true;
-    showMentionMenu.value = false;
-    showBlockHandleMenu.value = false;
+    nextTick(() => {
+      updateCursorCoords();
+      showSlashMenu.value = true;
+      showMentionMenu.value = false;
+      showBlockHandleMenu.value = false;
+    });
   } else if (event.key === '@' && !event.ctrlKey && !event.metaKey) {
-    showMentionMenu.value = true;
-    showSlashMenu.value = false;
-    showBlockHandleMenu.value = false;
+    nextTick(() => {
+      updateCursorCoords();
+      showMentionMenu.value = true;
+      showSlashMenu.value = false;
+      showBlockHandleMenu.value = false;
+    });
   } else if (event.key === 'Escape') {
     showSlashMenu.value = false;
     showMentionMenu.value = false;
@@ -409,12 +387,14 @@ function handleCanvasKeydown(event: KeyboardEvent): void {
 }
 
 function toggleSlashPopover(): void {
+  updateCursorCoords();
   showSlashMenu.value = !showSlashMenu.value;
   showMentionMenu.value = false;
   showBlockHandleMenu.value = false;
 }
 
 function toggleMentionPopover(): void {
+  updateCursorCoords();
   showMentionMenu.value = !showMentionMenu.value;
   showSlashMenu.value = false;
   showBlockHandleMenu.value = false;
@@ -429,6 +409,7 @@ function handleGutterAddBlock(): void {
   });
   activeBlockIndex.value = insertAt;
   emit('update:modelValue', { type: 'doc', content: blocks });
+  popoverCoords.value = { top: (activeBlockIndex.value + 1) * 32, left: 36 };
   showSlashMenu.value = true;
   showBlockHandleMenu.value = false;
 }
@@ -565,6 +546,12 @@ function applySlashCommand(commandId: string): void {
     slashFilter.value = '';
     return;
   }
+  if (commandId === 'subpage') {
+    emit('create-subpage');
+    showSlashMenu.value = false;
+    slashFilter.value = '';
+    return;
+  }
 
   const ed = editor.value;
   if (ed) {
@@ -638,48 +625,6 @@ onBeforeUnmount(() => {
 <style scoped>
 .tiptap-editor-shell {
   position: relative;
-}
-
-.block-navigator-bar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 8px;
-  padding: 4px 8px;
-  margin-bottom: 10px;
-  background: var(--mind-bg-sidebar);
-  border: 1px solid var(--mind-border-subtle);
-  border-radius: 6px;
-  font-size: 12px;
-  color: var(--mind-text-muted);
-}
-
-.block-nav-controls {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  flex-wrap: wrap;
-}
-
-.block-step-btn {
-  border: 1px solid var(--mind-border-control);
-  background: var(--mind-bg-canvas);
-  color: var(--mind-text-secondary);
-  border-radius: 4px;
-  padding: 2px 7px;
-  font-size: 11.5px;
-  cursor: pointer;
-}
-
-.block-step-btn:hover:not(:disabled) {
-  background: var(--mind-bg-hover);
-  color: var(--mind-text-primary);
-}
-
-.block-step-btn:disabled {
-  opacity: 0.45;
-  cursor: default;
 }
 
 .block-handle-popover {

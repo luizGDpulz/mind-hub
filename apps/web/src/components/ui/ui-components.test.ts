@@ -7,6 +7,7 @@ import MindSubpageLink from './MindSubpageLink.vue';
 import MindSidebarSearch from './MindSidebarSearch.vue';
 import MindTrashModal from './MindTrashModal.vue';
 import MindSearchModal from './MindSearchModal.vue';
+import MindIconPickerModal from './MindIconPickerModal.vue';
 import type { ActionMenuItem } from './types.js';
 import type { MindPage } from '@mind-hub/shared';
 
@@ -240,5 +241,35 @@ describe('@mind-hub/web — Atomic UI Components (Refs #27, #30, #31, #32, #33)'
     const row = wrapper.find('[data-testid="recent-page-p-1"]');
     await row.trigger('click');
     expect(wrapper.emitted('select')?.[0]?.[0]).toBe('p-1');
+  });
+
+  it('MindIconPickerModal renders tabs, filters emojis, handles technical presets, image URLs and remove (Issue #26)', async () => {
+    const wrapper = mount(MindIconPickerModal, {
+      props: {
+        modelValue: true,
+      },
+    });
+
+    expect(wrapper.find('[data-testid="mind-icon-picker-modal"]').exists()).toBe(true);
+    expect(wrapper.text()).toContain('Escolher ícone');
+    expect(wrapper.text()).toContain('Emojis');
+    expect(wrapper.text()).toContain('Ícones Técnicos');
+    expect(wrapper.text()).toContain('Link de Imagem');
+
+    // Filter emojis
+    const input = wrapper.find('[data-testid="icon-picker-search"]');
+    await input.setValue('foguete');
+    expect(wrapper.find('.emoji-grid').text()).toContain('🚀');
+
+    // Click an emoji emits select and update:modelValue false
+    const emojiBtn = wrapper.find('.emoji-grid-item');
+    await emojiBtn.trigger('click');
+    expect(wrapper.emitted('select')?.[0]?.[0]).toBe('🚀');
+    expect(wrapper.emitted('update:modelValue')?.[0]?.[0]).toBe(false);
+
+    // Click remove icon emits empty string
+    const removeBtn = wrapper.find('[data-testid="icon-picker-remove-btn"]');
+    await removeBtn.trigger('click');
+    expect(wrapper.emitted('select')?.[1]?.[0]).toBe('');
   });
 });

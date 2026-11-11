@@ -32,7 +32,13 @@
                 store.selectPage(crumb.id);
               "
             >
-              <span>{{ crumb.icon || '📄' }}</span>
+              <img
+                v-if="crumb.icon && isImageUrl(crumb.icon)"
+                :src="crumb.icon"
+                class="crumb-custom-img"
+                alt=""
+              />
+              <span v-else>{{ crumb.icon || '📄' }}</span>
               <span>{{ crumb.title }}</span>
             </button>
           </template>
@@ -224,6 +230,12 @@
             }
           "
           @create-child="handleCreateChildPage"
+          @more-options="
+            (id) => {
+              store.selectPage(id);
+              showOverflowMenu = true;
+            }
+          "
         />
       </div>
 
@@ -235,7 +247,6 @@
             <span class="sidebar-user-name">Luiz Pulz</span>
             <span class="sidebar-user-role">Workspace Admin</span>
           </div>
-          <span class="sidebar-user-caret">⌄</span>
         </div>
       </div>
 
@@ -396,6 +407,42 @@
 
         <!-- Main Document + Embedded Database + Open-Source Diagrams -->
         <div v-else-if="store.activePage" class="editor-container">
+          <!-- Page Header Icon & Customization (Notion-like, Issue #26) -->
+          <div class="page-header-icon-container" data-testid="page-header-icon-container">
+            <div
+              class="page-header-icon-box"
+              data-testid="page-header-icon"
+              title="Clique para mudar o ícone"
+              @click="isIconPickerOpen = true"
+            >
+              <img
+                v-if="store.activePage.icon && isImageUrl(store.activePage.icon)"
+                :src="store.activePage.icon"
+                class="page-header-custom-img"
+                alt="Page Icon"
+              />
+              <span v-else class="page-header-emoji">{{ store.activePage.icon || '📄' }}</span>
+            </div>
+
+            <div class="page-header-icon-hover-actions">
+              <button
+                type="button"
+                class="page-icon-action-btn"
+                @click="isIconPickerOpen = true"
+              >
+                Mudar ícone
+              </button>
+              <button
+                v-if="store.activePage.icon"
+                type="button"
+                class="page-icon-action-btn"
+                @click="store.updatePageMeta(store.activePage.id, { icon: '' })"
+              >
+                Remover
+              </button>
+            </div>
+          </div>
+
           <!-- Clean H1 Title -->
           <input
             :value="store.activePage.title"
@@ -423,6 +470,7 @@
             @update:markdown-value="store.updateActivePageMarkdown"
             @insert-database-block="store.enableDatabaseBlockForActivePage()"
             @insert-diagram-block="(kind) => store.enableDiagramBlockForActivePage(kind)"
+            @create-subpage="handleAddSubpage"
           />
 
           <!-- Embedded Database Block: Table & Kanban Board (only when inserted on this page) -->
@@ -438,6 +486,33 @@
             v-if="store.showEmbeddedDiagrams"
             :initial-kind="store.activeDiagramKind"
           />
+
+          <!-- Notion-like Subpages Section (closes #23) -->
+          <div
+            v-if="activePageSubpages.length > 0"
+            class="mind-subpages-section"
+            data-testid="subpages-section"
+          >
+            <div class="subpages-section-header">
+              <span class="subpages-section-title">Subpáginas ({{ activePageSubpages.length }})</span>
+              <button
+                type="button"
+                class="subpage-add-action-btn"
+                data-testid="add-subpage-btn"
+                @click="handleAddSubpage"
+              >
+                + Adicionar subpágina
+              </button>
+            </div>
+            <div class="subpages-grid">
+              <MindSubpageLink
+                v-for="sub in activePageSubpages"
+                :key="sub.id"
+                :page="sub"
+                @navigate="store.selectPage"
+              />
+            </div>
+          </div>
         </div>
       </q-page>
     </q-page-container>
@@ -495,6 +570,12 @@
       v-model="isTrashModalOpen"
       :deleted-pages="store.deletedPages"
       @restore="store.restorePage"
+    />
+
+    <!-- Clean Icon Picker Modal (Issue #26) -->
+    <MindIconPickerModal
+      v-model="isIconPickerOpen"
+      @select="(icon) => store.activePage && store.updatePageMeta(store.activePage.id, { icon })"
     />
 
     <!-- Space Settings & Git Markdown Export Modal -->
@@ -642,11 +723,14 @@ import MindActionMenu from './components/ui/MindActionMenu.vue';
 import MindSidebarSearch from './components/ui/MindSidebarSearch.vue';
 import MindSearchModal from './components/ui/MindSearchModal.vue';
 import MindTrashModal from './components/ui/MindTrashModal.vue';
+import MindSubpageLink from './components/ui/MindSubpageLink.vue';
+import MindIconPickerModal from './components/ui/MindIconPickerModal.vue';
 import type { ActionMenuItem, ActionMenuPageMeta } from './components/ui/types.js';
 
 const store = useMindStore();
 const leftDrawerOpen = ref(true);
 const isTrashModalOpen = ref(false);
+const isIconPickerOpen = ref(false);
 const sidebarWidth = ref(Number(localStorage.getItem('mind_sidebar_width')) || 280);
 const isResizingSidebar = ref(false);
 const showOverflowMenu = ref(false);
@@ -798,6 +882,31 @@ const pageMetadata = computed<ActionMenuPageMeta>(() => {
     characterCount: chars,
   };
 });
+
+function isImageUrl(val: string): boolean {
+  return (
+    val.startsWith('http://') ||
+    val.startsWith('https://') ||
+    val.startsWith('data:image/') ||
+    val.startsWith('/')
+  );
+}
+
+const activePageSubpages = computed(() => {
+  if (!store.activePage) return [];
+  return store.activePages.filter((p) => p.parentId === store.activePage?.id);
+});
+
+async function handleAddSubpage(): Promise<void> {
+  if (!store.activePage) return;
+  const newSub = await store.createPage({
+    title: 'Sem título',
+    parentId: store.activePage.id,
+    contentMarkdown: '',
+    icon: '📄',
+  });
+  store.selectPage(newSub.id);
+}
 
 onMounted(() => {
   Dark.set(false);
@@ -1209,11 +1318,6 @@ function splitSnippetSegments(
   line-height: 1.2;
 }
 
-.sidebar-user-caret {
-  font-size: 11px;
-  color: var(--mind-text-muted);
-}
-
 .sidebar-trash-badge {
   font-size: 11px;
   font-weight: 600;
@@ -1426,5 +1530,124 @@ function splitSnippetSegments(
   max-height: 200px;
   overflow: auto;
   margin: 0;
+}
+
+.mind-subpages-section {
+  margin-top: 36px;
+  padding-top: 20px;
+  border-top: 1px solid var(--mind-border-subtle);
+}
+
+.subpages-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.subpages-section-title {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--mind-text-muted);
+}
+
+.subpage-add-action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: transparent;
+  border: none;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--mind-text-muted);
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 4px;
+  transition: all 0.15s ease;
+}
+
+.subpage-add-action-btn:hover {
+  background: var(--mind-bg-hover);
+  color: var(--mind-text-primary);
+}
+
+.subpages-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.page-header-icon-container {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.page-header-icon-box {
+  width: 52px;
+  height: 52px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background-color 0.12s ease;
+  user-select: none;
+}
+
+.page-header-icon-box:hover {
+  background: var(--mind-bg-hover);
+}
+
+.page-header-emoji {
+  font-size: 42px;
+  line-height: 1;
+}
+
+.page-header-custom-img {
+  width: 44px;
+  height: 44px;
+  object-fit: contain;
+  border-radius: 6px;
+}
+
+.page-header-icon-hover-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  opacity: 0;
+  transition: opacity 0.14s ease;
+}
+
+.page-header-icon-container:hover .page-header-icon-hover-actions {
+  opacity: 1;
+}
+
+.page-icon-action-btn {
+  border: 1px solid var(--mind-border-subtle);
+  background: var(--mind-bg-surface-subtle);
+  color: var(--mind-text-muted);
+  font-size: 11.5px;
+  font-weight: 500;
+  padding: 3px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.12s ease;
+}
+
+.page-icon-action-btn:hover {
+  background: var(--mind-bg-hover);
+  color: var(--mind-text-primary);
+  border-color: var(--mind-border-control);
+}
+
+.crumb-custom-img {
+  width: 15px;
+  height: 15px;
+  object-fit: contain;
+  border-radius: 2px;
 }
 </style>

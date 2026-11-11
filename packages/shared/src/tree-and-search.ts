@@ -315,6 +315,16 @@ export const DEFAULT_SLASH_COMMANDS: ReadonlyArray<SlashCommandDefinition> = [
     category: 'basic',
   },
   {
+    id: 'subpage',
+    command: '/page',
+    label: 'Page / Subpage',
+    description: 'Embed a sub-page inside this note.',
+    icon: 'note_add',
+    monogram: '📄',
+    shortcut: '/subpage',
+    category: 'basic',
+  },
+  {
     id: 'tarefa',
     command: '/tarefa',
     label: 'To-do list',

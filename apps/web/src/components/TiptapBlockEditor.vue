@@ -1,199 +1,253 @@
 <template>
-  <div class="tiptap-editor-shell">
-    <!-- Formatting & Block Toolbar -->
-    <div class="editor-toolbar row items-center q-gutter-xs q-pa-sm rounded-borders q-mb-md">
-      <q-btn
-        flat
-        dense
-        size="sm"
-        icon="format_bold"
-        :color="editor?.isActive('bold') ? 'indigo-4' : 'grey-5'"
-        title="Negrito (Ctrl+B)"
-        @click="editor?.chain().focus().toggleBold().run()"
-      />
-      <q-btn
-        flat
-        dense
-        size="sm"
-        icon="format_italic"
-        :color="editor?.isActive('italic') ? 'indigo-4' : 'grey-5'"
-        title="Itálico (Ctrl+I)"
-        @click="editor?.chain().focus().toggleItalic().run()"
-      />
-      <q-btn
-        flat
-        dense
-        size="sm"
-        icon="strikethrough_s"
-        :color="editor?.isActive('strike') ? 'indigo-4' : 'grey-5'"
-        title="Riscado"
-        @click="editor?.chain().focus().toggleStrike().run()"
-      />
-      <q-separator vertical inset class="q-mx-xs" />
-      <q-btn
-        flat
-        dense
-        size="sm"
-        label="H1"
-        :color="editor?.isActive('heading', { level: 1 }) ? 'indigo-4' : 'grey-5'"
-        @click="applySlashCommand('h1')"
-      />
-      <q-btn
-        flat
-        dense
-        size="sm"
-        label="H2"
-        :color="editor?.isActive('heading', { level: 2 }) ? 'indigo-4' : 'grey-5'"
-        @click="applySlashCommand('h2')"
-      />
-      <q-btn
-        flat
-        dense
-        size="sm"
-        label="H3"
-        :color="editor?.isActive('heading', { level: 3 }) ? 'indigo-4' : 'grey-5'"
-        @click="applySlashCommand('h3')"
-      />
-      <q-separator vertical inset class="q-mx-xs" />
-      <q-btn
-        flat
-        dense
-        size="sm"
-        icon="check_box"
-        :color="editor?.isActive('taskList') ? 'indigo-4' : 'grey-5'"
-        title="Checklist (/tarefa)"
-        @click="applySlashCommand('tarefa')"
-      />
-      <q-btn
-        flat
-        dense
-        size="sm"
-        icon="format_list_bulleted"
-        :color="editor?.isActive('bulletList') ? 'indigo-4' : 'grey-5'"
-        title="Lista com marcadores (/lista)"
-        @click="applySlashCommand('lista')"
-      />
-      <q-btn
-        flat
-        dense
-        size="sm"
-        icon="code"
-        :color="editor?.isActive('codeBlock') ? 'indigo-4' : 'grey-5'"
-        title="Bloco de Código (/codigo)"
-        @click="applySlashCommand('codigo')"
-      />
-      <q-btn
-        flat
-        dense
-        size="sm"
-        icon="table_chart"
-        :color="editor?.isActive('table') ? 'indigo-4' : 'grey-5'"
-        title="Inserir Tabela (/tabela)"
-        @click="applySlashCommand('tabela')"
-      />
-      <q-btn
-        flat
-        dense
-        size="sm"
-        icon="format_quote"
-        :color="editor?.isActive('blockquote') ? 'indigo-4' : 'grey-5'"
-        title="Citação (/citacao)"
-        @click="applySlashCommand('citacao')"
-      />
-
-      <q-space />
-
-      <q-btn
-        flat
-        dense
-        size="sm"
-        icon="bolt"
-        label="/ Comandos"
-        color="indigo-4"
-        data-testid="slash-menu-trigger"
-        @click="showSlashMenu = !showSlashMenu"
-      />
-      <q-btn-toggle
-        v-model="viewMode"
-        dense
-        unelevated
-        size="sm"
-        toggle-color="indigo-6"
-        :options="[
-          { label: 'Blocos', value: 'blocks' },
-          { label: 'Markdown', value: 'markdown' },
-        ]"
-      />
-    </div>
-
-    <!-- Floating Slash Commands Palette -->
-    <q-card
-      v-if="showSlashMenu"
-      bordered
-      class="slash-palette q-mb-md q-pa-sm"
-      data-testid="slash-command-menu"
-    >
-      <div class="row items-center justify-between q-px-sm q-pb-xs">
-        <span class="text-caption text-weight-bold text-indigo-3">
-          ⚡ SLASH COMMANDS (Digite ou selecione um bloco)
-        </span>
-        <q-input
-          v-model="slashFilter"
-          dense
-          borderless
-          placeholder="Filtrar comando (/h1, /tarefa, /tabela)..."
-          class="col-5"
-        />
-      </div>
-      <div class="row q-col-gutter-xs">
-        <div
-          v-for="cmd in filteredSlashCommands"
-          :key="cmd.id"
-          class="col-12 col-sm-4"
+  <div class="tiptap-editor-shell" data-testid="tiptap-block-editor">
+    <!-- Block-Level Left Gutter Controls (+ and ⠿) + Active Block Indicator -->
+    <div class="block-row-shell">
+      <div
+        class="block-left-gutter is-visible"
+        role="toolbar"
+        aria-label="Block line controls"
+      >
+        <button
+          type="button"
+          class="gutter-icon-btn"
+          title="Adicionar bloco abaixo (/)"
+          aria-label="Add block below"
+          data-testid="block-gutter-add-btn"
+          @click="handleGutterAddBlock"
         >
-          <q-item
-            clickable
-            dense
-            class="rounded-borders slash-item"
-            :data-testid="`slash-item-${cmd.id}`"
-            @click="applySlashCommand(cmd.id)"
-          >
-            <q-item-section avatar style="min-width: 32px">
-              <q-icon :name="cmd.icon" color="indigo-4" size="xs" />
-            </q-item-section>
-            <q-item-section>
-              <q-item-label class="text-weight-medium text-body2">
-                {{ cmd.label }}
-                <q-badge color="grey-8" text-color="grey-3" class="q-ml-xs">
-                  {{ cmd.command }}
-                </q-badge>
-              </q-item-label>
-              <q-item-label caption class="text-grey-5">
-                {{ cmd.description }}
-              </q-item-label>
-            </q-item-section>
-          </q-item>
+          +
+        </button>
+        <button
+          type="button"
+          class="gutter-icon-btn"
+          title="Arrastar, subir/descer ou mudar comando da linha"
+          aria-label="Open block actions and turn-into menu"
+          data-testid="block-gutter-handle-btn"
+          @click="showBlockHandleMenu = !showBlockHandleMenu"
+        >
+          ⠿
+        </button>
+      </div>
+
+      <!-- Floating Left Handle Menu: Move Up/Down & Turn Into (Mudar Comando da Linha) -->
+      <div
+        v-if="showBlockHandleMenu"
+        class="mind-floating-popover block-handle-popover"
+        data-testid="block-handle-menu"
+      >
+        <div class="mind-popover-section-title">LINE ORDER (LINHA #{{ activeBlockIndex + 1 }})</div>
+        <div
+          class="mind-popover-row"
+          data-testid="block-move-up-btn"
+          @click="moveActiveBlock(-1)"
+        >
+          <span class="mind-icon-box-28">↑</span>
+          <div>
+            <div class="popover-item-title">Move line up</div>
+            <div class="popover-item-desc">Subir o bloco atual uma posição</div>
+          </div>
+        </div>
+        <div
+          class="mind-popover-row"
+          data-testid="block-move-down-btn"
+          @click="moveActiveBlock(1)"
+        >
+          <span class="mind-icon-box-28">↓</span>
+          <div>
+            <div class="popover-item-title">Move line down</div>
+            <div class="popover-item-desc">Descer o bloco atual uma posição</div>
+          </div>
+        </div>
+
+        <div class="mind-popover-section-title">TURN INTO (MUDAR COMANDO DA LINHA)</div>
+        <div
+          v-for="cmd in basicSlashCommands"
+          :key="`turn-${cmd.id}`"
+          class="mind-popover-row"
+          :data-testid="`turn-into-${cmd.id}`"
+          @click="turnActiveLineInto(cmd.id)"
+        >
+          <span class="mind-icon-box-28">{{ cmd.monogram ?? 'A' }}</span>
+          <div class="popover-item-title">{{ cmd.label }}</div>
+        </div>
+
+        <div class="mind-popover-section-title">ACTIONS</div>
+        <div
+          class="mind-popover-row"
+          data-testid="block-duplicate-btn"
+          @click="duplicateActiveBlock"
+        >
+          <span class="mind-icon-box-28">⧉</span>
+          <div class="popover-item-title">Duplicate line</div>
+        </div>
+        <div
+          class="mind-popover-row"
+          data-testid="block-delete-btn"
+          @click="deleteActiveBlock"
+        >
+          <span class="mind-icon-box-28">🗑</span>
+          <div class="popover-item-title">Delete line</div>
         </div>
       </div>
-    </q-card>
 
-    <!-- Tiptap v2 Rich Block Surface -->
-    <div v-show="viewMode === 'blocks'" class="tiptap-canvas" @keydown="handleCanvasKeydown">
-      <editor-content :editor="editor" />
-    </div>
+      <!-- Interactive Block Outline & Line Mover Strip (for multi-block precision) -->
+      <div v-if="docBlocksCount > 1" class="block-navigator-bar">
+        <span class="block-nav-label">
+          Bloco ativo: <strong>{{ activeBlockIndex + 1 }} / {{ docBlocksCount }}</strong>
+          ({{ activeBlockTypeName }})
+        </span>
+        <div class="block-nav-controls">
+          <button
+            type="button"
+            class="block-step-btn"
+            :disabled="activeBlockIndex <= 0"
+            title="Selecionar bloco anterior"
+            @click="activeBlockIndex = Math.max(0, activeBlockIndex - 1)"
+          >
+            ‹ Anterior
+          </button>
+          <button
+            type="button"
+            class="block-step-btn"
+            :disabled="activeBlockIndex >= docBlocksCount - 1"
+            title="Selecionar próximo bloco"
+            @click="activeBlockIndex = Math.min(docBlocksCount - 1, activeBlockIndex + 1)"
+          >
+            Próximo ›
+          </button>
+          <button
+            type="button"
+            class="block-step-btn"
+            title="Subir bloco atual"
+            data-testid="quick-move-up-btn"
+            @click="moveActiveBlock(-1)"
+          >
+            ↑ Subir
+          </button>
+          <button
+            type="button"
+            class="block-step-btn"
+            title="Descer bloco atual"
+            data-testid="quick-move-down-btn"
+            @click="moveActiveBlock(1)"
+          >
+            ↓ Descer
+          </button>
+          <button
+            type="button"
+            class="block-step-btn"
+            title="Abrir menu / Slash Commands"
+            data-testid="slash-menu-trigger"
+            @click="toggleSlashPopover"
+          >
+            / Comandos
+          </button>
+          <button
+            type="button"
+            class="block-step-btn"
+            title="Abrir menu @ Mention"
+            data-testid="mention-menu-trigger"
+            @click="toggleMentionPopover"
+          >
+            @ Mencionar
+          </button>
+        </div>
+      </div>
 
-    <!-- Raw Markdown Sovereignty View -->
-    <div v-if="viewMode === 'markdown'" class="markdown-source-view">
-      <q-input
-        v-model="rawMarkdownBuffer"
-        type="textarea"
-        autogrow
-        outlined
-        dark
-        font-family="monospace"
-        label="Markdown Puro Sincronizado (Soberania de Dados)"
-        @update:model-value="handleRawMarkdownChange"
-      />
+      <!-- FLOATING SLASH COMMAND MENU (09-slash-command-menu.png) -->
+      <div
+        v-if="showSlashMenu"
+        class="mind-floating-popover slash-command-popover"
+        data-testid="slash-command-menu"
+      >
+        <div class="slash-filter-bar">
+          <span class="slash-prefix">/</span>
+          <input
+            v-model="slashFilter"
+            type="text"
+            placeholder="Filter commands (Text, Heading 1, To-do, Mermaid, Draw.io)..."
+            class="slash-filter-input"
+            data-testid="slash-filter-input"
+          />
+        </div>
+
+        <div class="mind-popover-section-title">Basic</div>
+        <div
+          v-for="(cmd, idx) in filteredSlashCommands"
+          :key="cmd.id"
+          class="mind-popover-row"
+          :class="{ 'is-selected': idx === 0 }"
+          :data-testid="`slash-item-${cmd.id}`"
+          @click="applySlashCommand(cmd.id)"
+        >
+          <span class="mind-icon-box-32">{{ cmd.monogram ?? 'A' }}</span>
+          <div class="popover-text-col">
+            <div class="popover-item-title">{{ cmd.label }}</div>
+            <div class="popover-item-desc">{{ cmd.description }}</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- FLOATING @ MENTION MENU (08-mention-menu-popover.png) -->
+      <div
+        v-if="showMentionMenu"
+        class="mind-floating-popover mention-popover"
+        data-testid="mention-menu-popover"
+      >
+        <div class="slash-filter-bar">
+          <span class="slash-prefix">@</span>
+          <input
+            v-model="mentionFilter"
+            type="text"
+            placeholder="Co..."
+            class="slash-filter-input"
+            data-testid="mention-filter-input"
+          />
+        </div>
+
+        <div class="mind-popover-section-title">USERS</div>
+        <div
+          v-for="user in filteredMentionUsers"
+          :key="user.id"
+          class="mind-popover-row"
+          :data-testid="`mention-user-${user.id}`"
+          @click="insertUserMention(user.name)"
+        >
+          <span class="mention-user-avatar">{{ user.initials }}</span>
+          <span class="popover-item-title">{{ user.name }}</span>
+        </div>
+
+        <div class="mind-popover-section-title">PAGES</div>
+        <div
+          v-for="(pageItem, idx) in filteredMentionPages"
+          :key="pageItem.id"
+          class="mind-popover-row"
+          :class="{ 'is-selected': idx === 1 }"
+          :data-testid="`mention-page-${pageItem.id}`"
+          @click="insertPageMention(pageItem.icon, pageItem.title)"
+        >
+          <span class="mind-icon-box-28">{{ pageItem.icon }}</span>
+          <span class="popover-item-title">{{ pageItem.title }}</span>
+        </div>
+      </div>
+
+      <!-- Main Tiptap v2 Rich Block Canvas -->
+      <div
+        v-show="!readOnlyMode"
+        class="tiptap-canvas"
+        @keydown="handleCanvasKeydown"
+      >
+        <editor-content :editor="editor" />
+      </div>
+
+      <!-- Read Mode View -->
+      <div
+        v-if="readOnlyMode"
+        class="tiptap-canvas read-mode-surface"
+        data-testid="editor-read-mode"
+      >
+        <editor-content :editor="editor" />
+      </div>
     </div>
   </div>
 </template>
@@ -211,24 +265,50 @@ import TableHeader from '@tiptap/extension-table-header';
 import TableCell from '@tiptap/extension-table-cell';
 import {
   DEFAULT_SLASH_COMMANDS,
+  type DiagramKind,
   type SlashCommandDefinition,
   type TiptapDoc,
+  type TiptapNode,
 } from '@mind-hub/shared';
 
 const props = defineProps<{
   modelValue: TiptapDoc;
   markdownValue: string;
+  readOnlyMode?: boolean;
+  mentionPages?: ReadonlyArray<{ id: string; title: string; icon: string }>;
 }>();
 
 const emit = defineEmits<{
   (e: 'update:modelValue', doc: TiptapDoc): void;
   (e: 'update:markdownValue', md: string): void;
+  (e: 'insert-database-block'): void;
+  (e: 'insert-diagram-block', kind: DiagramKind): void;
 }>();
 
-const viewMode = ref<'blocks' | 'markdown'>('blocks');
 const showSlashMenu = ref(false);
+const showMentionMenu = ref(false);
+const showBlockHandleMenu = ref(false);
 const slashFilter = ref('');
-const rawMarkdownBuffer = ref(props.markdownValue);
+const mentionFilter = ref('');
+const activeBlockIndex = ref(0);
+
+const docBlocksCount = computed<number>(() => props.modelValue.content.length || 1);
+
+const activeBlockTypeName = computed<string>(() => {
+  const node = props.modelValue.content[activeBlockIndex.value];
+  if (!node) return 'Text';
+  if (node.type === 'heading') return `Heading ${node.attrs?.level ?? 1}`;
+  if (node.type === 'taskList') return 'To-do list';
+  if (node.type === 'bulletList') return 'Bullet list';
+  if (node.type === 'codeBlock') return 'Code block';
+  if (node.type === 'table') return 'Table';
+  if (node.type === 'blockquote') return 'Callout';
+  return 'Text';
+});
+
+const basicSlashCommands = computed<SlashCommandDefinition[]>(() =>
+  DEFAULT_SLASH_COMMANDS.filter((c) => c.category === 'basic' || c.category === 'code' || c.category === 'rich'),
+);
 
 const filteredSlashCommands = computed<SlashCommandDefinition[]>(() => {
   const q = slashFilter.value.trim().toLowerCase();
@@ -241,14 +321,46 @@ const filteredSlashCommands = computed<SlashCommandDefinition[]>(() => {
   );
 });
 
+const defaultMentionUsers = [
+  { id: 'u-cori', name: 'Cori', initials: 'CO' },
+  { id: 'u-philip', name: 'Philip Okugbe', initials: 'PO' },
+  { id: 'u-barbara', name: 'Barbara', initials: 'BA' },
+  { id: 'u-john', name: 'John', initials: 'JO' },
+];
+
+const defaultMentionPages = [
+  { id: 'ref-comp', title: 'Competitor Analysis', icon: '🧷' },
+  { id: 'ref-val', title: 'Company Values', icon: '💡' },
+  { id: 'ref-evt', title: 'Company Events', icon: '🎉' },
+];
+
+const filteredMentionUsers = computed(() => {
+  const q = mentionFilter.value.trim().toLowerCase();
+  if (!q) return defaultMentionUsers;
+  return defaultMentionUsers.filter((u) => u.name.toLowerCase().includes(q));
+});
+
+const filteredMentionPages = computed(() => {
+  const combined = [
+    ...defaultMentionPages,
+    ...(props.mentionPages ?? []).filter(
+      (p) => !defaultMentionPages.some((d) => d.title === p.title),
+    ),
+  ];
+  const q = mentionFilter.value.trim().toLowerCase();
+  if (!q) return combined;
+  return combined.filter((p) => p.title.toLowerCase().includes(q));
+});
+
 const editor = useEditor({
   content: props.modelValue,
+  editable: !props.readOnlyMode,
   extensions: [
     StarterKit.configure({
       heading: { levels: [1, 2, 3] },
     }),
     Placeholder.configure({
-      placeholder: 'Digite "/" para abrir os Slash Commands ou escreva livremente...',
+      placeholder: "Type '/' for commands or '@' to mention users and pages...",
     }),
     TaskList,
     TaskItem.configure({
@@ -268,8 +380,18 @@ const editor = useEditor({
 });
 
 watch(
+  () => props.readOnlyMode,
+  (isRead) => {
+    editor.value?.setEditable(!isRead);
+  },
+);
+
+watch(
   () => props.modelValue,
   (newDoc) => {
+    if (activeBlockIndex.value >= newDoc.content.length) {
+      activeBlockIndex.value = Math.max(0, newDoc.content.length - 1);
+    }
     if (!editor.value) return;
     const currentJson = JSON.stringify(editor.value.getJSON());
     const incomingJson = JSON.stringify(newDoc);
@@ -279,64 +401,377 @@ watch(
   },
 );
 
-watch(
-  () => props.markdownValue,
-  (newMd) => {
-    rawMarkdownBuffer.value = newMd;
-  },
-);
-
 function handleCanvasKeydown(event: KeyboardEvent): void {
   if (event.key === '/' && !event.ctrlKey && !event.metaKey) {
     showSlashMenu.value = true;
+    showMentionMenu.value = false;
+    showBlockHandleMenu.value = false;
+  } else if (event.key === '@' && !event.ctrlKey && !event.metaKey) {
+    showMentionMenu.value = true;
+    showSlashMenu.value = false;
+    showBlockHandleMenu.value = false;
   } else if (event.key === 'Escape') {
     showSlashMenu.value = false;
+    showMentionMenu.value = false;
+    showBlockHandleMenu.value = false;
   }
 }
 
-function applySlashCommand(commandId: string): void {
-  const ed = editor.value;
-  if (!ed) return;
+function toggleSlashPopover(): void {
+  showSlashMenu.value = !showSlashMenu.value;
+  showMentionMenu.value = false;
+  showBlockHandleMenu.value = false;
+}
 
-  const chain = ed.chain().focus();
+function toggleMentionPopover(): void {
+  showMentionMenu.value = !showMentionMenu.value;
+  showSlashMenu.value = false;
+  showBlockHandleMenu.value = false;
+}
+
+function handleGutterAddBlock(): void {
+  const blocks = [...props.modelValue.content];
+  const insertAt = Math.min(blocks.length, activeBlockIndex.value + 1);
+  blocks.splice(insertAt, 0, {
+    type: 'paragraph',
+    content: [{ type: 'text', text: '' }],
+  });
+  activeBlockIndex.value = insertAt;
+  emit('update:modelValue', { type: 'doc', content: blocks });
+  showSlashMenu.value = true;
+  showBlockHandleMenu.value = false;
+}
+
+function moveActiveBlock(delta: -1 | 1): void {
+  const blocks = [...props.modelValue.content];
+  const from = activeBlockIndex.value;
+  const to = from + delta;
+  if (to < 0 || to >= blocks.length) {
+    showBlockHandleMenu.value = false;
+    return;
+  }
+  const moved = blocks[from];
+  const target = blocks[to];
+  if (!moved || !target) return;
+  blocks[from] = target;
+  blocks[to] = moved;
+  activeBlockIndex.value = to;
+  emit('update:modelValue', { type: 'doc', content: blocks });
+  showBlockHandleMenu.value = false;
+}
+
+function extractBlockPlainText(node: TiptapNode | undefined): string {
+  if (!node) return '';
+  if (node.type === 'text') return node.text ?? '';
+  if (!node.content) return '';
+  return node.content.map((c) => extractBlockPlainText(c)).join(' ').trim();
+}
+
+function turnActiveLineInto(commandId: string): void {
+  const blocks = [...props.modelValue.content];
+  const idx = activeBlockIndex.value;
+  const current = blocks[idx];
+  const text = extractBlockPlainText(current) || 'Novo bloco';
+
+  let replacement: TiptapNode = {
+    type: 'paragraph',
+    content: [{ type: 'text', text }],
+  };
+
   switch (commandId) {
+    case 'texto':
+      replacement = { type: 'paragraph', content: [{ type: 'text', text }] };
+      break;
     case 'h1':
-      chain.toggleHeading({ level: 1 }).run();
+      replacement = { type: 'heading', attrs: { level: 1 }, content: [{ type: 'text', text }] };
       break;
     case 'h2':
-      chain.toggleHeading({ level: 2 }).run();
+      replacement = { type: 'heading', attrs: { level: 2 }, content: [{ type: 'text', text }] };
       break;
     case 'h3':
-      chain.toggleHeading({ level: 3 }).run();
+      replacement = { type: 'heading', attrs: { level: 3 }, content: [{ type: 'text', text }] };
       break;
     case 'tarefa':
-      chain.toggleTaskList().run();
+      replacement = {
+        type: 'taskList',
+        content: [
+          {
+            type: 'taskItem',
+            attrs: { checked: false },
+            content: [{ type: 'paragraph', content: [{ type: 'text', text }] }],
+          },
+        ],
+      };
       break;
     case 'lista':
-      chain.toggleBulletList().run();
+    case 'numerada':
+      replacement = {
+        type: 'bulletList',
+        content: [
+          {
+            type: 'listItem',
+            content: [{ type: 'paragraph', content: [{ type: 'text', text }] }],
+          },
+        ],
+      };
       break;
     case 'codigo':
-      chain.toggleCodeBlock().run();
-      break;
-    case 'tabela':
-      chain.insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run();
+      replacement = {
+        type: 'codeBlock',
+        attrs: { language: 'typescript' },
+        content: [{ type: 'text', text }],
+      };
       break;
     case 'citacao':
-      chain.toggleBlockquote().run();
+      replacement = {
+        type: 'blockquote',
+        content: [{ type: 'paragraph', content: [{ type: 'text', text }] }],
+      };
       break;
     case 'divisor':
-      chain.setHorizontalRule().run();
+      replacement = { type: 'horizontalRule' };
       break;
   }
+
+  blocks[idx] = replacement;
+  emit('update:modelValue', { type: 'doc', content: blocks });
+  showBlockHandleMenu.value = false;
+}
+
+function duplicateActiveBlock(): void {
+  const blocks = [...props.modelValue.content];
+  const current = blocks[activeBlockIndex.value];
+  if (!current) return;
+  const cloned = JSON.parse(JSON.stringify(current)) as TiptapNode;
+  blocks.splice(activeBlockIndex.value + 1, 0, cloned);
+  activeBlockIndex.value += 1;
+  emit('update:modelValue', { type: 'doc', content: blocks });
+  showBlockHandleMenu.value = false;
+}
+
+function deleteActiveBlock(): void {
+  const blocks = [...props.modelValue.content];
+  if (blocks.length <= 1) {
+    blocks[0] = { type: 'paragraph', content: [] };
+  } else {
+    blocks.splice(activeBlockIndex.value, 1);
+    activeBlockIndex.value = Math.max(0, activeBlockIndex.value - 1);
+  }
+  emit('update:modelValue', { type: 'doc', content: blocks });
+  showBlockHandleMenu.value = false;
+}
+
+function applySlashCommand(commandId: string): void {
+  if (commandId === 'database') {
+    emit('insert-database-block');
+    showSlashMenu.value = false;
+    slashFilter.value = '';
+    return;
+  }
+  if (commandId === 'mermaid' || commandId === 'excalidraw' || commandId === 'drawio') {
+    emit('insert-diagram-block', commandId);
+    showSlashMenu.value = false;
+    slashFilter.value = '';
+    return;
+  }
+
+  const ed = editor.value;
+  if (ed) {
+    const chain = ed.chain().focus();
+    switch (commandId) {
+      case 'texto':
+        chain.setParagraph().run();
+        break;
+      case 'h1':
+        chain.toggleHeading({ level: 1 }).run();
+        break;
+      case 'h2':
+        chain.toggleHeading({ level: 2 }).run();
+        break;
+      case 'h3':
+        chain.toggleHeading({ level: 3 }).run();
+        break;
+      case 'tarefa':
+        chain.toggleTaskList().run();
+        break;
+      case 'lista':
+        chain.toggleBulletList().run();
+        break;
+      case 'numerada':
+        chain.toggleOrderedList().run();
+        break;
+      case 'codigo':
+        chain.toggleCodeBlock().run();
+        break;
+      case 'tabela':
+        chain.insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run();
+        break;
+      case 'citacao':
+        chain.toggleBlockquote().run();
+        break;
+      case 'divisor':
+        chain.setHorizontalRule().run();
+        break;
+    }
+  } else {
+    turnActiveLineInto(commandId);
+  }
+
   showSlashMenu.value = false;
   slashFilter.value = '';
 }
 
-function handleRawMarkdownChange(val: string | number | null): void {
-  emit('update:markdownValue', String(val ?? ''));
+function insertUserMention(userName: string): void {
+  const ed = editor.value;
+  if (ed) {
+    ed.chain().focus().insertContent(`@${userName} `).run();
+  }
+  showMentionMenu.value = false;
+  mentionFilter.value = '';
+}
+
+function insertPageMention(icon: string, title: string): void {
+  const ed = editor.value;
+  if (ed) {
+    ed.chain().focus().insertContent(`${icon} ${title} `).run();
+  }
+  showMentionMenu.value = false;
+  mentionFilter.value = '';
 }
 
 onBeforeUnmount(() => {
   editor.value?.destroy();
 });
 </script>
+
+<style scoped>
+.tiptap-editor-shell {
+  position: relative;
+}
+
+.block-navigator-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 4px 8px;
+  margin-bottom: 10px;
+  background: var(--mind-bg-sidebar);
+  border: 1px solid var(--mind-border-subtle);
+  border-radius: 6px;
+  font-size: 12px;
+  color: var(--mind-text-muted);
+}
+
+.block-nav-controls {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.block-step-btn {
+  border: 1px solid var(--mind-border-control);
+  background: var(--mind-bg-canvas);
+  color: var(--mind-text-secondary);
+  border-radius: 4px;
+  padding: 2px 7px;
+  font-size: 11.5px;
+  cursor: pointer;
+}
+
+.block-step-btn:hover:not(:disabled) {
+  background: var(--mind-bg-hover);
+  color: var(--mind-text-primary);
+}
+
+.block-step-btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.block-handle-popover {
+  position: absolute;
+  left: 52px;
+  top: 0;
+  width: 270px;
+  max-height: 360px;
+  overflow-y: auto;
+}
+
+.slash-command-popover {
+  width: 320px;
+  max-height: 380px;
+  overflow-y: auto;
+  margin-bottom: 14px;
+}
+
+.mention-popover {
+  width: 290px;
+  max-height: 340px;
+  overflow-y: auto;
+  margin-bottom: 14px;
+}
+
+.slash-filter-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px 6px;
+  border-bottom: 1px solid var(--mind-border-subtle);
+  margin-bottom: 4px;
+}
+
+.slash-prefix {
+  font-weight: 700;
+  color: var(--mind-text-muted);
+  font-size: 13px;
+}
+
+.slash-filter-input {
+  border: none;
+  outline: none;
+  background: transparent;
+  width: 100%;
+  font-size: 13px;
+  color: var(--mind-text-primary);
+}
+
+.popover-text-col {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.popover-item-title {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--mind-text-primary);
+  line-height: 1.3;
+}
+
+.popover-item-desc {
+  font-size: 11.5px;
+  color: var(--mind-text-muted);
+  line-height: 1.3;
+}
+
+.mention-user-avatar {
+  width: 28px;
+  height: 28px;
+  min-width: 28px;
+  border-radius: 50%;
+  background: #e7f5ff;
+  color: #1971c2;
+  font-size: 11px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.read-mode-surface {
+  opacity: 0.96;
+}
+</style>

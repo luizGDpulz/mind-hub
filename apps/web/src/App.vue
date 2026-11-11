@@ -1,21 +1,27 @@
 <template>
   <q-layout view="lHh Lpr lFf" class="mind-light-style mind-light-theme">
-    <!-- Top Header Bar (Issue #33 & mind-light-style) -->
+    <!-- Top Header Bar (Issue #33, #40 & mind-light-style) -->
     <q-header class="mind-header">
       <q-toolbar class="mind-toolbar">
+        <!-- Sidebar Hamburger button: ONLY visible when sidebar is collapsed (Issue #40) -->
         <button
+          v-if="!leftDrawerOpen"
           type="button"
           class="topbar-icon-btn"
-          aria-label="Toggle sidebar"
-          title="Alternar barra lateral (Ctrl+\)"
+          aria-label="Abrir barra lateral"
+          title="Abrir barra lateral (Ctrl+\)"
           data-testid="toggle-sidebar-btn"
-          @click="leftDrawerOpen = !leftDrawerOpen"
+          @click="leftDrawerOpen = true"
         >
-          <component :is="leftDrawerOpen ? PanelLeftClose : Menu" :size="16" />
+          <component :is="Menu" :size="16" />
         </button>
 
         <!-- Center Page Breadcrumb (Starts cleanly without 'Mind Hub' text) -->
-        <div v-if="store.activePage" class="topbar-breadcrumb gt-xs">
+        <div
+          v-if="store.activePage"
+          class="topbar-breadcrumb gt-xs"
+          :class="{ 'no-sidebar-offset': leftDrawerOpen }"
+        >
           <template v-for="(crumb, idx) in store.breadcrumbs" :key="crumb.id">
             <span v-if="idx > 0" class="crumb-sep">/</span>
             <button
@@ -88,7 +94,7 @@
       @mouseenter="handleEdgeMouseEnter"
     />
 
-    <!-- Left Sidebar with Resizer & Sticky Footer (Issues #28, #31, #33, #35) -->
+    <!-- Left Sidebar with Resizer & Sticky Footer (Issues #28, #31, #33, #35, #40) -->
     <q-drawer
       v-model="leftDrawerOpen"
       show-if-above
@@ -96,22 +102,43 @@
       :width="sidebarWidth"
       class="mind-sidebar column no-wrap"
     >
-      <!-- Top Workspace Switcher with Collapse Button -->
-      <div class="sidebar-workspace-header">
-        <div class="workspace-brand">
-          <span class="workspace-avatar-sq">PM</span>
-          <span class="workspace-title-text">Product Management</span>
-          <span class="workspace-caret">⌄</span>
-        </div>
+      <!-- Top Notion-Style Header Row (Issue #40: Collapse left, Inbox & New Note right) -->
+      <div class="sidebar-top-bar">
+        <!-- Left: Close Sidebar -->
         <button
           type="button"
-          class="sidebar-collapse-trigger"
+          class="sidebar-top-icon-btn"
           title="Fechar barra lateral (Ctrl+\)"
           aria-label="Fechar barra lateral"
+          data-testid="sidebar-collapse-btn"
           @click="leftDrawerOpen = false"
         >
-          <component :is="PanelLeftClose" :size="15" />
+          <component :is="PanelLeftClose" :size="16" />
         </button>
+
+        <!-- Right: Actions (Inbox & New Note at root) -->
+        <div class="sidebar-top-actions">
+          <button
+            type="button"
+            class="sidebar-top-icon-btn"
+            title="Caixa de entrada / Inbox"
+            aria-label="Inbox"
+            data-testid="sidebar-inbox-btn"
+            @click="handleOpenInbox"
+          >
+            <component :is="Inbox" :size="16" />
+          </button>
+          <button
+            type="button"
+            class="sidebar-top-icon-btn"
+            title="Nova página na raiz"
+            aria-label="Nova página na raiz"
+            data-testid="sidebar-new-root-note-btn"
+            @click="handleCreateRootPage"
+          >
+            <component :is="SquarePen" :size="16" />
+          </button>
+        </div>
       </div>
 
       <!-- Minimalist Search Trigger Bar in Sidebar (Issue #31) -->
@@ -119,11 +146,11 @@
         <MindSidebarSearch @open="openSearchModal" />
       </div>
 
-      <!-- Quick Utility Nav Items -->
+      <!-- Quick Utility Nav Items (Issue #40: Lixeira moved up next to settings) -->
       <nav class="sidebar-utility-nav" aria-label="Space navigation">
         <div
           class="sidebar-nav-item"
-          :class="{ 'is-active': store.activeSurface === 'editor' }"
+          :class="{ 'is-active': store.activeSurface === 'editor' && !isTrashModalOpen }"
           @click="store.activeSurface = 'editor'"
         >
           <component :is="Home" :size="15" class="nav-item-lucide" />
@@ -143,6 +170,17 @@
         >
           <component :is="Settings" :size="15" class="nav-item-lucide" />
           <span>Configurações</span>
+        </div>
+        <div
+          class="sidebar-nav-item"
+          data-testid="sidebar-trash-btn"
+          @click="isTrashModalOpen = true"
+        >
+          <component :is="Trash2" :size="15" class="nav-item-lucide" />
+          <span class="ellipsis col">Lixeira</span>
+          <span v-if="store.deletedPages.length > 0" class="sidebar-trash-badge">
+            {{ store.deletedPages.length }}
+          </span>
         </div>
         <div
           class="sidebar-nav-item"
@@ -189,9 +227,8 @@
         />
       </div>
 
-      <!-- Sticky Sidebar Footer (Issue #33: Luiz Pulz Profile + Lixeira Modal Trigger) -->
+      <!-- Sticky Sidebar Footer (Issue #33 & #40: User Profile Card) -->
       <div class="sidebar-sticky-footer">
-        <!-- User Profile Card -->
         <div class="sidebar-user-card" title="Perfil do usuário">
           <div class="sidebar-user-avatar">LP</div>
           <div class="sidebar-user-meta">
@@ -200,21 +237,6 @@
           </div>
           <span class="sidebar-user-caret">⌄</span>
         </div>
-
-        <!-- Clean Trash Button with Badge -->
-        <button
-          type="button"
-          class="sidebar-trash-row-btn"
-          data-testid="sidebar-trash-btn"
-          title="Abrir lixeira"
-          @click="isTrashModalOpen = true"
-        >
-          <component :is="Trash2" :size="15" class="sidebar-trash-icon" />
-          <span class="sidebar-trash-text">Lixeira</span>
-          <span v-if="store.deletedPages.length > 0" class="sidebar-trash-badge">
-            {{ store.deletedPages.length }}
-          </span>
-        </button>
       </div>
 
       <!-- Drag Resizer Handle on right edge of sidebar (Issue #35) -->
@@ -604,6 +626,7 @@ import {
   Settings,
   Share2,
   Sparkles,
+  SquarePen,
   Trash2,
   UserCheck,
 } from 'lucide-vue-next';
@@ -842,13 +865,30 @@ function toggleRightPanel(mode: 'comments' | 'ai'): void {
   }
 }
 
-function handleCreateRootPage(): void {
+async function handleCreateRootPage(): Promise<void> {
   store.activeSurface = 'editor';
-  void store.createPage({
-    title: `Walkthrough ${store.activePages.length + 1}`,
+  const newPage = await store.createPage({
+    title: 'Sem título',
     icon: '📄',
-    tags: ['product'],
+    parentId: null,
+    tags: ['nota'],
   });
+  store.selectPage(newPage.id);
+}
+
+async function handleOpenInbox(): Promise<void> {
+  store.activeSurface = 'editor';
+  let inbox = store.pages.find((p) => p.isInbox && p.deletedAt === null);
+  if (!inbox) {
+    inbox = await store.createPage({
+      title: 'Inbox & Insights Rápidos',
+      icon: '📥',
+      isInbox: true,
+      tags: ['inbox', 'captura'],
+      contentMarkdown: '# Inbox & Insights Rápidos\n\nNotas rápidas e ideias capturadas.',
+    });
+  }
+  store.selectPage(inbox.id);
 }
 
 function handleCreateChildPage(parentId: string): void {
@@ -968,6 +1008,11 @@ function splitSnippetSegments(
   gap: 4px;
   margin-left: 12px;
   font-size: 13px;
+  transition: margin-left 0.15s ease;
+}
+
+.topbar-breadcrumb.no-sidebar-offset {
+  margin-left: 6px;
 }
 
 .crumb-sep {
@@ -1011,75 +1056,37 @@ function splitSnippetSegments(
   background: transparent;
 }
 
-/* Sidebar Elements (Issues #28, #31, #33, #35) */
-.sidebar-workspace-header {
+/* Sidebar Top Bar (Issue #40: Collapse left, Inbox & New Note right) */
+.sidebar-top-bar {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 8px 10px 4px;
+  padding: 10px 12px 6px;
   min-height: 40px;
 }
 
-.workspace-brand {
+.sidebar-top-actions {
   display: flex;
   align-items: center;
-  gap: 8px;
-  cursor: pointer;
-  min-width: 0;
-  flex: 1;
-  border-radius: 6px;
-  padding: 4px;
-  transition: background-color 0.12s ease;
+  gap: 4px;
 }
 
-.workspace-brand:hover {
-  background: var(--mind-bg-hover);
-}
-
-.workspace-avatar-sq {
-  width: 22px;
-  height: 22px;
-  border-radius: 5px;
-  background: #e03131;
-  color: #ffffff;
-  font-size: 10.5px;
-  font-weight: 700;
+.sidebar-top-icon-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  flex-shrink: 0;
-}
-
-.workspace-title-text {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--mind-text-primary);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.workspace-caret {
-  font-size: 11px;
-  color: var(--mind-text-muted);
-}
-
-.sidebar-collapse-trigger {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 26px;
-  height: 26px;
+  width: 28px;
+  height: 28px;
   border: none;
   background: transparent;
   color: var(--mind-text-muted);
-  border-radius: 4px;
+  border-radius: 6px;
   cursor: pointer;
   transition: all 0.12s ease;
   flex-shrink: 0;
 }
 
-.sidebar-collapse-trigger:hover {
+.sidebar-top-icon-btn:hover {
   background: var(--mind-bg-hover);
   color: var(--mind-text-primary);
 }
@@ -1205,36 +1212,6 @@ function splitSnippetSegments(
 .sidebar-user-caret {
   font-size: 11px;
   color: var(--mind-text-muted);
-}
-
-.sidebar-trash-row-btn {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  width: 100%;
-  padding: 6px 8px;
-  border: none;
-  background: transparent;
-  border-radius: 6px;
-  color: var(--mind-text-secondary);
-  cursor: pointer;
-  font-size: 12.5px;
-  transition: all 0.12s ease;
-  text-align: left;
-}
-
-.sidebar-trash-row-btn:hover {
-  background: var(--mind-bg-hover);
-  color: var(--mind-text-primary);
-}
-
-.sidebar-trash-icon {
-  color: var(--mind-text-muted);
-  flex-shrink: 0;
-}
-
-.sidebar-trash-text {
-  flex: 1;
 }
 
 .sidebar-trash-badge {

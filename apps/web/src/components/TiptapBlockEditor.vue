@@ -255,14 +255,11 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from 'vue';
 import { EditorContent, useEditor } from '@tiptap/vue-3';
-import StarterKit from '@tiptap/starter-kit';
-import Placeholder from '@tiptap/extension-placeholder';
-import TaskList from '@tiptap/extension-task-list';
-import TaskItem from '@tiptap/extension-task-item';
-import Table from '@tiptap/extension-table';
-import TableRow from '@tiptap/extension-table-row';
-import TableHeader from '@tiptap/extension-table-header';
-import TableCell from '@tiptap/extension-table-cell';
+import {
+  createEditorExtensions,
+  createEditorSchema,
+  toSchemaSafeDoc,
+} from '../editor/editor-extensions.js';
 import {
   DEFAULT_SLASH_COMMANDS,
   type DiagramKind,
@@ -352,27 +349,29 @@ const filteredMentionPages = computed(() => {
   return combined.filter((p) => p.title.toLowerCase().includes(q));
 });
 
+const editorExtensions = createEditorExtensions();
+const editorSchema = createEditorSchema(editorExtensions);
+
+/**
+ * Never hand the editor a document it cannot represent: ProseMirror would drop
+ * the whole content and render an empty page (#34). Unknown marks/nodes are
+ * stripped (text preserved) and, as last resort, raw Markdown is shown.
+ */
+function resolveSafeDoc(doc: TiptapDoc, markdown: string): TiptapDoc {
+  const result = toSchemaSafeDoc(doc, editorSchema, markdown);
+  if (result.dropped.length > 0 || result.usedMarkdownFallback) {
+    console.warn('[mind-hub/editor] document sanitized before render', {
+      dropped: result.dropped,
+      usedMarkdownFallback: result.usedMarkdownFallback,
+    });
+  }
+  return result.doc;
+}
+
 const editor = useEditor({
-  content: props.modelValue,
+  content: resolveSafeDoc(props.modelValue, props.markdownValue),
   editable: !props.readOnlyMode,
-  extensions: [
-    StarterKit.configure({
-      heading: { levels: [1, 2, 3] },
-    }),
-    Placeholder.configure({
-      placeholder: "Type '/' for commands or '@' to mention users and pages...",
-    }),
-    TaskList,
-    TaskItem.configure({
-      nested: true,
-    }),
-    Table.configure({
-      resizable: true,
-    }),
-    TableRow,
-    TableHeader,
-    TableCell,
-  ],
+  extensions: editorExtensions,
   onUpdate: ({ editor: activeEditor }) => {
     const json = activeEditor.getJSON() as TiptapDoc;
     emit('update:modelValue', json);
@@ -396,7 +395,7 @@ watch(
     const currentJson = JSON.stringify(editor.value.getJSON());
     const incomingJson = JSON.stringify(newDoc);
     if (currentJson !== incomingJson) {
-      editor.value.commands.setContent(newDoc, false);
+      editor.value.commands.setContent(resolveSafeDoc(newDoc, props.markdownValue), false);
     }
   },
 );

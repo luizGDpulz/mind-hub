@@ -5,15 +5,18 @@ import {
   createInitialSeedComments,
   createInitialSeedDatabaseTasks,
   createInitialSeedPages,
+  createSampleSecondBrainBatch,
   DEFAULT_SLASH_COMMANDS,
   exportPageWithFrontmatter,
   generateDeterministicEmbedding,
   getPageBreadcrumbs,
   markdownToTiptap,
+  planBulkVaultImport,
   searchPagesEngine,
   slugifyTitle,
   tiptapToMarkdown,
   type AiChatResponse,
+  type BulkImportApiResponse,
   type CreatePageInput,
   type DatabaseStatus,
   type DatabaseTaskRow,
@@ -22,6 +25,7 @@ import {
   type MindPage,
   type PageCommentThread,
   type PageTreeNode,
+  type RawMarkdownFileEntry,
   type SearchMode,
   type SearchResultItem,
   type TiptapDoc,
@@ -55,6 +59,8 @@ export const useMindStore = defineStore('mindHub', () => {
   const isQuickInsightOpen = ref<boolean>(false);
   const isAiDrawerOpen = ref<boolean>(false);
   const isMcpModalOpen = ref<boolean>(false);
+  const isImportModalOpen = ref<boolean>(false);
+  const lastBulkImportReport = ref<BulkImportApiResponse | null>(null);
   const geminiApiKey = ref<string>('');
   const nvidiaApiKey = ref<string>('');
 
@@ -578,6 +584,127 @@ export const useMindStore = defineStore('mindHub', () => {
     }).catch(() => undefined);
   }
 
+  async function importMarkdownBulk(
+    files: RawMarkdownFileEntry[],
+    options: {
+      useSampleSecondBrain?: boolean;
+      conflictStrategy?: 'upsert' | 'skip';
+    } = {},
+  ): Promise<BulkImportApiResponse> {
+    const t0 = performance.now();
+    const effectiveFiles =
+      options.useSampleSecondBrain || files.length === 0
+        ? createSampleSecondBrainBatch()
+        : files;
+    const conflictStrategy = options.conflictStrategy ?? 'upsert';
+
+    try {
+      const response = await fetch('/api/import/markdown-bulk', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          files: effectiveFiles,
+          useSampleSecondBrain: options.useSampleSecondBrain ?? false,
+          conflictStrategy,
+        }),
+      });
+      if (response.ok) {
+        const data = (await response.json()) as BulkImportApiResponse;
+        if (data.pages && data.pages.length > 0) {
+          pages.value = data.pages;
+        }
+        lastBulkImportReport.value = data;
+        lastLatencyMs.value = Number((performance.now() - t0).toFixed(2));
+        return data;
+      }
+    } catch {
+      // Offline / local fallback execution
+    }
+
+    const plan = planBulkVaultImport(effectiveFiles, activePages.value, {
+      conflictStrategy,
+    });
+    let createdCount = 0;
+    let updatedCount = 0;
+    let skippedCount = 0;
+    const nextMap = new Map<string, MindPage>();
+    for (const p of pages.value) {
+      nextMap.set(p.id, p);
+    }
+
+    for (const candidate of plan.pagesToUpsert) {
+      const existing =
+        nextMap.get(candidate.id) ??
+        Array.from(nextMap.values()).find(
+          (p) =>
+            (candidate.sourcePath && p.sourcePath === candidate.sourcePath) ||
+            (p.slug === candidate.slug && p.parentId === candidate.parentId),
+        );
+
+      if (existing) {
+        if (
+          conflictStrategy === 'skip' ||
+          (candidate.sourceHash && existing.sourceHash === candidate.sourceHash)
+        ) {
+          skippedCount += 1;
+          continue;
+        }
+        nextMap.set(existing.id, {
+          ...existing,
+          ...candidate,
+          id: existing.id,
+          updatedAt: new Date().toISOString(),
+        });
+        updatedCount += 1;
+      } else {
+        nextMap.set(candidate.id, candidate);
+        createdCount += 1;
+      }
+    }
+
+    pages.value = Array.from(nextMap.values());
+    const localResult: BulkImportApiResponse = {
+      importedAt: new Date().toISOString(),
+      notesProcessed: plan.notesProcessed,
+      folderPagesCreated: plan.folderPagesCreated,
+      createdCount,
+      updatedCount,
+      skippedCount,
+      wikiLinksResolved: plan.wikiLinksResolved,
+      discoveredTags: plan.discoveredTags,
+      pages: pages.value,
+    };
+    lastBulkImportReport.value = localResult;
+    lastLatencyMs.value = Number((performance.now() - t0).toFixed(2));
+    return localResult;
+  }
+
+  async function syncServerSecondBrainDirectory(
+    directoryPath?: string,
+  ): Promise<BulkImportApiResponse> {
+    try {
+      const response = await fetch('/api/import/directory', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          directoryPath,
+          conflictStrategy: 'upsert',
+        }),
+      });
+      if (response.ok) {
+        const data = (await response.json()) as BulkImportApiResponse;
+        if (data.pages && data.pages.length > 0) {
+          pages.value = data.pages;
+        }
+        lastBulkImportReport.value = data;
+        return data;
+      }
+    } catch {
+      // Fallback to sample Second Brain batch
+    }
+    return importMarkdownBulk([], { useSampleSecondBrain: true });
+  }
+
   return {
     pages,
     activePages,
@@ -600,6 +727,8 @@ export const useMindStore = defineStore('mindHub', () => {
     isQuickInsightOpen,
     isAiDrawerOpen,
     isMcpModalOpen,
+    isImportModalOpen,
+    lastBulkImportReport,
     geminiApiKey,
     nvidiaApiKey,
     aiChatHistory,
@@ -626,5 +755,7 @@ export const useMindStore = defineStore('mindHub', () => {
     cycleDatabaseRowStatus,
     addDatabaseTaskRow,
     addCommentReply,
+    importMarkdownBulk,
+    syncServerSecondBrainDirectory,
   };
 });

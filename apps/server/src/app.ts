@@ -44,32 +44,47 @@ export function scanMarkdownDirectoryRecursively(
   maxFiles = 250,
 ): RawMarkdownFileEntry[] {
   const entries: RawMarkdownFileEntry[] = [];
-  if (!fs.existsSync(rootDir)) {
+  if (typeof rootDir !== 'string' || !rootDir.trim() || !fs.existsSync(rootDir)) {
     return entries;
   }
 
   const resolvedRoot = path.resolve(rootDir);
+  const maxFileSizeBytes = 1024 * 1024; // 1MB guard per Markdown file
 
   function walk(currentDir: string): void {
     if (entries.length >= maxFiles) return;
-    let dirItems: fs.Dirent[] = [];
+    const resolvedCurrent = path.resolve(currentDir);
+    if (
+      resolvedCurrent !== resolvedRoot &&
+      !resolvedCurrent.startsWith(resolvedRoot + path.sep)
+    ) {
+      return;
+    }
+
+    let dirItems: fs.Dirent[];
     try {
-      dirItems = fs.readdirSync(currentDir, { withFileTypes: true });
+      dirItems = fs.readdirSync(resolvedCurrent, { withFileTypes: true });
     } catch {
       return;
     }
 
     for (const item of dirItems) {
       if (entries.length >= maxFiles) break;
-      if (item.name.startsWith('.') || IGNORED_VAULT_DIRS.has(item.name)) {
+      if (
+        item.isSymbolicLink() ||
+        item.name.startsWith('.') ||
+        IGNORED_VAULT_DIRS.has(item.name)
+      ) {
         continue;
       }
 
-      const fullPath = path.join(currentDir, item.name);
+      const fullPath = path.join(resolvedCurrent, item.name);
       if (item.isDirectory()) {
         walk(fullPath);
       } else if (item.isFile() && /\.(md|markdown)$/i.test(item.name)) {
         try {
+          const stats = fs.statSync(fullPath);
+          if (stats.size > maxFileSizeBytes) continue;
           const content = fs.readFileSync(fullPath, 'utf-8');
           const relPath = path.relative(resolvedRoot, fullPath).replace(/\\/g, '/');
           entries.push({ path: relPath, content });
@@ -545,14 +560,24 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
     };
   }>('/api/import/directory', async (request, reply) => {
     const body = request.body ?? {};
-    const targetDir =
-      body.directoryPath?.trim() ||
-      process.env.SECOND_BRAIN_DIR ||
-      '/home/ubuntu/mind';
+    const baseVaultRoot = path.resolve(
+      process.env.SECOND_BRAIN_DIR || '/home/ubuntu/mind',
+    );
+    const requestedSubpath = body.directoryPath?.trim();
+    let targetDir = baseVaultRoot;
+    if (requestedSubpath && requestedSubpath !== '/home/ubuntu/mind') {
+      const candidate = path.resolve(baseVaultRoot, requestedSubpath);
+      if (
+        candidate === baseVaultRoot ||
+        candidate.startsWith(baseVaultRoot + path.sep)
+      ) {
+        targetDir = candidate;
+      }
+    }
 
     const scannedFiles = scanMarkdownDirectoryRecursively(
       targetDir,
-      body.maxFiles ?? 250,
+      Math.min(Math.max(body.maxFiles ?? 250, 1), 500),
     );
 
     const filesToImport =

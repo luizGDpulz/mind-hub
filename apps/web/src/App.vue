@@ -140,6 +140,17 @@
         </div>
         <div
           class="mind-popover-row"
+          data-testid="open-bulk-import-btn"
+          @click="
+            showOverflowMenu = false;
+            store.isImportModalOpen = true;
+          "
+        >
+          <span class="mind-icon-box-28">📦</span>
+          <span class="popover-row-label">Import Second Brain (.md Bulk)</span>
+        </div>
+        <div
+          class="mind-popover-row"
           data-testid="export-git-btn"
           @click="
             showOverflowMenu = false;
@@ -216,6 +227,14 @@
         >
           <span class="nav-item-icon">⚙</span>
           <span>Space settings</span>
+        </div>
+        <div
+          class="sidebar-nav-item"
+          data-testid="sidebar-bulk-import-btn"
+          @click="store.isImportModalOpen = true"
+        >
+          <span class="nav-item-icon">📦</span>
+          <span>Import Second Brain</span>
         </div>
         <div
           class="sidebar-nav-item"
@@ -378,7 +397,14 @@
           v-model="store.geminiApiKey"
           type="password"
           placeholder="Google Gemini API Key (BYOK optional)"
+          class="ai-key-input q-mb-xs"
+        />
+        <input
+          v-model="store.nvidiaApiKey"
+          type="password"
+          placeholder="NVIDIA NIM API Key (nvapi-... optional)"
           class="ai-key-input q-mb-sm"
+          data-testid="nvidia-api-key-input"
         />
 
         <div class="col scroll">
@@ -562,7 +588,7 @@
       <div class="mind-search-modal" style="width: 560px; max-width: 95vw; padding: 20px">
         <div class="modal-clean-title q-mb-xs">Space Settings, Native MCP &amp; Git Export</div>
         <div class="comment-body-text q-mb-md">
-          JSON-RPC 2.0 endpoint available at <code>POST /mcp</code> (search_pages, get_page, create_page, update_page).
+          JSON-RPC 2.0 endpoint available at <code>POST /mcp</code> (search_pages, get_page, create_page, update_page, list_database_tasks, create_database_task, add_page_comment, import_markdown_vault).
         </div>
         <div v-if="store.lastSyncSnapshot" class="q-mb-md">
           <pre class="exported-md-preview">{{ store.lastSyncSnapshot.files[0]?.markdown }}</pre>
@@ -578,12 +604,96 @@
         </div>
       </div>
     </q-dialog>
+
+    <!-- Bulk Second Brain / Markdown Importer Modal (M8) -->
+    <q-dialog v-model="store.isImportModalOpen">
+      <div
+        class="mind-search-modal"
+        style="width: 580px; max-width: 95vw; padding: 22px"
+        data-testid="bulk-import-modal"
+      >
+        <div class="modal-clean-title q-mb-xs">
+          Import Second Brain &amp; Markdown Vault (.md Bulk)
+        </div>
+        <div class="comment-body-text q-mb-md">
+          Ingest dozens or hundreds of Markdown files with YAML Frontmatter, nested folders, and
+          <code>[[WikiLinks]]</code> directly into the database.
+        </div>
+
+        <div class="row q-gutter-sm q-mb-md">
+          <button
+            type="button"
+            class="primary-blue-btn"
+            data-testid="import-sample-vault-btn"
+            @click="handleImportSampleSecondBrain"
+          >
+            Import Second Brain Pack (_Padrões &amp; ADRs)
+          </button>
+          <button
+            type="button"
+            class="topbar-text-btn"
+            style="border: 1px solid var(--mind-border-hairline)"
+            data-testid="sync-server-vault-btn"
+            @click="handleSyncServerVault"
+          >
+            Sync Server Vault (/home/ubuntu/mind)
+          </button>
+        </div>
+
+        <div class="q-mb-md">
+          <label class="sidebar-section-label block q-mb-xs" for="bulk-md-file-input">
+            Or select multiple .md files from your computer:
+          </label>
+          <input
+            id="bulk-md-file-input"
+            type="file"
+            multiple
+            accept=".md,.markdown"
+            class="clean-modal-input"
+            data-testid="bulk-file-input"
+            @change="handleMultiFileMarkdownUpload"
+          />
+        </div>
+
+        <div
+          v-if="store.lastBulkImportReport"
+          class="comment-thread-card q-mb-md"
+          data-testid="bulk-import-report"
+        >
+          <div class="comment-author-name q-mb-xs">
+            Last Bulk Import Summary
+          </div>
+          <div class="comment-body-text">
+            • Notes Processed: <strong>{{ store.lastBulkImportReport.notesProcessed }}</strong><br />
+            • Folder Pages Created: <strong>{{ store.lastBulkImportReport.folderPagesCreated }}</strong><br />
+            • Created / Updated / Skipped:
+            <strong>
+              {{ store.lastBulkImportReport.createdCount }} /
+              {{ store.lastBulkImportReport.updatedCount }} /
+              {{ store.lastBulkImportReport.skippedCount }}
+            </strong><br />
+            • WikiLinks Resolved: <strong>{{ store.lastBulkImportReport.wikiLinksResolved }}</strong>
+          </div>
+        </div>
+
+        <div class="modal-actions-end">
+          <button
+            type="button"
+            class="topbar-text-btn"
+            @click="store.isImportModalOpen = false"
+          >
+            Close
+          </button>
+        </div>
+      </div>
+    </q-dialog>
   </q-layout>
 </template>
 
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue';
 import { Dark } from 'quasar';
+import type { RawMarkdownFileEntry } from '@mind-hub/shared';
 import { useMindStore } from './stores/mind-store.js';
 import PageTreeItem from './components/PageTreeItem.vue';
 import TiptapBlockEditor from './components/TiptapBlockEditor.vue';
@@ -672,6 +782,33 @@ function sendAiQuestion(): void {
 function triggerGitExport(): void {
   store.exportMarkdownVault();
   store.isMcpModalOpen = true;
+}
+
+function handleImportSampleSecondBrain(): void {
+  void store.importMarkdownBulk([], { useSampleSecondBrain: true });
+}
+
+function handleSyncServerVault(): void {
+  void store.syncServerSecondBrainDirectory('/home/ubuntu/mind');
+}
+
+async function handleMultiFileMarkdownUpload(event: Event): Promise<void> {
+  const input = event.target as HTMLInputElement | null;
+  const fileList = input?.files;
+  if (!fileList || fileList.length === 0) return;
+
+  const entries: RawMarkdownFileEntry[] = [];
+  for (const file of Array.from(fileList)) {
+    const content = await file.text();
+    const relPath =
+      (file as File & { webkitRelativePath?: string }).webkitRelativePath || file.name;
+    entries.push({
+      path: relPath,
+      content,
+    });
+  }
+
+  await store.importMarkdownBulk(entries, { conflictStrategy: 'upsert' });
 }
 
 function splitSnippetSegments(

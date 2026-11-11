@@ -422,6 +422,7 @@
             @update:markdown-value="store.updateActivePageMarkdown"
             @insert-database-block="store.enableDatabaseBlockForActivePage()"
             @insert-diagram-block="(kind) => store.enableDiagramBlockForActivePage(kind)"
+            @create-subpage="handleAddSubpage"
           />
 
           <!-- Embedded Database Block: Table & Kanban Board (only when inserted on this page) -->
@@ -437,6 +438,33 @@
             v-if="store.showEmbeddedDiagrams"
             :initial-kind="store.activeDiagramKind"
           />
+
+          <!-- Notion-like Subpages Section (closes #23) -->
+          <div
+            v-if="activePageSubpages.length > 0"
+            class="mind-subpages-section"
+            data-testid="subpages-section"
+          >
+            <div class="subpages-section-header">
+              <span class="subpages-section-title">Subpáginas ({{ activePageSubpages.length }})</span>
+              <button
+                type="button"
+                class="subpage-add-action-btn"
+                data-testid="add-subpage-btn"
+                @click="handleAddSubpage"
+              >
+                + Adicionar subpágina
+              </button>
+            </div>
+            <div class="subpages-grid">
+              <MindSubpageLink
+                v-for="sub in activePageSubpages"
+                :key="sub.id"
+                :page="sub"
+                @navigate="store.selectPage"
+              />
+            </div>
+          </div>
         </div>
       </q-page>
     </q-page-container>
@@ -641,6 +669,7 @@ import MindActionMenu from './components/ui/MindActionMenu.vue';
 import MindSidebarSearch from './components/ui/MindSidebarSearch.vue';
 import MindSearchModal from './components/ui/MindSearchModal.vue';
 import MindTrashModal from './components/ui/MindTrashModal.vue';
+import MindSubpageLink from './components/ui/MindSubpageLink.vue';
 import type { ActionMenuItem, ActionMenuPageMeta } from './components/ui/types.js';
 
 const store = useMindStore();
@@ -797,6 +826,22 @@ const pageMetadata = computed<ActionMenuPageMeta>(() => {
     characterCount: chars,
   };
 });
+
+const activePageSubpages = computed(() => {
+  if (!store.activePage) return [];
+  return store.activePages.filter((p) => p.parentId === store.activePage?.id);
+});
+
+async function handleAddSubpage(): Promise<void> {
+  if (!store.activePage) return;
+  const newSub = await store.createPage({
+    title: 'Sem título',
+    parentId: store.activePage.id,
+    contentMarkdown: '',
+    icon: '📄',
+  });
+  store.selectPage(newSub.id);
+}
 
 onMounted(() => {
   Dark.set(false);
@@ -1420,5 +1465,52 @@ function splitSnippetSegments(
   max-height: 200px;
   overflow: auto;
   margin: 0;
+}
+
+.mind-subpages-section {
+  margin-top: 36px;
+  padding-top: 20px;
+  border-top: 1px solid var(--mind-border-subtle);
+}
+
+.subpages-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.subpages-section-title {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--mind-text-muted);
+}
+
+.subpage-add-action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: transparent;
+  border: none;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--mind-text-muted);
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 4px;
+  transition: all 0.15s ease;
+}
+
+.subpage-add-action-btn:hover {
+  background: var(--mind-bg-hover);
+  color: var(--mind-text-primary);
+}
+
+.subpages-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
 </style>

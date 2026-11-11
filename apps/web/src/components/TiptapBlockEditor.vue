@@ -210,6 +210,7 @@ const emit = defineEmits<{
   (e: 'update:markdownValue', md: string): void;
   (e: 'insert-database-block'): void;
   (e: 'insert-diagram-block', kind: DiagramKind): void;
+  (e: 'create-subpage'): void;
 }>();
 
 const showSlashMenu = ref(false);
@@ -541,6 +542,12 @@ function applySlashCommand(commandId: string): void {
   }
   if (commandId === 'mermaid' || commandId === 'excalidraw' || commandId === 'drawio') {
     emit('insert-diagram-block', commandId);
+    showSlashMenu.value = false;
+    slashFilter.value = '';
+    return;
+  }
+  if (commandId === 'subpage') {
+    emit('create-subpage');
     showSlashMenu.value = false;
     slashFilter.value = '';
     return;

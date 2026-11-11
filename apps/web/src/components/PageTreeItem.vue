@@ -13,13 +13,13 @@
         round
         size="xs"
         :icon="expanded ? 'expand_more' : 'chevron_right'"
-        class="q-mr-xs text-grey-5"
+        class="q-mr-xs tree-chevron"
         @click.stop="expanded = !expanded"
       />
       <span v-else class="tree-spacer q-mr-xs" />
 
       <span class="q-mr-sm text-body2">{{ node.icon }}</span>
-      <span class="ellipsis col text-body2 tree-node-title">{{ node.title }}</span>
+      <span class="ellipsis col tree-node-title">{{ node.title }}</span>
 
       <q-btn
         flat
@@ -27,7 +27,7 @@
         round
         size="xs"
         icon="add"
-        class="tree-action-btn text-grey-5"
+        class="tree-action-btn"
         title="Criar subpágina"
         @click.stop="$emit('create-child', node.id)"
       />
@@ -75,26 +75,41 @@ const expanded = ref(true);
   width: 20px;
 }
 
+.tree-chevron {
+  color: var(--mind-text-muted);
+}
+
 .tree-node-row {
-  transition: background-color 0.14s ease, color 0.14s ease;
+  border-radius: 6px;
+  color: var(--mind-text-secondary);
+  font-size: 13.5px;
+  min-height: 30px;
+  transition: background-color 0.12s ease, color 0.12s ease;
 }
 
 .tree-node-row:hover {
-  background: rgba(99, 102, 241, 0.12);
+  background: var(--mind-bg-hover);
 }
 
 .tree-node-active {
-  background: rgba(99, 102, 241, 0.22);
-  color: #a5b4fc;
-  font-weight: 600;
+  background: var(--mind-bg-active);
+  color: var(--mind-text-primary);
+  font-weight: 500;
+}
+
+.tree-node-title {
+  font-size: 13.5px;
+  line-height: 1.35;
 }
 
 .tree-action-btn {
   opacity: 0;
-  transition: opacity 0.15s ease;
+  color: var(--mind-text-muted);
+  transition: opacity 0.12s ease;
 }
 
-.tree-node-row:hover .tree-action-btn {
+.tree-node-row:hover .tree-action-btn,
+.tree-node-row:focus-within .tree-action-btn {
   opacity: 1;
 }
 </style>

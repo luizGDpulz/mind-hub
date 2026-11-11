@@ -583,6 +583,7 @@
 
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue';
+import { Dark } from 'quasar';
 import { useMindStore } from './stores/mind-store.js';
 import PageTreeItem from './components/PageTreeItem.vue';
 import TiptapBlockEditor from './components/TiptapBlockEditor.vue';
@@ -599,6 +600,7 @@ const selectedSearchIdx = ref(0);
 const replyBuffers = reactive<Record<string, string>>({});
 
 onMounted(() => {
+  Dark.set(false);
   void store.initializeStore();
 });
 

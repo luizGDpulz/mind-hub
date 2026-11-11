@@ -126,4 +126,34 @@ describe('@mind-hub/web — Pinia Store, Page Tree, Quick Insight & Search Engin
     expect(store.showEmbeddedDatabase).toBe(false);
     expect(store.showEmbeddedDiagrams).toBe(false);
   });
+
+  it('supports permanent delete (purge), empty trash and version evolution tracking (Issue #46)', async () => {
+    const store = useMindStore();
+    expect(store.currentVersion).toBe('0.2.0');
+    expect(store.repoUrl).toBe('https://github.com/luizGDpulz/mind-hub');
+    expect(store.versionHistory.length).toBeGreaterThanOrEqual(2);
+    expect(store.versionHistory[0]?.version).toBe('0.2.0');
+
+    // Create a page and soft delete it
+    const page = await store.createPage({ title: 'Nota Para Purge' });
+    await store.softDeletePage(page.id);
+    expect(store.deletedPages.some((p) => p.id === page.id)).toBe(true);
+
+    // Permanently delete (purge) the page
+    await store.permanentlyDeletePage(page.id);
+    expect(store.pages.some((p) => p.id === page.id)).toBe(false);
+    expect(store.deletedPages.some((p) => p.id === page.id)).toBe(false);
+
+    // Test emptyTrash
+    const p1 = await store.createPage({ title: 'Trash 1' });
+    const p2 = await store.createPage({ title: 'Trash 2' });
+    await store.softDeletePage(p1.id);
+    await store.softDeletePage(p2.id);
+    expect(store.deletedPages.length).toBeGreaterThanOrEqual(2);
+
+    await store.emptyTrash();
+    expect(store.deletedPages.length).toBe(0);
+    expect(store.pages.some((p) => p.id === p1.id)).toBe(false);
+    expect(store.pages.some((p) => p.id === p2.id)).toBe(false);
+  });
 });

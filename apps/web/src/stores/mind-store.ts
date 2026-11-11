@@ -15,6 +15,9 @@ import {
   searchPagesEngine,
   slugifyTitle,
   tiptapToMarkdown,
+  CURRENT_MIND_VERSION,
+  MIND_REPO_URL,
+  MIND_VERSION_HISTORY,
   type AiChatResponse,
   type BulkImportApiResponse,
   type CreatePageInput,
@@ -23,6 +26,7 @@ import {
   type DiagramKind,
   type GitSyncSnapshot,
   type MindPage,
+  type MindVersionEntry,
   type PageCommentThread,
   type PageTreeNode,
   type RawMarkdownFileEntry,
@@ -62,6 +66,10 @@ export const useMindStore = defineStore('mindHub', () => {
   const isAiDrawerOpen = ref<boolean>(false);
   const isMcpModalOpen = ref<boolean>(false);
   const isImportModalOpen = ref<boolean>(false);
+  const isVersionHistoryModalOpen = ref<boolean>(false);
+  const currentVersion = ref<string>(CURRENT_MIND_VERSION);
+  const repoUrl = ref<string>(MIND_REPO_URL);
+  const versionHistory = ref<MindVersionEntry[]>(MIND_VERSION_HISTORY);
   const lastBulkImportReport = ref<BulkImportApiResponse | null>(null);
   const geminiApiKey = ref<string>('');
   const nvidiaApiKey = ref<string>('');
@@ -411,6 +419,32 @@ export const useMindStore = defineStore('mindHub', () => {
 
     try {
       await fetch(`/api/pages/${id}/restore`, { method: 'POST' });
+    } catch {
+      // Offline resilient
+    }
+  }
+
+  async function permanentlyDeletePage(id: string): Promise<void> {
+    pages.value = pages.value.filter((p) => p.id !== id);
+    if (activePageId.value === id) {
+      const remaining = activePages.value;
+      if (remaining.length > 0 && remaining[0]) {
+        activePageId.value = remaining[0].id;
+      }
+    }
+
+    try {
+      await fetch(`/api/pages/${id}/permanent`, { method: 'DELETE' });
+    } catch {
+      // Offline resilient
+    }
+  }
+
+  async function emptyTrash(): Promise<void> {
+    pages.value = pages.value.filter((p) => p.deletedAt === null);
+
+    try {
+      await fetch('/api/pages/trash/empty', { method: 'POST' });
     } catch {
       // Offline resilient
     }
@@ -798,6 +832,10 @@ export const useMindStore = defineStore('mindHub', () => {
     isAiDrawerOpen,
     isMcpModalOpen,
     isImportModalOpen,
+    isVersionHistoryModalOpen,
+    currentVersion,
+    repoUrl,
+    versionHistory,
     lastBulkImportReport,
     geminiApiKey,
     nvidiaApiKey,
@@ -822,6 +860,8 @@ export const useMindStore = defineStore('mindHub', () => {
     updatePageMeta,
     softDeletePage,
     restorePage,
+    permanentlyDeletePage,
+    emptyTrash,
     submitQuickInsight,
     runSearch,
     askAiAssistant,

@@ -12,14 +12,36 @@
           <span class="trash-modal-title">Lixeira</span>
           <span class="trash-count-badge">{{ deletedPages.length }}</span>
         </div>
-        <button
-          type="button"
-          class="trash-modal-close-btn"
-          aria-label="Fechar modal"
-          @click="$emit('update:modelValue', false)"
-        >
-          <X :size="16" />
-        </button>
+        <div class="trash-modal-header-actions">
+          <button
+            v-if="deletedPages.length > 0"
+            type="button"
+            class="trash-empty-all-btn"
+            :class="{ 'is-confirming': isConfirmingEmpty }"
+            data-testid="empty-trash-btn"
+            @click="handleEmptyTrashClick"
+          >
+            <Trash2 :size="13" />
+            <span>{{ isConfirmingEmpty ? 'Confirmar esvaziar tudo?' : 'Esvaziar lixeira' }}</span>
+          </button>
+          <button
+            v-if="isConfirmingEmpty"
+            type="button"
+            class="trash-cancel-confirm-btn"
+            title="Cancelar"
+            @click="isConfirmingEmpty = false"
+          >
+            Cancelar
+          </button>
+          <button
+            type="button"
+            class="trash-modal-close-btn"
+            aria-label="Fechar modal"
+            @click="$emit('update:modelValue', false)"
+          >
+            <X :size="16" />
+          </button>
+        </div>
       </div>
 
       <!-- Search Filter -->
@@ -50,15 +72,38 @@
               <span class="trash-item-date">Excluído em {{ formatDate(page.deletedAt) }}</span>
             </div>
           </div>
-          <button
-            type="button"
-            class="trash-restore-btn"
-            :data-testid="`restore-btn-${page.id}`"
-            @click="handleRestore(page.id)"
-          >
-            <RotateCcw :size="13" class="restore-icon" />
-            <span>Restaurar</span>
-          </button>
+          <div class="trash-item-actions">
+            <button
+              type="button"
+              class="trash-restore-btn"
+              :data-testid="`restore-btn-${page.id}`"
+              title="Restaurar nota para o workspace"
+              @click="handleRestore(page.id)"
+            >
+              <RotateCcw :size="13" class="restore-icon" />
+              <span>Restaurar</span>
+            </button>
+            <button
+              type="button"
+              class="trash-purge-btn"
+              :class="{ 'is-confirming': confirmPurgeId === page.id }"
+              :data-testid="`purge-btn-${page.id}`"
+              :title="confirmPurgeId === page.id ? 'Clique novamente para apagar para sempre' : 'Excluir definitivamente'"
+              @click="handlePermanentDelete(page.id)"
+            >
+              <Trash2 :size="13" />
+              <span>{{ confirmPurgeId === page.id ? 'Confirmar exclusão?' : 'Excluir definitivamente' }}</span>
+            </button>
+            <button
+              v-if="confirmPurgeId === page.id"
+              type="button"
+              class="trash-cancel-purge-btn"
+              title="Cancelar exclusão"
+              @click="confirmPurgeId = null"
+            >
+              ✕
+            </button>
+          </div>
         </div>
 
         <div v-if="filteredDeletedPages.length === 0" class="trash-empty-state">
@@ -82,9 +127,13 @@ const props = defineProps<{
 const emit = defineEmits<{
   (e: 'update:modelValue', value: boolean): void;
   (e: 'restore', pageId: string): void;
+  (e: 'permanent-delete', pageId: string): void;
+  (e: 'empty-trash'): void;
 }>();
 
 const searchQuery = ref('');
+const confirmPurgeId = ref<string | null>(null);
+const isConfirmingEmpty = ref(false);
 
 const filteredDeletedPages = computed(() => {
   const q = searchQuery.value.trim().toLowerCase();
@@ -112,13 +161,34 @@ function formatDate(dateStr: string | null): string {
 
 function handleRestore(pageId: string): void {
   emit('restore', pageId);
+  if (confirmPurgeId.value === pageId) {
+    confirmPurgeId.value = null;
+  }
+}
+
+function handlePermanentDelete(pageId: string): void {
+  if (confirmPurgeId.value === pageId) {
+    emit('permanent-delete', pageId);
+    confirmPurgeId.value = null;
+  } else {
+    confirmPurgeId.value = pageId;
+  }
+}
+
+function handleEmptyTrashClick(): void {
+  if (isConfirmingEmpty.value) {
+    emit('empty-trash');
+    isConfirmingEmpty.value = false;
+  } else {
+    isConfirmingEmpty.value = true;
+  }
 }
 </script>
 
 <style scoped>
 .mind-trash-modal-card {
-  width: 640px;
-  max-width: 94vw;
+  width: 680px;
+  max-width: 95vw;
   background: var(--mind-bg-canvas);
   border: 1px solid var(--mind-border-subtle);
   border-radius: 10px;
@@ -132,7 +202,7 @@ function handleRestore(pageId: string): void {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 14px 18px;
+  padding: 12px 18px;
   border-bottom: 1px solid var(--mind-border-subtle);
 }
 
@@ -147,7 +217,7 @@ function handleRestore(pageId: string): void {
 }
 
 .trash-modal-title {
-  font-size: 15.5px;
+  font-size: 15px;
   font-weight: 600;
   color: var(--mind-text-primary);
 }
@@ -159,6 +229,52 @@ function handleRestore(pageId: string): void {
   background: var(--mind-bg-surface-subtle);
   color: var(--mind-text-muted);
   border-radius: 999px;
+}
+
+.trash-modal-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.trash-empty-all-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--mind-text-secondary);
+  background: var(--mind-bg-surface-subtle);
+  border: 1px solid var(--mind-border-subtle);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.12s ease;
+}
+
+.trash-empty-all-btn:hover {
+  color: #c92a2a;
+  background: #fff5f5;
+  border-color: #ffc9c9;
+}
+
+.trash-empty-all-btn.is-confirming {
+  color: #ffffff;
+  background: #e03131;
+  border-color: #c92a2a;
+}
+
+.trash-cancel-confirm-btn {
+  background: transparent;
+  border: none;
+  font-size: 12px;
+  color: var(--mind-text-muted);
+  cursor: pointer;
+  padding: 4px 6px;
+}
+
+.trash-cancel-confirm-btn:hover {
+  color: var(--mind-text-primary);
 }
 
 .trash-modal-close-btn {
@@ -203,7 +319,7 @@ function handleRestore(pageId: string): void {
 }
 
 .trash-items-scrollable {
-  max-height: 380px;
+  max-height: 400px;
   overflow-y: auto;
   padding: 8px 12px;
 }
@@ -254,11 +370,18 @@ function handleRestore(pageId: string): void {
   font-size: 11px;
 }
 
+.trash-item-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
 .trash-restore-btn {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  padding: 5px 10px;
+  padding: 4px 9px;
   font-size: 12px;
   font-weight: 500;
   background: var(--mind-bg-canvas);
@@ -278,6 +401,47 @@ function handleRestore(pageId: string): void {
 
 .restore-icon {
   color: var(--mind-text-muted);
+}
+
+.trash-purge-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 9px;
+  font-size: 12px;
+  font-weight: 500;
+  background: var(--mind-bg-canvas);
+  border: 1px solid var(--mind-border-control);
+  color: var(--mind-text-secondary);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.12s ease;
+  white-space: nowrap;
+}
+
+.trash-purge-btn:hover {
+  background: #fff5f5;
+  border-color: #ffc9c9;
+  color: #c92a2a;
+}
+
+.trash-purge-btn.is-confirming {
+  background: #e03131;
+  border-color: #c92a2a;
+  color: #ffffff;
+}
+
+.trash-cancel-purge-btn {
+  background: transparent;
+  border: none;
+  font-size: 11px;
+  color: var(--mind-text-muted);
+  cursor: pointer;
+  padding: 2px 4px;
+}
+
+.trash-cancel-purge-btn:hover {
+  color: var(--mind-text-primary);
 }
 
 .trash-empty-state {

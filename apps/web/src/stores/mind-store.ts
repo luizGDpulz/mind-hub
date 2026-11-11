@@ -49,9 +49,11 @@ export const useMindStore = defineStore('mindHub', () => {
   const editorReadMode = ref<boolean>(false);
   const rightDrawerMode = ref<'comments' | 'ai'>('comments');
   const isCommentsDrawerOpen = ref<boolean>(true);
-  const showEmbeddedDatabase = ref<boolean>(true);
-  const showEmbeddedDiagrams = ref<boolean>(true);
+  const showEmbeddedDatabase = ref<boolean>(false);
+  const showEmbeddedDiagrams = ref<boolean>(false);
   const activeDiagramKind = ref<DiagramKind>('mermaid');
+  const pagesWithDatabaseBlock = ref<string[]>([]);
+  const pagesWithDiagramBlock = ref<Record<string, DiagramKind>>({});
   const searchQuery = ref<string>('');
   const searchMode = ref<SearchMode>('hybrid');
   const searchResults = ref<SearchResultItem[]>([]);
@@ -145,11 +147,61 @@ export const useMindStore = defineStore('mindHub', () => {
     }
   }
 
+  function syncEmbeddedBlocksForPage(pageId: string): void {
+    showEmbeddedDatabase.value = pagesWithDatabaseBlock.value.includes(pageId);
+    const diagramKind = pagesWithDiagramBlock.value[pageId];
+    showEmbeddedDiagrams.value = Boolean(diagramKind);
+    if (diagramKind) {
+      activeDiagramKind.value = diagramKind;
+    }
+  }
+
+  function enableDatabaseBlockForActivePage(): void {
+    const current = activePage.value;
+    if (current && !pagesWithDatabaseBlock.value.includes(current.id)) {
+      pagesWithDatabaseBlock.value = [...pagesWithDatabaseBlock.value, current.id];
+    }
+    showEmbeddedDatabase.value = true;
+  }
+
+  function removeDatabaseBlockFromActivePage(): void {
+    const current = activePage.value;
+    if (current) {
+      pagesWithDatabaseBlock.value = pagesWithDatabaseBlock.value.filter(
+        (id) => id !== current.id,
+      );
+    }
+    showEmbeddedDatabase.value = false;
+  }
+
+  function enableDiagramBlockForActivePage(kind: DiagramKind = 'mermaid'): void {
+    const current = activePage.value;
+    if (current) {
+      pagesWithDiagramBlock.value = {
+        ...pagesWithDiagramBlock.value,
+        [current.id]: kind,
+      };
+    }
+    activeDiagramKind.value = kind;
+    showEmbeddedDiagrams.value = true;
+  }
+
+  function removeDiagramBlockFromActivePage(): void {
+    const current = activePage.value;
+    if (current) {
+      const next = { ...pagesWithDiagramBlock.value };
+      delete next[current.id];
+      pagesWithDiagramBlock.value = next;
+    }
+    showEmbeddedDiagrams.value = false;
+  }
+
   function selectPage(id: string): void {
     const t0 = performance.now();
     const target = pages.value.find((p) => p.id === id && p.deletedAt === null);
     if (target) {
       activePageId.value = target.id;
+      syncEmbeddedBlocksForPage(target.id);
     }
     lastLatencyMs.value = Number((performance.now() - t0).toFixed(2));
   }
@@ -184,6 +236,7 @@ export const useMindStore = defineStore('mindHub', () => {
 
     pages.value = [...pages.value, newPage];
     activePageId.value = newPage.id;
+    syncEmbeddedBlocksForPage(newPage.id);
     lastLatencyMs.value = Number((performance.now() - t0).toFixed(2));
 
     try {
@@ -718,6 +771,8 @@ export const useMindStore = defineStore('mindHub', () => {
     showEmbeddedDatabase,
     showEmbeddedDiagrams,
     activeDiagramKind,
+    pagesWithDatabaseBlock,
+    pagesWithDiagramBlock,
     pageComments,
     databaseRows,
     searchQuery,
@@ -742,6 +797,10 @@ export const useMindStore = defineStore('mindHub', () => {
     slashCommands,
     initializeStore,
     selectPage,
+    enableDatabaseBlockForActivePage,
+    removeDatabaseBlockFromActivePage,
+    enableDiagramBlockForActivePage,
+    removeDiagramBlockFromActivePage,
     createPage,
     updateActivePageContent,
     updateActivePageMarkdown,

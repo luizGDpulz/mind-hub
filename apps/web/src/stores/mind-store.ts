@@ -2,6 +2,8 @@ import { computed, ref } from 'vue';
 import { defineStore } from 'pinia';
 import {
   buildPageTree,
+  createInitialSeedComments,
+  createInitialSeedDatabaseTasks,
   createInitialSeedPages,
   DEFAULT_SLASH_COMMANDS,
   exportPageWithFrontmatter,
@@ -54,163 +56,16 @@ export const useMindStore = defineStore('mindHub', () => {
   const isAiDrawerOpen = ref<boolean>(false);
   const isMcpModalOpen = ref<boolean>(false);
   const geminiApiKey = ref<string>('');
+  const nvidiaApiKey = ref<string>('');
 
-  const pageComments = ref<PageCommentThread[]>([
-    {
-      id: 'thread-1',
-      pageId: 'page-manifesto',
-      authorName: 'Philip',
-      authorInitials: 'PH',
-      createdAtLabel: '4 days ago',
-      quotedText: 'Company Overview page',
-      body: "We've got a lot to do. We should revisit this in the near future.",
-      replies: [
-        {
-          id: 'reply-1',
-          authorName: 'Philip',
-          authorInitials: 'PH',
-          createdAtLabel: '4 days ago',
-          body: 'Got it.',
-        },
-      ],
-    },
-    {
-      id: 'thread-2',
-      pageId: 'page-manifesto',
-      authorName: 'Philip',
-      authorInitials: 'PH',
-      createdAtLabel: '4 days ago',
-      quotedText: 'Two',
-      body: 'Looks good.',
-      replies: [],
-    },
-  ]);
+  const pageComments = ref<PageCommentThread[]>(createInitialSeedComments());
 
-  const databaseRows = ref<DatabaseTaskRow[]>([
-    {
-      id: 'task-1',
-      rowNumber: 1,
-      task: 'Audit the expense workflow',
-      team: { label: 'Operations', tone: 'gray' },
-      tags: [
-        { label: 'Documentation', tone: 'gray' },
-        { label: 'Infra', tone: 'orange' },
-      ],
-      assignees: ['Philip Okugbe'],
-      dueDate: 'Sep 26, 2026',
-      dueDateIso: '2026-09-26',
-      budget: 5600,
-      effort: 3,
-      status: 'Backlog',
-      priority: 'High',
-    },
-    {
-      id: 'task-2',
-      rowNumber: 2,
-      task: 'Wireframe the dashboard',
-      team: { label: 'Design', tone: 'pink' },
-      tags: [{ label: 'Polish', tone: 'yellow' }],
-      assignees: ['Philip', 'Barbara'],
-      dueDate: 'Jul 4, 2026',
-      dueDateIso: '2026-07-04',
-      budget: 13000,
-      effort: 1,
-      status: 'In Progress',
-      priority: 'High',
-    },
-    {
-      id: 'task-3',
-      rowNumber: 3,
-      task: 'Prioritize SSO support',
-      team: { label: 'Product', tone: 'gray' },
-      tags: [{ label: 'Improvement', tone: 'green' }],
-      assignees: ['Philip'],
-      dueDate: 'Sep 28, 2026',
-      dueDateIso: '2026-09-28',
-      budget: 9100,
-      effort: 1,
-      status: 'Backlog',
-      priority: 'Medium',
-    },
-    {
-      id: 'task-4',
-      rowNumber: 4,
-      task: 'Review the engineering offsite',
-      team: { label: 'People', tone: 'pink' },
-      tags: [{ label: 'Improvement', tone: 'green' }],
-      assignees: ['Barbara'],
-      dueDate: 'Jun 22, 2026',
-      dueDateIso: '2026-06-22',
-      budget: 11900,
-      effort: 5,
-      status: 'In Review',
-      priority: 'Low',
-    },
-    {
-      id: 'task-5',
-      rowNumber: 5,
-      task: 'Restyle the dashboard',
-      team: { label: 'Design', tone: 'pink' },
-      tags: [{ label: 'Polish', tone: 'yellow' }],
-      assignees: ['John'],
-      dueDate: 'Jun 19, 2026',
-      dueDateIso: '2026-06-19',
-      budget: 2800,
-      effort: 5,
-      status: 'Blocked',
-      priority: 'Urgent',
-    },
-    {
-      id: 'task-6',
-      rowNumber: 6,
-      task: 'Review the exit interviews',
-      team: { label: 'People', tone: 'pink' },
-      tags: [{ label: 'Documentation', tone: 'gray' }],
-      assignees: ['John'],
-      dueDate: 'Apr 16, 2026',
-      dueDateIso: '2026-04-16',
-      budget: 35700,
-      effort: 3,
-      status: 'Done',
-      priority: 'Urgent',
-    },
-    {
-      id: 'task-7',
-      rowNumber: 7,
-      task: 'Plan the permissions model',
-      team: { label: 'Product', tone: 'gray' },
-      tags: [{ label: 'Feature', tone: 'blue' }],
-      assignees: ['Barbara'],
-      dueDate: 'Jun 19, 2026',
-      dueDateIso: '2026-06-19',
-      budget: 30400,
-      effort: 13,
-      status: 'In Review',
-      priority: 'Low',
-    },
-    {
-      id: 'task-8',
-      rowNumber: 8,
-      task: 'Follow up with Acme Corp',
-      team: { label: 'Sales', tone: 'green' },
-      tags: [
-        { label: 'Research', tone: 'gray' },
-        { label: 'Growth', tone: 'pink' },
-      ],
-      assignees: ['John'],
-      dueDate: 'Jun 25, 2026',
-      dueDateIso: '2026-06-25',
-      budget: 10800,
-      effort: 1,
-      status: 'In Progress',
-      priority: 'Urgent',
-    },
-  ]);
+  const databaseRows = ref<DatabaseTaskRow[]>(createInitialSeedDatabaseTasks());
   const aiChatHistory = ref<AiChatEntry[]>([
     {
       id: 'msg-welcome',
       role: 'assistant',
-      text: 'Olá! Sou o copiloto semântico do **Mind Hub**. Posso pesquisar na sua base vetorial (`pgvector`) ou responder usando sua chave **Google Gemini (BYOK)**.',
+      text: 'Olá! Sou o copiloto semântico do **Mind Hub**. Posso pesquisar na sua base vetorial (`pgvector`) ou responder usando **NVIDIA NIM** / **Google Gemini (BYOK)**.',
       provider: 'local-rag',
       createdAt: new Date().toISOString(),
     },
@@ -250,12 +105,31 @@ export const useMindStore = defineStore('mindHub', () => {
   async function initializeStore(): Promise<void> {
     const t0 = performance.now();
     try {
-      const response = await fetch('/api/pages?includeDeleted=true');
+      const response = await fetch('/api/workspace/bootstrap');
       if (response.ok) {
-        const data = (await response.json()) as { pages?: MindPage[] };
+        const data = (await response.json()) as {
+          pages?: MindPage[];
+          databaseTasks?: DatabaseTaskRow[];
+          comments?: PageCommentThread[];
+        };
         if (data.pages && data.pages.length > 0) {
           pages.value = data.pages;
-          backendConnected.value = true;
+        }
+        if (data.databaseTasks && data.databaseTasks.length > 0) {
+          databaseRows.value = data.databaseTasks;
+        }
+        if (data.comments && data.comments.length > 0) {
+          pageComments.value = data.comments;
+        }
+        backendConnected.value = true;
+      } else {
+        const fallbackRes = await fetch('/api/pages?includeDeleted=true');
+        if (fallbackRes.ok) {
+          const fallbackData = (await fallbackRes.json()) as { pages?: MindPage[] };
+          if (fallbackData.pages && fallbackData.pages.length > 0) {
+            pages.value = fallbackData.pages;
+            backendConnected.value = true;
+          }
         }
       }
     } catch {
@@ -551,6 +425,7 @@ export const useMindStore = defineStore('mindHub', () => {
         body: JSON.stringify({
           question: trimmed,
           apiKey: geminiApiKey.value || undefined,
+          nvidiaApiKey: nvidiaApiKey.value || undefined,
         }),
       });
       if (response.ok) {
@@ -638,12 +513,16 @@ export const useMindStore = defineStore('mindHub', () => {
       const nextStatus = order[(idx + 1) % order.length] ?? 'Backlog';
       return { ...row, status: nextStatus };
     });
+
+    void fetch(`/api/database/tasks/${rowId}/cycle-status`, {
+      method: 'POST',
+    }).catch(() => undefined);
   }
 
   function addDatabaseTaskRow(status: DatabaseStatus = 'Backlog'): DatabaseTaskRow {
     const nextNum = databaseRows.value.length + 1;
     const newRow: DatabaseTaskRow = {
-      id: `task-${nextNum}`,
+      id: `task-${nextNum}-${Date.now().toString(36)}`,
       rowNumber: nextNum,
       task: `New Roadmap Task #${nextNum}`,
       team: { label: 'Product', tone: 'gray' },
@@ -655,8 +534,16 @@ export const useMindStore = defineStore('mindHub', () => {
       effort: 2,
       status,
       priority: 'Medium',
+      deletedAt: null,
     };
     databaseRows.value = [...databaseRows.value, newRow];
+
+    void fetch('/api/database/tasks', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(newRow),
+    }).catch(() => undefined);
+
     return newRow;
   }
 
@@ -679,6 +566,16 @@ export const useMindStore = defineStore('mindHub', () => {
         ],
       };
     });
+
+    void fetch(`/api/comments/${threadId}/replies`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        authorName: 'Philip',
+        authorInitials: 'PH',
+        body: cleaned,
+      }),
+    }).catch(() => undefined);
   }
 
   return {
@@ -704,6 +601,7 @@ export const useMindStore = defineStore('mindHub', () => {
     isAiDrawerOpen,
     isMcpModalOpen,
     geminiApiKey,
+    nvidiaApiKey,
     aiChatHistory,
     lastSyncSnapshot,
     lastLatencyMs,

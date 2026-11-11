@@ -13,8 +13,12 @@ import {
   tiptapToMarkdown,
   type AiChatResponse,
   type CreatePageInput,
+  type DatabaseStatus,
+  type DatabaseTaskRow,
+  type DiagramKind,
   type GitSyncSnapshot,
   type MindPage,
+  type PageCommentThread,
   type PageTreeNode,
   type SearchMode,
   type SearchResultItem,
@@ -34,7 +38,14 @@ export interface AiChatEntry {
 export const useMindStore = defineStore('mindHub', () => {
   const pages = ref<MindPage[]>(createInitialSeedPages());
   const activePageId = ref<string>('page-manifesto');
-  const darkMode = ref<boolean>(true);
+  const darkMode = ref<boolean>(false);
+  const activeSurface = ref<'editor' | 'database' | 'login'>('editor');
+  const editorReadMode = ref<boolean>(false);
+  const rightDrawerMode = ref<'comments' | 'ai'>('comments');
+  const isCommentsDrawerOpen = ref<boolean>(true);
+  const showEmbeddedDatabase = ref<boolean>(true);
+  const showEmbeddedDiagrams = ref<boolean>(true);
+  const activeDiagramKind = ref<DiagramKind>('mermaid');
   const searchQuery = ref<string>('');
   const searchMode = ref<SearchMode>('hybrid');
   const searchResults = ref<SearchResultItem[]>([]);
@@ -43,6 +54,158 @@ export const useMindStore = defineStore('mindHub', () => {
   const isAiDrawerOpen = ref<boolean>(false);
   const isMcpModalOpen = ref<boolean>(false);
   const geminiApiKey = ref<string>('');
+
+  const pageComments = ref<PageCommentThread[]>([
+    {
+      id: 'thread-1',
+      pageId: 'page-manifesto',
+      authorName: 'Philip',
+      authorInitials: 'PH',
+      createdAtLabel: '4 days ago',
+      quotedText: 'Company Overview page',
+      body: "We've got a lot to do. We should revisit this in the near future.",
+      replies: [
+        {
+          id: 'reply-1',
+          authorName: 'Philip',
+          authorInitials: 'PH',
+          createdAtLabel: '4 days ago',
+          body: 'Got it.',
+        },
+      ],
+    },
+    {
+      id: 'thread-2',
+      pageId: 'page-manifesto',
+      authorName: 'Philip',
+      authorInitials: 'PH',
+      createdAtLabel: '4 days ago',
+      quotedText: 'Two',
+      body: 'Looks good.',
+      replies: [],
+    },
+  ]);
+
+  const databaseRows = ref<DatabaseTaskRow[]>([
+    {
+      id: 'task-1',
+      rowNumber: 1,
+      task: 'Audit the expense workflow',
+      team: { label: 'Operations', tone: 'gray' },
+      tags: [
+        { label: 'Documentation', tone: 'gray' },
+        { label: 'Infra', tone: 'orange' },
+      ],
+      assignees: ['Philip Okugbe'],
+      dueDate: 'Sep 26, 2026',
+      dueDateIso: '2026-09-26',
+      budget: 5600,
+      effort: 3,
+      status: 'Backlog',
+      priority: 'High',
+    },
+    {
+      id: 'task-2',
+      rowNumber: 2,
+      task: 'Wireframe the dashboard',
+      team: { label: 'Design', tone: 'pink' },
+      tags: [{ label: 'Polish', tone: 'yellow' }],
+      assignees: ['Philip', 'Barbara'],
+      dueDate: 'Jul 4, 2026',
+      dueDateIso: '2026-07-04',
+      budget: 13000,
+      effort: 1,
+      status: 'In Progress',
+      priority: 'High',
+    },
+    {
+      id: 'task-3',
+      rowNumber: 3,
+      task: 'Prioritize SSO support',
+      team: { label: 'Product', tone: 'gray' },
+      tags: [{ label: 'Improvement', tone: 'green' }],
+      assignees: ['Philip'],
+      dueDate: 'Sep 28, 2026',
+      dueDateIso: '2026-09-28',
+      budget: 9100,
+      effort: 1,
+      status: 'Backlog',
+      priority: 'Medium',
+    },
+    {
+      id: 'task-4',
+      rowNumber: 4,
+      task: 'Review the engineering offsite',
+      team: { label: 'People', tone: 'pink' },
+      tags: [{ label: 'Improvement', tone: 'green' }],
+      assignees: ['Barbara'],
+      dueDate: 'Jun 22, 2026',
+      dueDateIso: '2026-06-22',
+      budget: 11900,
+      effort: 5,
+      status: 'In Review',
+      priority: 'Low',
+    },
+    {
+      id: 'task-5',
+      rowNumber: 5,
+      task: 'Restyle the dashboard',
+      team: { label: 'Design', tone: 'pink' },
+      tags: [{ label: 'Polish', tone: 'yellow' }],
+      assignees: ['John'],
+      dueDate: 'Jun 19, 2026',
+      dueDateIso: '2026-06-19',
+      budget: 2800,
+      effort: 5,
+      status: 'Blocked',
+      priority: 'Urgent',
+    },
+    {
+      id: 'task-6',
+      rowNumber: 6,
+      task: 'Review the exit interviews',
+      team: { label: 'People', tone: 'pink' },
+      tags: [{ label: 'Documentation', tone: 'gray' }],
+      assignees: ['John'],
+      dueDate: 'Apr 16, 2026',
+      dueDateIso: '2026-04-16',
+      budget: 35700,
+      effort: 3,
+      status: 'Done',
+      priority: 'Urgent',
+    },
+    {
+      id: 'task-7',
+      rowNumber: 7,
+      task: 'Plan the permissions model',
+      team: { label: 'Product', tone: 'gray' },
+      tags: [{ label: 'Feature', tone: 'blue' }],
+      assignees: ['Barbara'],
+      dueDate: 'Jun 19, 2026',
+      dueDateIso: '2026-06-19',
+      budget: 30400,
+      effort: 13,
+      status: 'In Review',
+      priority: 'Low',
+    },
+    {
+      id: 'task-8',
+      rowNumber: 8,
+      task: 'Follow up with Acme Corp',
+      team: { label: 'Sales', tone: 'green' },
+      tags: [
+        { label: 'Research', tone: 'gray' },
+        { label: 'Growth', tone: 'pink' },
+      ],
+      assignees: ['John'],
+      dueDate: 'Jun 25, 2026',
+      dueDateIso: '2026-06-25',
+      budget: 10800,
+      effort: 1,
+      status: 'In Progress',
+      priority: 'Urgent',
+    },
+  ]);
   const aiChatHistory = ref<AiChatEntry[]>([
     {
       id: 'msg-welcome',
@@ -461,12 +624,78 @@ export const useMindStore = defineStore('mindHub', () => {
     return snapshot;
   }
 
+  function cycleDatabaseRowStatus(rowId: string): void {
+    const order: DatabaseStatus[] = [
+      'Backlog',
+      'In Progress',
+      'In Review',
+      'Blocked',
+      'Done',
+    ];
+    databaseRows.value = databaseRows.value.map((row) => {
+      if (row.id !== rowId) return row;
+      const idx = order.indexOf(row.status);
+      const nextStatus = order[(idx + 1) % order.length] ?? 'Backlog';
+      return { ...row, status: nextStatus };
+    });
+  }
+
+  function addDatabaseTaskRow(status: DatabaseStatus = 'Backlog'): DatabaseTaskRow {
+    const nextNum = databaseRows.value.length + 1;
+    const newRow: DatabaseTaskRow = {
+      id: `task-${nextNum}`,
+      rowNumber: nextNum,
+      task: `New Roadmap Task #${nextNum}`,
+      team: { label: 'Product', tone: 'gray' },
+      tags: [{ label: 'Feature', tone: 'blue' }],
+      assignees: ['Philip'],
+      dueDate: 'Oct 15, 2026',
+      dueDateIso: '2026-10-15',
+      budget: 7500,
+      effort: 2,
+      status,
+      priority: 'Medium',
+    };
+    databaseRows.value = [...databaseRows.value, newRow];
+    return newRow;
+  }
+
+  function addCommentReply(threadId: string, body: string): void {
+    const cleaned = body.trim();
+    if (!cleaned) return;
+    pageComments.value = pageComments.value.map((thread) => {
+      if (thread.id !== threadId) return thread;
+      return {
+        ...thread,
+        replies: [
+          ...thread.replies,
+          {
+            id: `reply-${Date.now()}`,
+            authorName: 'Philip',
+            authorInitials: 'PH',
+            createdAtLabel: 'Just now',
+            body: cleaned,
+          },
+        ],
+      };
+    });
+  }
+
   return {
     pages,
     activePages,
     activePageId,
     activePage,
     darkMode,
+    activeSurface,
+    editorReadMode,
+    rightDrawerMode,
+    isCommentsDrawerOpen,
+    showEmbeddedDatabase,
+    showEmbeddedDiagrams,
+    activeDiagramKind,
+    pageComments,
+    databaseRows,
     searchQuery,
     searchMode,
     searchResults,
@@ -496,5 +725,8 @@ export const useMindStore = defineStore('mindHub', () => {
     runSearch,
     askAiAssistant,
     exportMarkdownVault,
+    cycleDatabaseRowStatus,
+    addDatabaseTaskRow,
+    addCommentReply,
   };
 });

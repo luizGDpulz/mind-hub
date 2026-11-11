@@ -53,7 +53,9 @@ export interface PageRepository {
     conflictStrategy?: 'upsert' | 'skip',
   ): Promise<{ createdCount: number; updatedCount: number; skippedCount: number; pages: MindPage[] }>;
   softDeletePage(id: string): Promise<MindPage | null>;
+  permanentlyDeletePage(id: string): Promise<boolean>;
   restorePage(id: string): Promise<MindPage | null>;
+  emptyTrash(): Promise<{ deletedCount: number }>;
   appendQuickInsight(input: QuickInsightInput): Promise<MindPage>;
   searchPages(
     query: SearchPagesQuery,
@@ -370,6 +372,18 @@ export class InMemoryPageRepository implements PageRepository {
     return deleted;
   }
 
+  async permanentlyDeletePage(id: string): Promise<boolean> {
+    const existing = this.pages.get(id);
+    if (!existing) {
+      return false;
+    }
+    const removed = this.pages.delete(id);
+    if (removed) {
+      this.onMutate();
+    }
+    return removed;
+  }
+
   async restorePage(id: string): Promise<MindPage | null> {
     const existing = this.pages.get(id);
     if (!existing || existing.deletedAt === null) {
@@ -385,6 +399,20 @@ export class InMemoryPageRepository implements PageRepository {
     this.pages.set(id, restored);
     this.onMutate();
     return restored;
+  }
+
+  async emptyTrash(): Promise<{ deletedCount: number }> {
+    let deletedCount = 0;
+    for (const [id, page] of this.pages.entries()) {
+      if (page.deletedAt !== null) {
+        this.pages.delete(id);
+        deletedCount += 1;
+      }
+    }
+    if (deletedCount > 0) {
+      this.onMutate();
+    }
+    return { deletedCount };
   }
 
   async appendQuickInsight(input: QuickInsightInput): Promise<MindPage> {

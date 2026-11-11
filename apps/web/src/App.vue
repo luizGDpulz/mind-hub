@@ -32,7 +32,13 @@
                 store.selectPage(crumb.id);
               "
             >
-              <span>{{ crumb.icon || '📄' }}</span>
+              <img
+                v-if="crumb.icon && isImageUrl(crumb.icon)"
+                :src="crumb.icon"
+                class="crumb-custom-img"
+                alt=""
+              />
+              <span v-else>{{ crumb.icon || '📄' }}</span>
               <span>{{ crumb.title }}</span>
             </button>
           </template>
@@ -401,6 +407,42 @@
 
         <!-- Main Document + Embedded Database + Open-Source Diagrams -->
         <div v-else-if="store.activePage" class="editor-container">
+          <!-- Page Header Icon & Customization (Notion-like, Issue #26) -->
+          <div class="page-header-icon-container" data-testid="page-header-icon-container">
+            <div
+              class="page-header-icon-box"
+              data-testid="page-header-icon"
+              title="Clique para mudar o ícone"
+              @click="isIconPickerOpen = true"
+            >
+              <img
+                v-if="store.activePage.icon && isImageUrl(store.activePage.icon)"
+                :src="store.activePage.icon"
+                class="page-header-custom-img"
+                alt="Page Icon"
+              />
+              <span v-else class="page-header-emoji">{{ store.activePage.icon || '📄' }}</span>
+            </div>
+
+            <div class="page-header-icon-hover-actions">
+              <button
+                type="button"
+                class="page-icon-action-btn"
+                @click="isIconPickerOpen = true"
+              >
+                Mudar ícone
+              </button>
+              <button
+                v-if="store.activePage.icon"
+                type="button"
+                class="page-icon-action-btn"
+                @click="store.updatePageMeta(store.activePage.id, { icon: '' })"
+              >
+                Remover
+              </button>
+            </div>
+          </div>
+
           <!-- Clean H1 Title -->
           <input
             :value="store.activePage.title"
@@ -528,6 +570,12 @@
       v-model="isTrashModalOpen"
       :deleted-pages="store.deletedPages"
       @restore="store.restorePage"
+    />
+
+    <!-- Clean Icon Picker Modal (Issue #26) -->
+    <MindIconPickerModal
+      v-model="isIconPickerOpen"
+      @select="(icon) => store.activePage && store.updatePageMeta(store.activePage.id, { icon })"
     />
 
     <!-- Space Settings & Git Markdown Export Modal -->
@@ -676,11 +724,13 @@ import MindSidebarSearch from './components/ui/MindSidebarSearch.vue';
 import MindSearchModal from './components/ui/MindSearchModal.vue';
 import MindTrashModal from './components/ui/MindTrashModal.vue';
 import MindSubpageLink from './components/ui/MindSubpageLink.vue';
+import MindIconPickerModal from './components/ui/MindIconPickerModal.vue';
 import type { ActionMenuItem, ActionMenuPageMeta } from './components/ui/types.js';
 
 const store = useMindStore();
 const leftDrawerOpen = ref(true);
 const isTrashModalOpen = ref(false);
+const isIconPickerOpen = ref(false);
 const sidebarWidth = ref(Number(localStorage.getItem('mind_sidebar_width')) || 280);
 const isResizingSidebar = ref(false);
 const showOverflowMenu = ref(false);
@@ -832,6 +882,15 @@ const pageMetadata = computed<ActionMenuPageMeta>(() => {
     characterCount: chars,
   };
 });
+
+function isImageUrl(val: string): boolean {
+  return (
+    val.startsWith('http://') ||
+    val.startsWith('https://') ||
+    val.startsWith('data:image/') ||
+    val.startsWith('/')
+  );
+}
 
 const activePageSubpages = computed(() => {
   if (!store.activePage) return [];
@@ -1518,5 +1577,77 @@ function splitSnippetSegments(
   display: flex;
   flex-direction: column;
   gap: 2px;
+}
+
+.page-header-icon-container {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.page-header-icon-box {
+  width: 52px;
+  height: 52px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background-color 0.12s ease;
+  user-select: none;
+}
+
+.page-header-icon-box:hover {
+  background: var(--mind-bg-hover);
+}
+
+.page-header-emoji {
+  font-size: 42px;
+  line-height: 1;
+}
+
+.page-header-custom-img {
+  width: 44px;
+  height: 44px;
+  object-fit: contain;
+  border-radius: 6px;
+}
+
+.page-header-icon-hover-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  opacity: 0;
+  transition: opacity 0.14s ease;
+}
+
+.page-header-icon-container:hover .page-header-icon-hover-actions {
+  opacity: 1;
+}
+
+.page-icon-action-btn {
+  border: 1px solid var(--mind-border-subtle);
+  background: var(--mind-bg-surface-subtle);
+  color: var(--mind-text-muted);
+  font-size: 11.5px;
+  font-weight: 500;
+  padding: 3px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.12s ease;
+}
+
+.page-icon-action-btn:hover {
+  background: var(--mind-bg-hover);
+  color: var(--mind-text-primary);
+  border-color: var(--mind-border-control);
+}
+
+.crumb-custom-img {
+  width: 15px;
+  height: 15px;
+  object-fit: contain;
+  border-radius: 2px;
 }
 </style>

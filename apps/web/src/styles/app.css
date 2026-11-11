@@ -145,9 +145,9 @@ body.body--dark,
 }
 
 .page-title-h1 {
-  font-size: 2.25rem;
+  font-size: 2.5rem;
   font-weight: 700;
-  line-height: 1.2;
+  line-height: 1.25;
   color: var(--mind-text-primary);
   border: none;
   outline: none;
@@ -261,33 +261,39 @@ body.body--dark,
   color: var(--mind-text-primary);
 }
 
-/* Tiptap ProseMirror Surface */
+/* Tiptap ProseMirror Surface (Notion Standard Typography, Issue #26) */
 .tiptap-canvas .ProseMirror {
   min-height: 380px;
   outline: none;
-  font-size: 15.5px;
-  line-height: 1.65;
+  font-size: 16px;
+  line-height: 1.7;
   color: var(--mind-text-primary);
 }
 
+.tiptap-canvas .ProseMirror p {
+  font-size: 16px;
+  line-height: 1.7;
+  margin-bottom: 0.5rem;
+}
+
 .tiptap-canvas .ProseMirror h1 {
-  font-size: 1.85rem;
+  font-size: 2.1rem;
   font-weight: 700;
-  margin: 1.25rem 0 0.5rem;
+  margin: 1.5rem 0 0.5rem;
   color: var(--mind-text-primary);
 }
 
 .tiptap-canvas .ProseMirror h2 {
-  font-size: 1.4rem;
+  font-size: 1.75rem;
   font-weight: 600;
-  margin: 1.1rem 0 0.45rem;
+  margin: 1.25rem 0 0.45rem;
   color: var(--mind-text-primary);
 }
 
 .tiptap-canvas .ProseMirror h3 {
-  font-size: 1.15rem;
+  font-size: 1.35rem;
   font-weight: 600;
-  margin: 0.9rem 0 0.35rem;
+  margin: 1rem 0 0.35rem;
   color: var(--mind-text-primary);
 }
 

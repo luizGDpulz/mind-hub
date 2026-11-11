@@ -4,7 +4,15 @@
     :data-testid="`subpage-link-${page.id}`"
     @click="$emit('navigate', page.id)"
   >
-    <span class="subpage-icon">{{ page.icon || '📄' }}</span>
+    <span class="subpage-icon">
+      <img
+        v-if="page.icon && isImageUrl(page.icon)"
+        :src="page.icon"
+        class="subpage-custom-img"
+        alt=""
+      />
+      <span v-else>{{ page.icon || '📄' }}</span>
+    </span>
     <span class="subpage-title">{{ page.title }}</span>
   </div>
 </template>
@@ -19,6 +27,15 @@ defineProps<{
 defineEmits<{
   (e: 'navigate', pageId: string): void;
 }>();
+
+function isImageUrl(val: string): boolean {
+  return (
+    val.startsWith('http://') ||
+    val.startsWith('https://') ||
+    val.startsWith('data:image/') ||
+    val.startsWith('/')
+  );
+}
 </script>
 
 <style scoped>
@@ -46,7 +63,15 @@ defineEmits<{
   align-items: center;
   justify-content: center;
   width: 20px;
+  height: 20px;
   flex-shrink: 0;
+}
+
+.subpage-custom-img {
+  width: 18px;
+  height: 18px;
+  object-fit: contain;
+  border-radius: 3px;
 }
 
 .subpage-title {

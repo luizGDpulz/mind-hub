@@ -3,19 +3,23 @@ import path from 'node:path';
 import Fastify, { type FastifyInstance } from 'fastify';
 import cors from '@fastify/cors';
 import fastifyStatic from '@fastify/static';
-import type {
-  AddCommentReplyInput,
-  AiChatRequest,
-  AuthLoginInput,
-  AuthSessionResponse,
-  CreateDatabaseTaskInput,
-  CreatePageCommentInput,
-  CreatePageInput,
-  QuickInsightInput,
-  SearchMode,
-  UpdateDatabaseTaskInput,
-  UpdatePageInput,
-  UpsertDiagramInput,
+import {
+  createSampleSecondBrainBatch,
+  planBulkVaultImport,
+  type AddCommentReplyInput,
+  type AiChatRequest,
+  type AuthLoginInput,
+  type AuthSessionResponse,
+  type BulkImportApiResponse,
+  type CreateDatabaseTaskInput,
+  type CreatePageCommentInput,
+  type CreatePageInput,
+  type QuickInsightInput,
+  type RawMarkdownFileEntry,
+  type SearchMode,
+  type UpdateDatabaseTaskInput,
+  type UpdatePageInput,
+  type UpsertDiagramInput,
 } from '@mind-hub/shared';
 import {
   DurableFilePageRepository,
@@ -24,6 +28,61 @@ import {
 } from './repository.js';
 import { AiService } from './ai-service.js';
 import { McpHandler, type JsonRpcRequest } from './mcp-handler.js';
+
+const IGNORED_VAULT_DIRS = new Set([
+  '.git',
+  '.obsidian',
+  '.trash',
+  '.design-refs',
+  'node_modules',
+  'dist',
+  'coverage',
+]);
+
+export function scanMarkdownDirectoryRecursively(
+  rootDir: string,
+  maxFiles = 250,
+): RawMarkdownFileEntry[] {
+  const entries: RawMarkdownFileEntry[] = [];
+  if (!fs.existsSync(rootDir)) {
+    return entries;
+  }
+
+  const resolvedRoot = path.resolve(rootDir);
+
+  function walk(currentDir: string): void {
+    if (entries.length >= maxFiles) return;
+    let dirItems: fs.Dirent[] = [];
+    try {
+      dirItems = fs.readdirSync(currentDir, { withFileTypes: true });
+    } catch {
+      return;
+    }
+
+    for (const item of dirItems) {
+      if (entries.length >= maxFiles) break;
+      if (item.name.startsWith('.') || IGNORED_VAULT_DIRS.has(item.name)) {
+        continue;
+      }
+
+      const fullPath = path.join(currentDir, item.name);
+      if (item.isDirectory()) {
+        walk(fullPath);
+      } else if (item.isFile() && /\.(md|markdown)$/i.test(item.name)) {
+        try {
+          const content = fs.readFileSync(fullPath, 'utf-8');
+          const relPath = path.relative(resolvedRoot, fullPath).replace(/\\/g, '/');
+          entries.push({ path: relPath, content });
+        } catch {
+          // Skip unreadable files
+        }
+      }
+    }
+  }
+
+  walk(resolvedRoot);
+  return entries;
+}
 
 export interface BuildAppOptions {
   repository?: PageRepository;
@@ -423,6 +482,105 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
     }
     const response = await aiService.answerQuestion(repo, request.body);
     return response;
+  });
+
+  // =========================================================================
+  // BULK SECOND BRAIN / MARKDOWN IMPORTER ENGINE
+  // =========================================================================
+
+  app.post<{
+    Body: {
+      files?: RawMarkdownFileEntry[];
+      useSampleSecondBrain?: boolean;
+      conflictStrategy?: 'upsert' | 'skip';
+      rootParentId?: string | null;
+      defaultTags?: string[];
+    };
+  }>('/api/import/markdown-bulk', async (request, reply) => {
+    const body = request.body ?? {};
+    const filesToImport =
+      body.useSampleSecondBrain || (!body.files || body.files.length === 0)
+        ? body.useSampleSecondBrain
+          ? createSampleSecondBrainBatch()
+          : (body.files ?? [])
+        : body.files;
+
+    if (filesToImport.length === 0) {
+      return reply
+        .code(400)
+        .send({ error: 'Provide files array or set useSampleSecondBrain=true' });
+    }
+
+    const conflictStrategy = body.conflictStrategy === 'skip' ? 'skip' : 'upsert';
+    const existingPages = await repo.listPages(false);
+    const plan = planBulkVaultImport(filesToImport, existingPages, {
+      conflictStrategy,
+      rootParentId: body.rootParentId ?? null,
+      defaultTags: body.defaultTags,
+    });
+
+    const upsertStats = await repo.upsertPagesBatch(plan.pagesToUpsert, conflictStrategy);
+    const allActivePages = await repo.listPages(true);
+
+    const responsePayload: BulkImportApiResponse = {
+      importedAt: new Date().toISOString(),
+      notesProcessed: plan.notesProcessed,
+      folderPagesCreated: plan.folderPagesCreated,
+      createdCount: upsertStats.createdCount,
+      updatedCount: upsertStats.updatedCount,
+      skippedCount: upsertStats.skippedCount,
+      wikiLinksResolved: plan.wikiLinksResolved,
+      discoveredTags: plan.discoveredTags,
+      pages: allActivePages,
+    };
+
+    return reply.code(201).send(responsePayload);
+  });
+
+  app.post<{
+    Body: {
+      directoryPath?: string;
+      conflictStrategy?: 'upsert' | 'skip';
+      maxFiles?: number;
+    };
+  }>('/api/import/directory', async (request, reply) => {
+    const body = request.body ?? {};
+    const targetDir =
+      body.directoryPath?.trim() ||
+      process.env.SECOND_BRAIN_DIR ||
+      '/home/ubuntu/mind';
+
+    const scannedFiles = scanMarkdownDirectoryRecursively(
+      targetDir,
+      body.maxFiles ?? 250,
+    );
+
+    const filesToImport =
+      scannedFiles.length > 0 ? scannedFiles : createSampleSecondBrainBatch();
+
+    const conflictStrategy = body.conflictStrategy === 'skip' ? 'skip' : 'upsert';
+    const existingPages = await repo.listPages(false);
+    const plan = planBulkVaultImport(filesToImport, existingPages, {
+      conflictStrategy,
+      defaultTags: ['vault-sync'],
+    });
+
+    const upsertStats = await repo.upsertPagesBatch(plan.pagesToUpsert, conflictStrategy);
+    const allActivePages = await repo.listPages(true);
+
+    const responsePayload: BulkImportApiResponse = {
+      importedAt: new Date().toISOString(),
+      notesProcessed: plan.notesProcessed,
+      folderPagesCreated: plan.folderPagesCreated,
+      createdCount: upsertStats.createdCount,
+      updatedCount: upsertStats.updatedCount,
+      skippedCount: upsertStats.skippedCount,
+      wikiLinksResolved: plan.wikiLinksResolved,
+      discoveredTags: plan.discoveredTags,
+      pages: allActivePages,
+    };
+
+    return reply.code(201).send(responsePayload);
   });
 
   app.get('/api/git/export', async () => {

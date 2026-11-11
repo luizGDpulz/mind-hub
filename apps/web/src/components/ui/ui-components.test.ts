@@ -10,6 +10,7 @@ import MindSearchModal from './MindSearchModal.vue';
 import MindIconPickerModal from './MindIconPickerModal.vue';
 import MindWorkspaceMenu from './MindWorkspaceMenu.vue';
 import MindSidebarAppsMenu from './MindSidebarAppsMenu.vue';
+import MindHelpVersionsMenu from './MindHelpVersionsMenu.vue';
 import MindVersionHistoryModal from './MindVersionHistoryModal.vue';
 import type { ActionMenuItem } from './types.js';
 import type { MindPage } from '@mind-hub/shared';
@@ -410,5 +411,39 @@ describe('@mind-hub/web — Atomic UI Components (Refs #27, #30, #31, #32, #33)'
     expect(wrapper.text()).toContain('M9: Notion-like UI');
     expect(wrapper.text()).toContain('Resumo da release 0.2.0');
     expect(wrapper.text()).toContain('Destaque 1');
+  });
+
+  it('MindHelpVersionsMenu renders docs, support and vertical timeline with releases (Issue #46)', async () => {
+    const sampleHistory = [
+      {
+        version: '0.2.0',
+        releaseDate: '2026-11-11',
+        milestoneTitle: 'M9: Notion-like UI',
+        summary: 'Resumo da release 0.2.0',
+        highlights: ['Destaque 1'],
+      },
+    ];
+
+    const wrapper = mount(MindHelpVersionsMenu, {
+      props: {
+        modelValue: true,
+        currentVersion: '0.2.0',
+        versionHistory: sampleHistory,
+        repoUrl: 'https://github.com/luizGDpulz/mind-hub',
+      },
+    });
+
+    expect(wrapper.find('[data-testid="help-versions-popover"]').exists()).toBe(true);
+    expect(wrapper.text()).toContain('Documentação');
+    expect(wrapper.text()).toContain('Obter suporte');
+    expect(wrapper.text()).toContain('Novidades');
+    expect(wrapper.text()).toContain('Mind Hub 0.2.0');
+    expect(wrapper.text()).toContain('Ver todos os lançamentos');
+
+    // Click "Ver todos os lançamentos"
+    const allReleasesRow = wrapper.find('[data-testid="help-action-all-releases"]');
+    await allReleasesRow.trigger('click');
+    expect(wrapper.emitted('open-all-releases')).toHaveLength(1);
+    expect(wrapper.emitted('update:modelValue')?.[0]?.[0]).toBe(false);
   });
 });

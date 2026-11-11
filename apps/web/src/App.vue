@@ -108,56 +108,41 @@
       :width="sidebarWidth"
       class="mind-sidebar column no-wrap"
     >
-      <!-- Top Notion-Style Header Row (Issues #40, #46: Notion Workspace Header) -->
+      <!-- Top Notion-Style Header Row (Collapse left, Inbox & New Note right) -->
       <div class="sidebar-top-bar">
-        <!-- Left: Workspace Switcher Dropdown Trigger -->
+        <!-- Left: Close Sidebar -->
         <button
           type="button"
-          class="sidebar-workspace-btn"
-          aria-label="Selecionar espaço de trabalho"
-          title="Espaço de trabalho e perfil"
-          data-testid="sidebar-workspace-btn"
-          @click="isWorkspaceMenuOpen = !isWorkspaceMenuOpen"
+          class="sidebar-top-icon-btn"
+          title="Fechar barra lateral (Ctrl+\)"
+          aria-label="Fechar barra lateral"
+          data-testid="sidebar-collapse-btn"
+          @click="leftDrawerOpen = false"
         >
-          <div class="sidebar-workspace-icon-wrap">
-            <span class="sidebar-workspace-icon">M</span>
-            <span class="sidebar-workspace-status-dot" />
-          </div>
-          <span class="sidebar-workspace-title">Mind de Luiz Gustavo Dias Pulz</span>
-          <component :is="ChevronDown" :size="13" class="sidebar-workspace-chevron" />
+          <component :is="PanelLeftClose" :size="16" />
         </button>
 
-        <!-- Right: Actions (Help, Apps Grid & Collapse) -->
+        <!-- Right: Actions (Inbox & New Note at root) -->
         <div class="sidebar-top-actions">
           <button
             type="button"
             class="sidebar-top-icon-btn"
-            title="Ajuda & Repositório"
-            aria-label="Ajuda e Repositório"
-            data-testid="sidebar-help-btn"
-            @click="handleOpenHelp"
+            title="Caixa de entrada / Inbox"
+            aria-label="Inbox"
+            data-testid="sidebar-inbox-btn"
+            @click="handleOpenInbox"
           >
-            <component :is="HelpCircle" :size="16" />
+            <component :is="Inbox" :size="16" />
           </button>
           <button
             type="button"
             class="sidebar-top-icon-btn"
-            title="Mais opções e utilitários"
-            aria-label="Mais opções e utilitários"
-            data-testid="sidebar-apps-grid-btn"
-            @click="isAppsMenuOpen = !isAppsMenuOpen"
+            title="Nova página na raiz"
+            aria-label="Nova página na raiz"
+            data-testid="sidebar-new-root-note-btn"
+            @click="handleCreateRootPage"
           >
-            <component :is="LayoutGrid" :size="16" />
-          </button>
-          <button
-            type="button"
-            class="sidebar-top-icon-btn"
-            title="Fechar barra lateral (Ctrl+\)"
-            aria-label="Fechar barra lateral"
-            data-testid="sidebar-collapse-btn"
-            @click="leftDrawerOpen = false"
-          >
-            <component :is="PanelLeftClose" :size="16" />
+            <component :is="SquarePen" :size="16" />
           </button>
         </div>
       </div>
@@ -254,13 +239,13 @@
         />
       </div>
 
-      <!-- Sticky Sidebar Footer (Issues #33, #40, #46: User Profile Card) -->
+      <!-- Sticky Sidebar Footer (Issues #33, #40, #46: User Profile Card & Help/Releases) -->
       <div class="sidebar-sticky-footer">
         <div
           class="sidebar-user-card"
           title="Clique para abrir opções da conta e configurações"
           data-testid="sidebar-user-card-btn"
-          @click="isWorkspaceMenuOpen = true"
+          @click="isWorkspaceMenuOpen = !isWorkspaceMenuOpen"
         >
           <div class="sidebar-user-avatar">LP</div>
           <div class="sidebar-user-meta">
@@ -268,6 +253,16 @@
             <span class="sidebar-user-role">Workspace Admin · v{{ store.currentVersion }}</span>
           </div>
         </div>
+        <button
+          type="button"
+          class="sidebar-footer-help-btn"
+          title="Ajuda, Documentação & Novidades"
+          aria-label="Ajuda e Novidades"
+          data-testid="sidebar-help-versions-btn"
+          @click="isHelpVersionsMenuOpen = !isHelpVersionsMenuOpen"
+        >
+          <component :is="HelpCircle" :size="15" />
+        </button>
       </div>
 
       <!-- Drag Resizer Handle on right edge of sidebar (Issue #35) -->
@@ -621,9 +616,22 @@
       :user-email="'luizg.pulz@gmail.com'"
       :current-version="store.currentVersion"
       :repo-url="store.repoUrl"
+      :bottom="56"
+      :left="10"
       @open-settings="store.isMcpModalOpen = true"
-      @open-versions="store.isVersionHistoryModalOpen = true"
+      @open-versions="isHelpVersionsMenuOpen = true"
       @logout="store.activeSurface = 'login'"
+    />
+
+    <!-- Mind Help & Versions / What's New Popover (Issue #46) -->
+    <MindHelpVersionsMenu
+      v-model="isHelpVersionsMenuOpen"
+      :current-version="store.currentVersion"
+      :version-history="store.versionHistory"
+      :repo-url="store.repoUrl"
+      :bottom="56"
+      :left="14"
+      @open-all-releases="store.isVersionHistoryModalOpen = true"
     />
 
     <!-- Mind Sidebar Apps Menu (Issue #46) -->
@@ -807,6 +815,7 @@ import MindSubpageLink from './components/ui/MindSubpageLink.vue';
 import MindIconPickerModal from './components/ui/MindIconPickerModal.vue';
 import MindWorkspaceMenu from './components/ui/MindWorkspaceMenu.vue';
 import MindSidebarAppsMenu from './components/ui/MindSidebarAppsMenu.vue';
+import MindHelpVersionsMenu from './components/ui/MindHelpVersionsMenu.vue';
 import MindVersionHistoryModal from './components/ui/MindVersionHistoryModal.vue';
 import type { ActionMenuItem, ActionMenuPageMeta } from './components/ui/types.js';
 
@@ -815,6 +824,7 @@ const leftDrawerOpen = ref(true);
 const isTrashModalOpen = ref(false);
 const isWorkspaceMenuOpen = ref(false);
 const isAppsMenuOpen = ref(false);
+const isHelpVersionsMenuOpen = ref(false);
 const isIconPickerOpen = ref(false);
 const sidebarWidth = ref(Number(localStorage.getItem('mind_sidebar_width')) || 280);
 const isResizingSidebar = ref(false);
@@ -1417,25 +1427,48 @@ function splitSnippetSegments(
 .sidebar-sticky-footer {
   margin-top: auto;
   border-top: 1px solid var(--mind-border-subtle);
-  padding: 8px 10px;
+  padding: 6px 8px;
   background: var(--mind-bg-sidebar);
   display: flex;
-  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
   gap: 4px;
 }
 
 .sidebar-user-card {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 6px 8px;
+  gap: 8px;
+  padding: 5px 6px;
   border-radius: 6px;
   cursor: pointer;
+  flex: 1;
+  min-width: 0;
   transition: background-color 0.12s ease;
 }
 
 .sidebar-user-card:hover {
   background: var(--mind-bg-hover);
+}
+
+.sidebar-footer-help-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border: none;
+  background: transparent;
+  color: var(--mind-text-muted, #868e96);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.12s ease;
+  flex-shrink: 0;
+}
+
+.sidebar-footer-help-btn:hover {
+  background: var(--mind-bg-hover);
+  color: var(--mind-text-primary);
 }
 
 .sidebar-user-avatar {

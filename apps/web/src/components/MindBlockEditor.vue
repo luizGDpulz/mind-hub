@@ -132,129 +132,13 @@
         </div>
       </div>
 
-      <!-- Notion-like Floating Bubble Menu for Selected Text Formatting -->
-      <div
-        v-if="showBubbleMenu && !readOnlyMode"
-        class="mind-floating-popover mind-bubble-menu"
-        :style="{ top: `${bubbleMenuCoords.top}px`, left: `${bubbleMenuCoords.left}px` }"
-        data-testid="editor-bubble-menu"
-        role="toolbar"
-        aria-label="Barra flutuante de formatação"
-      >
-        <div class="bubble-menu-row">
-          <button
-            type="button"
-            class="bubble-menu-btn"
-            :class="{ 'is-active': editor?.isActive('bold') }"
-            title="Negrito (Ctrl+B)"
-            @click="editor?.chain().focus().toggleBold().run()"
-          >
-            <Bold :size="14" />
-          </button>
-          <button
-            type="button"
-            class="bubble-menu-btn"
-            :class="{ 'is-active': editor?.isActive('italic') }"
-            title="Itálico (Ctrl+I)"
-            @click="editor?.chain().focus().toggleItalic().run()"
-          >
-            <Italic :size="14" />
-          </button>
-          <button
-            type="button"
-            class="bubble-menu-btn"
-            :class="{ 'is-active': editor?.isActive('underline') }"
-            title="Sublinhado (Ctrl+U)"
-            @click="editor?.chain().focus().toggleUnderline().run()"
-          >
-            <UnderlineIcon :size="14" />
-          </button>
-          <button
-            type="button"
-            class="bubble-menu-btn"
-            :class="{ 'is-active': editor?.isActive('strike') }"
-            title="Tachado (Ctrl+Shift+S)"
-            @click="editor?.chain().focus().toggleStrike().run()"
-          >
-            <Strikethrough :size="14" />
-          </button>
-          <button
-            type="button"
-            class="bubble-menu-btn"
-            :class="{ 'is-active': editor?.isActive('code') }"
-            title="Código inline"
-            @click="editor?.chain().focus().toggleCode().run()"
-          >
-            <Code :size="14" />
-          </button>
-          <button
-            type="button"
-            class="bubble-menu-btn"
-            :class="{ 'is-active': editor?.isActive('link') }"
-            title="Inserir/Editar Link"
-            @click="handleToggleLink"
-          >
-            <LinkIcon :size="14" />
-          </button>
-
-          <span class="bubble-menu-sep" />
-
-          <button
-            type="button"
-            class="bubble-menu-btn"
-            :class="{ 'is-active': editor?.isActive('heading', { level: 1 }) }"
-            title="Título H1"
-            @click="editor?.chain().focus().toggleHeading({ level: 1 }).run()"
-          >
-            <Heading1 :size="14" />
-          </button>
-          <button
-            type="button"
-            class="bubble-menu-btn"
-            :class="{ 'is-active': editor?.isActive('heading', { level: 2 }) }"
-            title="Título H2"
-            @click="editor?.chain().focus().toggleHeading({ level: 2 }).run()"
-          >
-            <Heading2 :size="14" />
-          </button>
-          <button
-            type="button"
-            class="bubble-menu-btn"
-            :class="{ 'is-active': editor?.isActive('heading', { level: 3 }) }"
-            title="Título H3"
-            @click="editor?.chain().focus().toggleHeading({ level: 3 }).run()"
-          >
-            <Heading3 :size="14" />
-          </button>
-          <button
-            type="button"
-            class="bubble-menu-btn"
-            :class="{ 'is-active': editor?.isActive('bulletList') }"
-            title="Lista com marcadores"
-            @click="editor?.chain().focus().toggleBulletList().run()"
-          >
-            <List :size="14" />
-          </button>
-          <button
-            type="button"
-            class="bubble-menu-btn"
-            :class="{ 'is-active': editor?.isActive('taskList') }"
-            title="Lista de tarefas"
-            @click="editor?.chain().focus().toggleTaskList().run()"
-          >
-            <ListTodo :size="14" />
-          </button>
-          <button
-            type="button"
-            class="bubble-menu-btn"
-            :class="{ 'is-active': editor?.isActive('blockquote') }"
-            title="Citação / Callout"
-            @click="editor?.chain().focus().toggleBlockquote().run()"
-          >
-            <Quote :size="14" />
-          </button>
-        </div>
-      </div>
+      <!-- Notion-like Modular Floating Bubble Menu (Teleported & Fixed, Issue #48) -->
+      <MindBubbleMenu
+        :editor="editor"
+        :visible="showBubbleMenu && !readOnlyMode"
+        :coords="bubbleMenuCoords"
+        @toggle-link="handleToggleLink"
+      />
 
       <!-- FLOATING SLASH COMMAND MENU (Notion-like with Keyboard Navigation) -->
       <div
@@ -361,27 +245,11 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { EditorContent, useEditor } from '@tiptap/vue-3';
 import { NodeSelection } from '@tiptap/pm/state';
-import {
-  Bold,
-  Code,
-  Copy,
-  GripVertical,
-  Heading1,
-  Heading2,
-  Heading3,
-  Italic,
-  Link as LinkIcon,
-  List,
-  ListTodo,
-  Plus,
-  Quote,
-  Strikethrough,
-  Trash2,
-  Underline as UnderlineIcon,
-} from 'lucide-vue-next';
+import { Copy, GripVertical, Plus, Trash2 } from 'lucide-vue-next';
+import MindBubbleMenu from './MindBubbleMenu.vue';
 import {
   createEditorExtensions,
   createEditorSchema,

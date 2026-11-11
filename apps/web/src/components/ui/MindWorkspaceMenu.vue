@@ -152,6 +152,7 @@ const props = withDefaults(
     currentVersion?: string;
     repoUrl?: string;
     top?: number;
+    bottom?: number;
     left?: number;
   }>(),
   {
@@ -159,8 +160,8 @@ const props = withDefaults(
     userEmail: 'luizg.pulz@gmail.com',
     currentVersion: '0.2.0',
     repoUrl: 'https://github.com/luizGDpulz/mind-hub',
-    top: 48,
-    left: 12,
+    bottom: 56,
+    left: 10,
   },
 );
 
@@ -171,10 +172,18 @@ const emit = defineEmits<{
   (e: 'logout'): void;
 }>();
 
-const popoverStyle = computed(() => ({
-  top: `${props.top}px`,
-  left: `${props.left}px`,
-}));
+const popoverStyle = computed(() => {
+  if (props.top !== undefined) {
+    return {
+      top: `${props.top}px`,
+      left: `${props.left}px`,
+    };
+  }
+  return {
+    bottom: `${props.bottom}px`,
+    left: `${props.left}px`,
+  };
+});
 
 function handleAction(action: 'settings' | 'versions' | 'repo' | 'new-workspace' | 'logout'): void {
   emit('update:modelValue', false);

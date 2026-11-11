@@ -1,41 +1,44 @@
 <template>
   <div class="tiptap-editor-shell" data-testid="tiptap-block-editor">
-    <!-- Block-Level Left Gutter Controls (+ and ⠿) + Active Block Indicator -->
+    <!-- Block-Level Left Gutter Controls (+ and ⠿) following active line (Notion-like) -->
     <div class="block-row-shell">
       <div
+        v-if="!readOnlyMode"
         class="block-left-gutter is-visible"
         role="toolbar"
         aria-label="Block line controls"
+        :style="{ top: `${gutterTop}px` }"
       >
         <button
           type="button"
           class="gutter-icon-btn"
-          title="Adicionar bloco abaixo (/)"
+          title="Adicionar linha abaixo (/)"
           aria-label="Add block below"
           data-testid="block-gutter-add-btn"
           @click="handleGutterAddBlock"
         >
-          +
+          <Plus :size="14" />
         </button>
         <button
           type="button"
           class="gutter-icon-btn"
-          title="Arrastar, subir/descer ou mudar comando da linha"
+          title="Ações do bloco e transformar tipo"
           aria-label="Open block actions and turn-into menu"
           data-testid="block-gutter-handle-btn"
-          @click="showBlockHandleMenu = !showBlockHandleMenu"
+          @click="toggleBlockHandleMenu"
         >
-          ⠿
+          <GripVertical :size="14" />
         </button>
       </div>
 
-      <!-- Floating Left Handle Menu: Move Up/Down & Turn Into (Mudar Comando da Linha) -->
+      <!-- Floating Left Handle Menu: Move Up/Down, Duplicate, Delete & Turn Into -->
       <div
-        v-if="showBlockHandleMenu"
+        v-if="showBlockHandleMenu && !readOnlyMode"
         class="mind-floating-popover block-handle-popover"
+        :style="{ top: `${gutterTop}px` }"
         data-testid="block-handle-menu"
       >
-        <div class="mind-popover-section-title">LINE ORDER (LINHA #{{ activeBlockIndex + 1 }})</div>
+        <div class="mind-popover-section-title">AÇÕES DO BLOCO</div>
         <div
           class="mind-popover-row"
           data-testid="block-move-up-btn"
@@ -43,8 +46,8 @@
         >
           <span class="mind-icon-box-28">↑</span>
           <div>
-            <div class="popover-item-title">Move line up</div>
-            <div class="popover-item-desc">Subir o bloco atual uma posição</div>
+            <div class="popover-item-title">Subir bloco</div>
+            <div class="popover-item-desc">Mover este bloco para cima</div>
           </div>
         </div>
         <div
@@ -54,12 +57,28 @@
         >
           <span class="mind-icon-box-28">↓</span>
           <div>
-            <div class="popover-item-title">Move line down</div>
-            <div class="popover-item-desc">Descer o bloco atual uma posição</div>
+            <div class="popover-item-title">Descer bloco</div>
+            <div class="popover-item-desc">Mover este bloco para baixo</div>
           </div>
         </div>
+        <div
+          class="mind-popover-row"
+          data-testid="block-duplicate-btn"
+          @click="duplicateActiveBlock"
+        >
+          <span class="mind-icon-box-28"><Copy :size="14" /></span>
+          <div class="popover-item-title">Duplicar bloco</div>
+        </div>
+        <div
+          class="mind-popover-row text-danger-row"
+          data-testid="block-delete-btn"
+          @click="deleteActiveBlock"
+        >
+          <span class="mind-icon-box-28"><Trash2 :size="14" /></span>
+          <div class="popover-item-title">Excluir bloco</div>
+        </div>
 
-        <div class="mind-popover-section-title">TURN INTO (MUDAR COMANDO DA LINHA)</div>
+        <div class="mind-popover-section-title">TRANSFORMAR EM (TURN INTO)</div>
         <div
           v-for="cmd in basicSlashCommands"
           :key="`turn-${cmd.id}`"
@@ -70,29 +89,135 @@
           <span class="mind-icon-box-28">{{ cmd.monogram ?? 'A' }}</span>
           <div class="popover-item-title">{{ cmd.label }}</div>
         </div>
+      </div>
 
-        <div class="mind-popover-section-title">ACTIONS</div>
-        <div
-          class="mind-popover-row"
-          data-testid="block-duplicate-btn"
-          @click="duplicateActiveBlock"
-        >
-          <span class="mind-icon-box-28">⧉</span>
-          <div class="popover-item-title">Duplicate line</div>
-        </div>
-        <div
-          class="mind-popover-row"
-          data-testid="block-delete-btn"
-          @click="deleteActiveBlock"
-        >
-          <span class="mind-icon-box-28">🗑</span>
-          <div class="popover-item-title">Delete line</div>
+      <!-- Notion-like Floating Bubble Menu for Selected Text Formatting -->
+      <div
+        v-if="showBubbleMenu && !readOnlyMode"
+        class="mind-floating-popover mind-bubble-menu"
+        :style="{ top: `${bubbleMenuCoords.top}px`, left: `${bubbleMenuCoords.left}px` }"
+        data-testid="editor-bubble-menu"
+        role="toolbar"
+        aria-label="Barra flutuante de formatação"
+      >
+        <div class="bubble-menu-row">
+          <button
+            type="button"
+            class="bubble-menu-btn"
+            :class="{ 'is-active': editor?.isActive('bold') }"
+            title="Negrito (Ctrl+B)"
+            @click="editor?.chain().focus().toggleBold().run()"
+          >
+            <Bold :size="14" />
+          </button>
+          <button
+            type="button"
+            class="bubble-menu-btn"
+            :class="{ 'is-active': editor?.isActive('italic') }"
+            title="Itálico (Ctrl+I)"
+            @click="editor?.chain().focus().toggleItalic().run()"
+          >
+            <Italic :size="14" />
+          </button>
+          <button
+            type="button"
+            class="bubble-menu-btn"
+            :class="{ 'is-active': editor?.isActive('underline') }"
+            title="Sublinhado (Ctrl+U)"
+            @click="editor?.chain().focus().toggleUnderline().run()"
+          >
+            <UnderlineIcon :size="14" />
+          </button>
+          <button
+            type="button"
+            class="bubble-menu-btn"
+            :class="{ 'is-active': editor?.isActive('strike') }"
+            title="Tachado (Ctrl+Shift+S)"
+            @click="editor?.chain().focus().toggleStrike().run()"
+          >
+            <Strikethrough :size="14" />
+          </button>
+          <button
+            type="button"
+            class="bubble-menu-btn"
+            :class="{ 'is-active': editor?.isActive('code') }"
+            title="Código inline"
+            @click="editor?.chain().focus().toggleCode().run()"
+          >
+            <Code :size="14" />
+          </button>
+          <button
+            type="button"
+            class="bubble-menu-btn"
+            :class="{ 'is-active': editor?.isActive('link') }"
+            title="Inserir/Editar Link"
+            @click="handleToggleLink"
+          >
+            <LinkIcon :size="14" />
+          </button>
+
+          <span class="bubble-menu-sep" />
+
+          <button
+            type="button"
+            class="bubble-menu-btn"
+            :class="{ 'is-active': editor?.isActive('heading', { level: 1 }) }"
+            title="Título H1"
+            @click="editor?.chain().focus().toggleHeading({ level: 1 }).run()"
+          >
+            <Heading1 :size="14" />
+          </button>
+          <button
+            type="button"
+            class="bubble-menu-btn"
+            :class="{ 'is-active': editor?.isActive('heading', { level: 2 }) }"
+            title="Título H2"
+            @click="editor?.chain().focus().toggleHeading({ level: 2 }).run()"
+          >
+            <Heading2 :size="14" />
+          </button>
+          <button
+            type="button"
+            class="bubble-menu-btn"
+            :class="{ 'is-active': editor?.isActive('heading', { level: 3 }) }"
+            title="Título H3"
+            @click="editor?.chain().focus().toggleHeading({ level: 3 }).run()"
+          >
+            <Heading3 :size="14" />
+          </button>
+          <button
+            type="button"
+            class="bubble-menu-btn"
+            :class="{ 'is-active': editor?.isActive('bulletList') }"
+            title="Lista com marcadores"
+            @click="editor?.chain().focus().toggleBulletList().run()"
+          >
+            <List :size="14" />
+          </button>
+          <button
+            type="button"
+            class="bubble-menu-btn"
+            :class="{ 'is-active': editor?.isActive('taskList') }"
+            title="Lista de tarefas"
+            @click="editor?.chain().focus().toggleTaskList().run()"
+          >
+            <ListTodo :size="14" />
+          </button>
+          <button
+            type="button"
+            class="bubble-menu-btn"
+            :class="{ 'is-active': editor?.isActive('blockquote') }"
+            title="Citação / Callout"
+            @click="editor?.chain().focus().toggleBlockquote().run()"
+          >
+            <Quote :size="14" />
+          </button>
         </div>
       </div>
 
-      <!-- FLOATING SLASH COMMAND MENU (09-slash-command-menu.png) -->
+      <!-- FLOATING SLASH COMMAND MENU (Notion-like with Keyboard Navigation) -->
       <div
-        v-if="showSlashMenu"
+        v-if="showSlashMenu && !readOnlyMode"
         class="mind-floating-popover slash-command-popover"
         :style="slashPopoverStyle"
         data-testid="slash-command-menu"
@@ -100,34 +225,43 @@
         <div class="slash-filter-bar">
           <span class="slash-prefix">/</span>
           <input
+            ref="slashInputRef"
             v-model="slashFilter"
             type="text"
-            placeholder="Filter commands (Text, Heading 1, To-do, Mermaid, Draw.io)..."
+            placeholder="Filtrar blocos (H1, Tarefa, Código, Tabela, Subpágina)..."
             class="slash-filter-input"
             data-testid="slash-filter-input"
+            @keydown="handleSlashInputKeydown"
           />
         </div>
 
-        <div class="mind-popover-section-title">Basic</div>
-        <div
-          v-for="(cmd, idx) in filteredSlashCommands"
-          :key="cmd.id"
-          class="mind-popover-row"
-          :class="{ 'is-selected': idx === 0 }"
-          :data-testid="`slash-item-${cmd.id}`"
-          @click="applySlashCommand(cmd.id)"
-        >
-          <span class="mind-icon-box-32">{{ cmd.monogram ?? 'A' }}</span>
-          <div class="popover-text-col">
-            <div class="popover-item-title">{{ cmd.label }}</div>
-            <div class="popover-item-desc">{{ cmd.description }}</div>
+        <div class="slash-commands-list" role="listbox">
+          <div
+            v-for="(cmd, idx) in filteredSlashCommands"
+            :key="cmd.id"
+            class="mind-popover-row"
+            :class="{ 'is-selected': idx === selectedSlashIndex }"
+            :data-testid="`slash-item-${cmd.id}`"
+            role="option"
+            :aria-selected="idx === selectedSlashIndex"
+            @mouseenter="selectedSlashIndex = idx"
+            @click="applySlashCommand(cmd.id)"
+          >
+            <span class="mind-icon-box-32">{{ cmd.monogram ?? 'A' }}</span>
+            <div class="popover-text-col">
+              <div class="popover-item-title">{{ cmd.label }}</div>
+              <div class="popover-item-desc">{{ cmd.description }}</div>
+            </div>
+          </div>
+          <div v-if="filteredSlashCommands.length === 0" class="slash-empty-state">
+            Nenhum bloco encontrado para "{{ slashFilter }}"
           </div>
         </div>
       </div>
 
-      <!-- FLOATING @ MENTION MENU (08-mention-menu-popover.png) -->
+      <!-- FLOATING @ MENTION MENU (Users & Pages with Keyboard Navigation) -->
       <div
-        v-if="showMentionMenu"
+        v-if="showMentionMenu && !readOnlyMode"
         class="mind-floating-popover mention-popover"
         :style="mentionPopoverStyle"
         data-testid="mention-menu-popover"
@@ -135,19 +269,22 @@
         <div class="slash-filter-bar">
           <span class="slash-prefix">@</span>
           <input
+            ref="mentionInputRef"
             v-model="mentionFilter"
             type="text"
-            placeholder="Co..."
+            placeholder="Mencionar pessoa ou página..."
             class="slash-filter-input"
             data-testid="mention-filter-input"
+            @keydown="handleMentionInputKeydown"
           />
         </div>
 
-        <div class="mind-popover-section-title">USERS</div>
+        <div class="mind-popover-section-title">USUÁRIOS</div>
         <div
-          v-for="user in filteredMentionUsers"
+          v-for="(user, idx) in filteredMentionUsers"
           :key="user.id"
           class="mind-popover-row"
+          :class="{ 'is-selected': mentionTargetType === 'user' && idx === selectedMentionIndex }"
           :data-testid="`mention-user-${user.id}`"
           @click="insertUserMention(user.name)"
         >
@@ -155,12 +292,12 @@
           <span class="popover-item-title">{{ user.name }}</span>
         </div>
 
-        <div class="mind-popover-section-title">PAGES</div>
+        <div class="mind-popover-section-title">PÁGINAS</div>
         <div
           v-for="(pageItem, idx) in filteredMentionPages"
           :key="pageItem.id"
           class="mind-popover-row"
-          :class="{ 'is-selected': idx === 1 }"
+          :class="{ 'is-selected': mentionTargetType === 'page' && idx === selectedMentionIndex }"
           :data-testid="`mention-page-${pageItem.id}`"
           @click="insertPageMention(pageItem.icon, pageItem.title)"
         >
@@ -169,7 +306,7 @@
         </div>
       </div>
 
-      <!-- Single Tiptap v2 Rich Block Canvas (prevents DOM detachment on read/edit toggle, closes #37) -->
+      <!-- Single Tiptap v2 Rich Block Canvas (prevents DOM detachment, closes #37) -->
       <div
         class="tiptap-canvas"
         :class="{ 'read-mode-surface': readOnlyMode }"
@@ -185,6 +322,24 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue';
 import { EditorContent, useEditor } from '@tiptap/vue-3';
+import {
+  Bold,
+  Code,
+  Copy,
+  GripVertical,
+  Heading1,
+  Heading2,
+  Heading3,
+  Italic,
+  Link as LinkIcon,
+  List,
+  ListTodo,
+  Plus,
+  Quote,
+  Strikethrough,
+  Trash2,
+  Underline as UnderlineIcon,
+} from 'lucide-vue-next';
 import {
   createEditorExtensions,
   createEditorSchema,
@@ -216,26 +371,27 @@ const emit = defineEmits<{
 const showSlashMenu = ref(false);
 const showMentionMenu = ref(false);
 const showBlockHandleMenu = ref(false);
+const showBubbleMenu = ref(false);
+const bubbleMenuCoords = ref<{ top: number; left: number }>({ top: 0, left: 0 });
 const slashFilter = ref('');
 const mentionFilter = ref('');
+const selectedSlashIndex = ref(0);
+const selectedMentionIndex = ref(0);
+const mentionTargetType = ref<'user' | 'page'>('user');
 const activeBlockIndex = ref(0);
+const gutterTop = ref(4);
 
-const docBlocksCount = computed<number>(() => props.modelValue.content.length || 1);
+const slashInputRef = ref<HTMLInputElement | null>(null);
+const mentionInputRef = ref<HTMLInputElement | null>(null);
 
-const activeBlockTypeName = computed<string>(() => {
-  const node = props.modelValue.content[activeBlockIndex.value];
-  if (!node) return 'Text';
-  if (node.type === 'heading') return `Heading ${node.attrs?.level ?? 1}`;
-  if (node.type === 'taskList') return 'To-do list';
-  if (node.type === 'bulletList') return 'Bullet list';
-  if (node.type === 'codeBlock') return 'Code block';
-  if (node.type === 'table') return 'Table';
-  if (node.type === 'blockquote') return 'Callout';
-  return 'Text';
-});
+let isLocalInput = false;
+let emitDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+let lastEmittedJsonString = '';
 
 const basicSlashCommands = computed<SlashCommandDefinition[]>(() =>
-  DEFAULT_SLASH_COMMANDS.filter((c) => c.category === 'basic' || c.category === 'code' || c.category === 'rich'),
+  DEFAULT_SLASH_COMMANDS.filter(
+    (c) => c.category === 'basic' || c.category === 'code' || c.category === 'rich',
+  ),
 );
 
 const filteredSlashCommands = computed<SlashCommandDefinition[]>(() => {
@@ -247,6 +403,10 @@ const filteredSlashCommands = computed<SlashCommandDefinition[]>(() => {
       c.label.toLowerCase().includes(q) ||
       c.description.toLowerCase().includes(q),
   );
+});
+
+watch(filteredSlashCommands, () => {
+  selectedSlashIndex.value = 0;
 });
 
 const defaultMentionUsers = [
@@ -283,11 +443,6 @@ const filteredMentionPages = computed(() => {
 const editorExtensions = createEditorExtensions();
 const editorSchema = createEditorSchema(editorExtensions);
 
-/**
- * Never hand the editor a document it cannot represent: ProseMirror would drop
- * the whole content and render an empty page (#34). Unknown marks/nodes are
- * stripped (text preserved) and, as last resort, raw Markdown is shown.
- */
 function resolveSafeDoc(doc: TiptapDoc, markdown: string): TiptapDoc {
   const result = toSchemaSafeDoc(doc, editorSchema, markdown);
   if (result.dropped.length > 0 || result.usedMarkdownFallback) {
@@ -298,38 +453,6 @@ function resolveSafeDoc(doc: TiptapDoc, markdown: string): TiptapDoc {
   }
   return result.doc;
 }
-
-const editor = useEditor({
-  content: resolveSafeDoc(props.modelValue, props.markdownValue),
-  editable: !props.readOnlyMode,
-  extensions: editorExtensions,
-  onUpdate: ({ editor: activeEditor }) => {
-    const json = activeEditor.getJSON() as TiptapDoc;
-    emit('update:modelValue', json);
-  },
-});
-
-watch(
-  () => props.readOnlyMode,
-  (isRead) => {
-    editor.value?.setEditable(!isRead);
-  },
-);
-
-watch(
-  () => props.modelValue,
-  (newDoc) => {
-    if (activeBlockIndex.value >= newDoc.content.length) {
-      activeBlockIndex.value = Math.max(0, newDoc.content.length - 1);
-    }
-    if (!editor.value) return;
-    const currentJson = JSON.stringify(editor.value.getJSON());
-    const incomingJson = JSON.stringify(newDoc);
-    if (currentJson !== incomingJson) {
-      editor.value.commands.setContent(resolveSafeDoc(newDoc, props.markdownValue), false);
-    }
-  },
-);
 
 const popoverCoords = ref<{ top: number; left: number }>({ top: 40, left: 24 });
 
@@ -360,14 +483,194 @@ function updateCursorCoords(): void {
       popoverCoords.value = { top, left };
     }
   } catch {
-    // fallback if selection is outside
+    // fallback
   }
 }
 
+function updateGutterPosition(): void {
+  if (!editor.value) return;
+  try {
+    const { from } = editor.value.state.selection;
+    const coords = editor.value.view.coordsAtPos(from);
+    const container = editor.value.view.dom.closest('.tiptap-editor-shell') as HTMLElement | null;
+    if (container && coords) {
+      const rect = container.getBoundingClientRect();
+      gutterTop.value = Math.max(4, coords.top - rect.top - 2);
+    }
+  } catch {
+    // fallback
+  }
+}
+
+function updateBubbleMenuPosition(): void {
+  const ed = editor.value;
+  if (!ed || props.readOnlyMode) {
+    showBubbleMenu.value = false;
+    return;
+  }
+  const { from, to, empty } = ed.state.selection;
+  if (empty || from === to) {
+    showBubbleMenu.value = false;
+    return;
+  }
+
+  try {
+    const coords = ed.view.coordsAtPos(from);
+    const container = ed.view.dom.closest('.tiptap-editor-shell') as HTMLElement | null;
+    if (container && coords) {
+      const rect = container.getBoundingClientRect();
+      bubbleMenuCoords.value = {
+        top: Math.max(0, coords.top - rect.top - 46),
+        left: Math.max(10, Math.min(coords.left - rect.left, rect.width - 340)),
+      };
+    }
+    showBubbleMenu.value = true;
+  } catch {
+    showBubbleMenu.value = true;
+  }
+}
+
+/**
+ * 0ms Latency Engine: Local changes trigger instant ProseMirror mutations;
+ * serialization and persistence to store are debounced to eliminate typing lag.
+ */
+const editor = useEditor({
+  content: resolveSafeDoc(props.modelValue, props.markdownValue),
+  editable: !props.readOnlyMode,
+  extensions: editorExtensions,
+  onUpdate: ({ editor: activeEditor }) => {
+    isLocalInput = true;
+    updateGutterPosition();
+    updateBubbleMenuPosition();
+
+    // Check if user is typing after slash in active line
+    if (showSlashMenu.value) {
+      try {
+        const { from } = activeEditor.state.selection;
+        const text = activeEditor.state.doc.resolve(from).parent.textContent;
+        const slashIdx = text.lastIndexOf('/');
+        if (slashIdx !== -1) {
+          slashFilter.value = text.slice(slashIdx + 1);
+        }
+      } catch {
+        // ignore
+      }
+    }
+
+    if (emitDebounceTimer) {
+      clearTimeout(emitDebounceTimer);
+    }
+
+    emitDebounceTimer = setTimeout(() => {
+      const json = activeEditor.getJSON() as TiptapDoc;
+      lastEmittedJsonString = JSON.stringify(json);
+      emit('update:modelValue', json);
+      setTimeout(() => {
+        isLocalInput = false;
+      }, 50);
+    }, 250);
+  },
+  onSelectionUpdate: () => {
+    updateGutterPosition();
+    updateBubbleMenuPosition();
+  },
+});
+
+watch(
+  () => props.readOnlyMode,
+  (isRead) => {
+    editor.value?.setEditable(!isRead);
+    if (isRead) {
+      showBubbleMenu.value = false;
+      showSlashMenu.value = false;
+      showMentionMenu.value = false;
+      showBlockHandleMenu.value = false;
+    }
+  },
+);
+
+watch(
+  () => props.modelValue,
+  (newDoc) => {
+    // Never interrupt the user while actively typing
+    if (isLocalInput) return;
+    if (!editor.value) return;
+    const incomingJson = JSON.stringify(newDoc);
+    if (incomingJson === lastEmittedJsonString) return;
+    const currentJson = JSON.stringify(editor.value.getJSON());
+    if (currentJson !== incomingJson) {
+      editor.value.commands.setContent(resolveSafeDoc(newDoc, props.markdownValue), false);
+    }
+  },
+);
+
 function handleCanvasKeydown(event: KeyboardEvent): void {
+  // Slash menu keyboard navigation
+  if (showSlashMenu.value) {
+    if (event.key === 'ArrowDown') {
+      event.preventDefault();
+      selectedSlashIndex.value =
+        (selectedSlashIndex.value + 1) % Math.max(1, filteredSlashCommands.value.length);
+      return;
+    }
+    if (event.key === 'ArrowUp') {
+      event.preventDefault();
+      selectedSlashIndex.value =
+        (selectedSlashIndex.value - 1 + filteredSlashCommands.value.length) %
+        Math.max(1, filteredSlashCommands.value.length);
+      return;
+    }
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      const target = filteredSlashCommands.value[selectedSlashIndex.value];
+      if (target) {
+        applySlashCommand(target.id);
+      }
+      return;
+    }
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      showSlashMenu.value = false;
+      return;
+    }
+  }
+
+  // Mention menu keyboard navigation
+  if (showMentionMenu.value) {
+    if (event.key === 'ArrowDown') {
+      event.preventDefault();
+      selectedMentionIndex.value =
+        (selectedMentionIndex.value + 1) % Math.max(1, filteredMentionUsers.value.length);
+      return;
+    }
+    if (event.key === 'ArrowUp') {
+      event.preventDefault();
+      selectedMentionIndex.value =
+        (selectedMentionIndex.value - 1 + filteredMentionUsers.value.length) %
+        Math.max(1, filteredMentionUsers.value.length);
+      return;
+    }
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      const user = filteredMentionUsers.value[selectedMentionIndex.value];
+      if (user) {
+        insertUserMention(user.name);
+      }
+      return;
+    }
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      showMentionMenu.value = false;
+      return;
+    }
+  }
+
+  // Triggering Slash commands
   if (event.key === '/' && !event.ctrlKey && !event.metaKey) {
     nextTick(() => {
       updateCursorCoords();
+      selectedSlashIndex.value = 0;
+      slashFilter.value = '';
       showSlashMenu.value = true;
       showMentionMenu.value = false;
       showBlockHandleMenu.value = false;
@@ -375,6 +678,8 @@ function handleCanvasKeydown(event: KeyboardEvent): void {
   } else if (event.key === '@' && !event.ctrlKey && !event.metaKey) {
     nextTick(() => {
       updateCursorCoords();
+      selectedMentionIndex.value = 0;
+      mentionFilter.value = '';
       showMentionMenu.value = true;
       showSlashMenu.value = false;
       showBlockHandleMenu.value = false;
@@ -386,211 +691,187 @@ function handleCanvasKeydown(event: KeyboardEvent): void {
   }
 }
 
-function toggleSlashPopover(): void {
-  updateCursorCoords();
-  showSlashMenu.value = !showSlashMenu.value;
-  showMentionMenu.value = false;
-  showBlockHandleMenu.value = false;
+function handleSlashInputKeydown(event: KeyboardEvent): void {
+  if (event.key === 'ArrowDown' || event.key === 'ArrowUp' || event.key === 'Enter' || event.key === 'Escape') {
+    handleCanvasKeydown(event);
+  }
 }
 
-function toggleMentionPopover(): void {
-  updateCursorCoords();
-  showMentionMenu.value = !showMentionMenu.value;
-  showSlashMenu.value = false;
-  showBlockHandleMenu.value = false;
+function handleMentionInputKeydown(event: KeyboardEvent): void {
+  if (event.key === 'ArrowDown' || event.key === 'ArrowUp' || event.key === 'Enter' || event.key === 'Escape') {
+    handleCanvasKeydown(event);
+  }
 }
 
 function handleGutterAddBlock(): void {
-  const blocks = [...props.modelValue.content];
-  const insertAt = Math.min(blocks.length, activeBlockIndex.value + 1);
-  blocks.splice(insertAt, 0, {
-    type: 'paragraph',
-    content: [{ type: 'text', text: '' }],
+  const ed = editor.value;
+  if (!ed) return;
+
+  // Insert a new paragraph below current block and set focus
+  ed.chain().focus().createParagraphNear().run();
+  nextTick(() => {
+    updateCursorCoords();
+    updateGutterPosition();
+    selectedSlashIndex.value = 0;
+    slashFilter.value = '';
+    showSlashMenu.value = true;
+    showBlockHandleMenu.value = false;
   });
-  activeBlockIndex.value = insertAt;
-  emit('update:modelValue', { type: 'doc', content: blocks });
-  popoverCoords.value = { top: (activeBlockIndex.value + 1) * 32, left: 36 };
-  showSlashMenu.value = true;
-  showBlockHandleMenu.value = false;
+}
+
+function toggleBlockHandleMenu(): void {
+  updateGutterPosition();
+  showBlockHandleMenu.value = !showBlockHandleMenu.value;
+  showSlashMenu.value = false;
+  showMentionMenu.value = false;
+}
+
+function handleToggleLink(): void {
+  const ed = editor.value;
+  if (!ed) return;
+  const previousUrl = ed.getAttributes('link').href as string | undefined;
+  const url = window.prompt('URL do link:', previousUrl);
+  if (url === null) return;
+  if (url === '') {
+    ed.chain().focus().extendMarkRange('link').unsetLink().run();
+  } else {
+    ed.chain().focus().extendMarkRange('link').setLink({ href: url }).run();
+  }
 }
 
 function moveActiveBlock(delta: -1 | 1): void {
-  const blocks = [...props.modelValue.content];
-  const from = activeBlockIndex.value;
-  const to = from + delta;
-  if (to < 0 || to >= blocks.length) {
+  const ed = editor.value;
+  if (!ed) return;
+  const { $from } = ed.state.selection;
+  const currentPos = $from.before(1);
+  const node = ed.state.doc.nodeAt(currentPos);
+  if (!node) {
     showBlockHandleMenu.value = false;
     return;
   }
-  const moved = blocks[from];
-  const target = blocks[to];
-  if (!moved || !target) return;
-  blocks[from] = target;
-  blocks[to] = moved;
-  activeBlockIndex.value = to;
-  emit('update:modelValue', { type: 'doc', content: blocks });
-  showBlockHandleMenu.value = false;
-}
 
-function extractBlockPlainText(node: TiptapNode | undefined): string {
-  if (!node) return '';
-  if (node.type === 'text') return node.text ?? '';
-  if (!node.content) return '';
-  return node.content.map((c) => extractBlockPlainText(c)).join(' ').trim();
-}
-
-function turnActiveLineInto(commandId: string): void {
-  const blocks = [...props.modelValue.content];
-  const idx = activeBlockIndex.value;
-  const current = blocks[idx];
-  const text = extractBlockPlainText(current) || 'Novo bloco';
-
-  let replacement: TiptapNode = {
-    type: 'paragraph',
-    content: [{ type: 'text', text }],
-  };
-
-  switch (commandId) {
-    case 'texto':
-      replacement = { type: 'paragraph', content: [{ type: 'text', text }] };
-      break;
-    case 'h1':
-      replacement = { type: 'heading', attrs: { level: 1 }, content: [{ type: 'text', text }] };
-      break;
-    case 'h2':
-      replacement = { type: 'heading', attrs: { level: 2 }, content: [{ type: 'text', text }] };
-      break;
-    case 'h3':
-      replacement = { type: 'heading', attrs: { level: 3 }, content: [{ type: 'text', text }] };
-      break;
-    case 'tarefa':
-      replacement = {
-        type: 'taskList',
-        content: [
-          {
-            type: 'taskItem',
-            attrs: { checked: false },
-            content: [{ type: 'paragraph', content: [{ type: 'text', text }] }],
-          },
-        ],
-      };
-      break;
-    case 'lista':
-    case 'numerada':
-      replacement = {
-        type: 'bulletList',
-        content: [
-          {
-            type: 'listItem',
-            content: [{ type: 'paragraph', content: [{ type: 'text', text }] }],
-          },
-        ],
-      };
-      break;
-    case 'codigo':
-      replacement = {
-        type: 'codeBlock',
-        attrs: { language: 'typescript' },
-        content: [{ type: 'text', text }],
-      };
-      break;
-    case 'citacao':
-      replacement = {
-        type: 'blockquote',
-        content: [{ type: 'paragraph', content: [{ type: 'text', text }] }],
-      };
-      break;
-    case 'divisor':
-      replacement = { type: 'horizontalRule' };
-      break;
+  try {
+    if (delta === -1) {
+      if (currentPos <= 0) {
+        showBlockHandleMenu.value = false;
+        return;
+      }
+      const prevPos = ed.state.doc.resolve(currentPos - 1).before(1);
+      const tr = ed.state.tr;
+      tr.delete(currentPos, currentPos + node.nodeSize);
+      tr.insert(prevPos, node);
+      ed.view.dispatch(tr);
+    } else {
+      const nextPos = currentPos + node.nodeSize;
+      if (nextPos >= ed.state.doc.content.size) {
+        showBlockHandleMenu.value = false;
+        return;
+      }
+      const nextNode = ed.state.doc.nodeAt(nextPos);
+      if (!nextNode) {
+        showBlockHandleMenu.value = false;
+        return;
+      }
+      const tr = ed.state.tr;
+      tr.delete(currentPos, currentPos + node.nodeSize);
+      tr.insert(currentPos + nextNode.nodeSize, node);
+      ed.view.dispatch(tr);
+    }
+  } catch {
+    // Graceful fallback
   }
 
-  blocks[idx] = replacement;
-  emit('update:modelValue', { type: 'doc', content: blocks });
   showBlockHandleMenu.value = false;
 }
 
 function duplicateActiveBlock(): void {
-  const blocks = [...props.modelValue.content];
-  const current = blocks[activeBlockIndex.value];
-  if (!current) return;
-  const cloned = JSON.parse(JSON.stringify(current)) as TiptapNode;
-  blocks.splice(activeBlockIndex.value + 1, 0, cloned);
-  activeBlockIndex.value += 1;
-  emit('update:modelValue', { type: 'doc', content: blocks });
+  const ed = editor.value;
+  if (!ed) return;
+  const { $from } = ed.state.selection;
+  const currentPos = $from.before(1);
+  const node = ed.state.doc.nodeAt(currentPos);
+  if (!node) return;
+
+  const insertPos = $from.after(1);
+  ed.chain().focus().insertContentAt(insertPos, node.toJSON()).run();
   showBlockHandleMenu.value = false;
 }
 
 function deleteActiveBlock(): void {
-  const blocks = [...props.modelValue.content];
-  if (blocks.length <= 1) {
-    blocks[0] = { type: 'paragraph', content: [] };
-  } else {
-    blocks.splice(activeBlockIndex.value, 1);
-    activeBlockIndex.value = Math.max(0, activeBlockIndex.value - 1);
+  const ed = editor.value;
+  if (!ed) return;
+  const { $from } = ed.state.selection;
+  const start = $from.before(1);
+  const end = $from.after(1);
+  ed.chain().focus().deleteRange({ from: start, to: end }).run();
+  showBlockHandleMenu.value = false;
+}
+
+function turnActiveLineInto(commandId: string): void {
+  const ed = editor.value;
+  if (!ed) return;
+
+  const chain = ed.chain().focus();
+  switch (commandId) {
+    case 'texto':
+      chain.setParagraph().run();
+      break;
+    case 'h1':
+      chain.toggleHeading({ level: 1 }).run();
+      break;
+    case 'h2':
+      chain.toggleHeading({ level: 2 }).run();
+      break;
+    case 'h3':
+      chain.toggleHeading({ level: 3 }).run();
+      break;
+    case 'tarefa':
+      chain.toggleTaskList().run();
+      break;
+    case 'lista':
+      chain.toggleBulletList().run();
+      break;
+    case 'numerada':
+      chain.toggleOrderedList().run();
+      break;
+    case 'codigo':
+      chain.toggleCodeBlock().run();
+      break;
+    case 'tabela':
+      chain.insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run();
+      break;
+    case 'citacao':
+      chain.toggleBlockquote().run();
+      break;
+    case 'divisor':
+      chain.setHorizontalRule().run();
+      break;
   }
-  emit('update:modelValue', { type: 'doc', content: blocks });
   showBlockHandleMenu.value = false;
 }
 
 function applySlashCommand(commandId: string): void {
-  if (commandId === 'database') {
-    emit('insert-database-block');
-    showSlashMenu.value = false;
-    slashFilter.value = '';
-    return;
-  }
-  if (commandId === 'mermaid' || commandId === 'excalidraw' || commandId === 'drawio') {
-    emit('insert-diagram-block', commandId);
-    showSlashMenu.value = false;
-    slashFilter.value = '';
-    return;
-  }
-  if (commandId === 'subpage') {
-    emit('create-subpage');
-    showSlashMenu.value = false;
-    slashFilter.value = '';
-    return;
+  const ed = editor.value;
+  if (!ed) return;
+
+  // If line contains typed slash and filter query, clear it before running command
+  const { from } = ed.state.selection;
+  const blockText = ed.state.doc.resolve(from).parent.textContent;
+  const slashIdx = blockText.lastIndexOf('/');
+  if (slashIdx !== -1) {
+    const start = ed.state.selection.$from.start();
+    const slashPos = start + slashIdx;
+    if (from >= slashPos) {
+      ed.chain().focus().deleteRange({ from: slashPos, to: from }).run();
+    }
   }
 
-  const ed = editor.value;
-  if (ed) {
-    const chain = ed.chain().focus();
-    switch (commandId) {
-      case 'texto':
-        chain.setParagraph().run();
-        break;
-      case 'h1':
-        chain.toggleHeading({ level: 1 }).run();
-        break;
-      case 'h2':
-        chain.toggleHeading({ level: 2 }).run();
-        break;
-      case 'h3':
-        chain.toggleHeading({ level: 3 }).run();
-        break;
-      case 'tarefa':
-        chain.toggleTaskList().run();
-        break;
-      case 'lista':
-        chain.toggleBulletList().run();
-        break;
-      case 'numerada':
-        chain.toggleOrderedList().run();
-        break;
-      case 'codigo':
-        chain.toggleCodeBlock().run();
-        break;
-      case 'tabela':
-        chain.insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run();
-        break;
-      case 'citacao':
-        chain.toggleBlockquote().run();
-        break;
-      case 'divisor':
-        chain.setHorizontalRule().run();
-        break;
-    }
+  if (commandId === 'database') {
+    emit('insert-database-block');
+  } else if (commandId === 'mermaid' || commandId === 'excalidraw' || commandId === 'drawio') {
+    emit('insert-diagram-block', commandId);
+  } else if (commandId === 'subpage') {
+    emit('create-subpage');
   } else {
     turnActiveLineInto(commandId);
   }
@@ -611,14 +892,33 @@ function insertUserMention(userName: string): void {
 function insertPageMention(icon: string, title: string): void {
   const ed = editor.value;
   if (ed) {
-    ed.chain().focus().insertContent(`${icon} ${title} `).run();
+    ed.chain().focus().insertContent(`[[${title}]] `).run();
   }
   showMentionMenu.value = false;
   mentionFilter.value = '';
 }
 
 onBeforeUnmount(() => {
+  if (emitDebounceTimer) {
+    clearTimeout(emitDebounceTimer);
+    if (editor.value && isLocalInput) {
+      emit('update:modelValue', editor.value.getJSON() as TiptapDoc);
+    }
+  }
   editor.value?.destroy();
+});
+
+defineExpose({
+  editor,
+  showBubbleMenu,
+  showSlashMenu,
+  showMentionMenu,
+  showBlockHandleMenu,
+  applySlashCommand,
+  turnActiveLineInto,
+  moveActiveBlock,
+  duplicateActiveBlock,
+  deleteActiveBlock,
 });
 </script>
 
@@ -627,15 +927,17 @@ onBeforeUnmount(() => {
   position: relative;
 }
 
+/* Block Handle Popover */
 .block-handle-popover {
   position: absolute;
-  left: 52px;
-  top: 0;
+  left: 48px;
   width: 270px;
-  max-height: 360px;
+  max-height: 380px;
   overflow-y: auto;
+  z-index: 100;
 }
 
+/* Slash Command Popover */
 .slash-command-popover {
   width: 320px;
   max-height: 380px;
@@ -693,21 +995,85 @@ onBeforeUnmount(() => {
   line-height: 1.3;
 }
 
+.slash-empty-state {
+  padding: 12px;
+  font-size: 12.5px;
+  color: var(--mind-text-muted);
+  text-align: center;
+}
+
 .mention-user-avatar {
-  width: 28px;
-  height: 28px;
-  min-width: 28px;
+  width: 24px;
+  height: 24px;
   border-radius: 50%;
-  background: #e7f5ff;
-  color: #1971c2;
-  font-size: 11px;
-  font-weight: 700;
+  background: var(--mind-accent-primary);
+  color: #ffffff;
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  font-size: 10.5px;
+  font-weight: 700;
+  margin-right: 8px;
+  flex-shrink: 0;
 }
 
-.read-mode-surface {
-  opacity: 0.96;
+/* Notion-like Floating Bubble Menu */
+.mind-bubble-menu {
+  display: flex;
+  align-items: center;
+  background: var(--mind-bg-canvas);
+  border: 1px solid var(--mind-border-subtle);
+  border-radius: 6px;
+  box-shadow: var(--mind-shadow-popover);
+  padding: 3px 4px;
+  gap: 2px;
+  z-index: 100;
+}
+
+.bubble-menu-row {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.bubble-menu-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 26px;
+  height: 26px;
+  padding: 0 4px;
+  border: none;
+  background: transparent;
+  color: var(--mind-text-secondary);
+  border-radius: 4px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.1s ease;
+}
+
+.bubble-menu-btn:hover {
+  background: var(--mind-bg-hover);
+  color: var(--mind-text-primary);
+}
+
+.bubble-menu-btn.is-active {
+  background: var(--mind-bg-active);
+  color: var(--mind-accent-primary);
+}
+
+.bubble-menu-sep {
+  width: 1px;
+  height: 16px;
+  background: var(--mind-border-subtle);
+  margin: 0 3px;
+}
+
+.text-danger-row {
+  color: var(--mind-pill-pink-text);
+}
+
+.text-danger-row:hover {
+  background: var(--mind-pill-pink-bg);
 }
 </style>

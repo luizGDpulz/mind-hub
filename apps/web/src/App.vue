@@ -235,7 +235,6 @@
             <span class="sidebar-user-name">Luiz Pulz</span>
             <span class="sidebar-user-role">Workspace Admin</span>
           </div>
-          <span class="sidebar-user-caret">⌄</span>
         </div>
       </div>
 
@@ -1207,11 +1206,6 @@ function splitSnippetSegments(
   font-size: 10.5px;
   color: var(--mind-text-muted);
   line-height: 1.2;
-}
-
-.sidebar-user-caret {
-  font-size: 11px;
-  color: var(--mind-text-muted);
 }
 
 .sidebar-trash-badge {

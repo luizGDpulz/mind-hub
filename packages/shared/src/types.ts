@@ -296,3 +296,62 @@ export interface GitSyncSnapshot {
     markdown: string;
   }>;
 }
+
+export interface RawMarkdownFileEntry {
+  path: string;
+  content: string;
+}
+
+export interface ParsedFrontmatterMetadata {
+  title?: string;
+  slug?: string;
+  icon?: string;
+  tags: string[];
+  created?: string;
+  updated?: string;
+  status?: string;
+  project?: string;
+  isFavorite?: boolean;
+  isInbox?: boolean;
+  rawAttributes: Record<string, string | string[]>;
+}
+
+export interface ParsedMarkdownNote {
+  relativePath: string;
+  folderSegments: string[];
+  fileName: string;
+  title: string;
+  slug: string;
+  icon: string;
+  frontmatter: ParsedFrontmatterMetadata;
+  normalizedMarkdown: string;
+  tiptapDoc: TiptapDoc;
+  wikiLinks: string[];
+  sourceHash: string;
+}
+
+export interface BulkImportOptions {
+  conflictStrategy?: 'upsert' | 'skip';
+  rootParentId?: string | null;
+  defaultTags?: string[];
+}
+
+export interface BulkImportPlanResult {
+  pagesToUpsert: MindPage[];
+  folderPagesCreated: number;
+  notesProcessed: number;
+  wikiLinksResolved: number;
+  discoveredTags: string[];
+}
+
+export interface BulkImportApiResponse {
+  importedAt: string;
+  notesProcessed: number;
+  folderPagesCreated: number;
+  createdCount: number;
+  updatedCount: number;
+  skippedCount: number;
+  wikiLinksResolved: number;
+  discoveredTags: string[];
+  pages: MindPage[];
+}

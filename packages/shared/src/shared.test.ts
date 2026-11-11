@@ -66,6 +66,26 @@ describe('@mind-hub/shared — Markdown <-> Tiptap AST & Domain Engine', () => {
     expect(plain).toContain('Fastify + Drizzle');
   });
 
+  it('renders callout alerts in Markdown with semantic icons for NOTE, TIP, WARNING, IMPORTANT', () => {
+    const calloutMd = [
+      '> [!NOTE] Informação de contexto',
+      '',
+      '> [!TIP] Dica de otimização de cache',
+      '',
+      '> [!WARNING] Atenção ao soft delete',
+      '',
+      '> [!IMPORTANT] Passo obrigatório',
+    ].join('\n');
+
+    const ast = markdownToTiptap(calloutMd);
+    expect(ast.content.length).toBe(4);
+    const plain = extractPlainText(ast);
+    expect(plain).toContain('ℹ️ [NOTE] Informação de contexto');
+    expect(plain).toContain('💡 [TIP] Dica de otimização de cache');
+    expect(plain).toContain('⚠️ [WARNING] Atenção ao soft delete');
+    expect(plain).toContain('📌 [IMPORTANT] Passo obrigatório');
+  });
+
   it('slugifies Portuguese titles removing accents and handling edge cases', () => {
     expect(slugifyTitle('Mind Hub — Gestão & Soberania!')).toBe('mind-hub-gestao-soberania');
     expect(slugifyTitle('   ')).toBe('sem-titulo');

@@ -18,7 +18,7 @@
       />
       <span v-else class="tree-spacer q-mr-xs" />
 
-      <span class="q-mr-sm text-body2">{{ node.icon }}</span>
+      <span class="q-mr-sm text-body2">{{ node.icon || (node.children.length > 0 ? '📁' : '📄') }}</span>
       <span class="ellipsis col tree-node-title">{{ node.title }}</span>
 
       <q-btn

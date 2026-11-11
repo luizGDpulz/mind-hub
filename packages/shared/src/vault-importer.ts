@@ -156,15 +156,34 @@ export function normalizeObsidianMarkdown(bodyMarkdown: string): {
 } {
   const wikiLinks: string[] = [];
 
-  // 1. Convert Obsidian / GitHub callouts `> [!NOTE] Title` -> `> **[NOTE] Title**`
+  // 1. Convert Obsidian / GitHub callouts `> [!NOTE] Title` -> `> ℹ️ **[NOTE]** Title`
+  const CALLOUT_ICONS: Record<string, string> = {
+    NOTE: 'ℹ️',
+    TIP: '💡',
+    IMPORTANT: '📌',
+    WARNING: '⚠️',
+    CAUTION: '🛑',
+    INFO: 'ℹ️',
+    TODO: '📝',
+    SUMMARY: '📋',
+    ABSTRACT: '📋',
+    EXAMPLE: '🧪',
+    QUESTION: '❓',
+    QUOTE: '💬',
+    SUCCESS: '✅',
+    BUG: '🐛',
+    DANGER: '🚨',
+  };
+
   const calloutTransformed = bodyMarkdown
     .split('\n')
     .map((line) => {
       const calloutMatch = /^>\s*\[!([A-Za-z]+)\][-+]?\s*(.*)$/.exec(line);
       if (calloutMatch) {
         const kind = (calloutMatch[1] ?? 'NOTE').toUpperCase();
+        const icon = CALLOUT_ICONS[kind] ?? 'ℹ️';
         const rest = (calloutMatch[2] ?? '').trim();
-        return rest ? `> **[${kind}] ${rest}**` : `> **[${kind}]**`;
+        return rest ? `> ${icon} **[${kind}]** ${rest}` : `> ${icon} **[${kind}]**`;
       }
       return line;
     })

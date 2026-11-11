@@ -145,7 +145,7 @@ describe('@mind-hub/shared — Markdown <-> Tiptap AST & Domain Engine', () => {
     const pages = createInitialSeedPages();
     const exported = exportPageWithFrontmatter(pages[0]!);
     expect(exported).toContain('---\nid: page-manifesto');
-    expect(exported).toContain('tags: [arquitetura, rfc, mcp, tiptap]');
+    expect(exported).toContain('tags: [arquitetura, rfc, mcp, editor]');
     expect(DEFAULT_SLASH_COMMANDS.length).toBeGreaterThanOrEqual(8);
   });
 

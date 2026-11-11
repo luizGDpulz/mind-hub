@@ -258,6 +258,8 @@ export const useMindStore = defineStore('mindHub', () => {
     return newPage;
   }
 
+  let patchDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+
   async function updateActivePageContent(doc: TiptapDoc): Promise<void> {
     const current = activePage.value;
     if (!current) return;
@@ -280,18 +282,23 @@ export const useMindStore = defineStore('mindHub', () => {
     pages.value = pages.value.map((p) => (p.id === current.id ? updated : p));
     lastLatencyMs.value = Number((performance.now() - t0).toFixed(2));
 
-    try {
-      await fetch(`/api/pages/${current.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contentJson: doc,
-          contentMarkdown: markdown,
-        }),
-      });
-    } catch {
-      // Local state already updated
+    if (patchDebounceTimer) {
+      clearTimeout(patchDebounceTimer);
     }
+    patchDebounceTimer = setTimeout(async () => {
+      try {
+        await fetch(`/api/pages/${current.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contentJson: doc,
+            contentMarkdown: markdown,
+          }),
+        });
+      } catch {
+        // Local state already updated
+      }
+    }, 300);
   }
 
   async function updateActivePageMarkdown(markdown: string): Promise<void> {

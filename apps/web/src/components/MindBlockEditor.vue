@@ -442,20 +442,81 @@ function updateCursorCoords(): void {
   }
 }
 
-function updateGutterPosition(): void {
-  if (!editor.value) return;
+function calculateGutterTop(blockEl: HTMLElement, shellEl: HTMLElement): number {
+  const shellRect = shellEl.getBoundingClientRect();
+  const blockRect = blockEl.getBoundingClientRect();
+  const blockTop = blockRect.top - shellRect.top;
+
+  const tag = blockEl.tagName.toLowerCase();
+  if (tag === 'hr') {
+    return Math.max(0, Math.round(blockTop + blockRect.height / 2 - 12));
+  }
+
+  const style = window.getComputedStyle(blockEl);
+  const paddingTop = parseFloat(style.paddingTop) || 0;
+  const fontSize = parseFloat(style.fontSize) || 16;
+  const lineHeightRaw = style.lineHeight;
+  const lineHeight =
+    lineHeightRaw === 'normal'
+      ? fontSize * 1.5
+      : parseFloat(lineHeightRaw) || fontSize * 1.5;
+
+  const firstLineCenter = paddingTop + lineHeight / 2;
+  const offset = firstLineCenter - 12;
+
+  return Math.max(0, Math.round(blockTop + offset));
+}
+
+function getActiveBlockElement(): HTMLElement | null {
+  const ed = editor.value;
+  const shellEl = shellRef.value;
+  if (!ed || !shellEl) return null;
+
   try {
-    const { from } = editor.value.state.selection;
-    const coords = editor.value.view.coordsAtPos(from);
-    const container = (editor.value.view.dom.closest('.mind-editor-shell') ||
-      editor.value.view.dom.closest('.tiptap-editor-shell')) as HTMLElement | null;
-    if (container && coords) {
-      const rect = container.getBoundingClientRect();
-      gutterTop.value = Math.max(4, coords.top - rect.top - 2);
-      isGutterVisible.value = true;
+    const sel = ed.state.selection;
+    let topPos: number;
+    if (sel instanceof NodeSelection) {
+      topPos = sel.from;
+    } else if (sel.$from.depth > 0) {
+      topPos = sel.$from.before(1);
+    } else {
+      topPos = sel.$from.pos;
     }
+
+    const nodeDom = ed.view.nodeDOM(topPos);
+    if (nodeDom instanceof HTMLElement) {
+      return nodeDom;
+    }
+    const domAt = ed.view.domAtPos(topPos);
+    const parent = domAt.node instanceof HTMLElement ? domAt.node : domAt.node.parentElement;
+    return (parent?.closest('.ProseMirror > *') as HTMLElement | null) ?? null;
   } catch {
-    // fallback
+    return null;
+  }
+}
+
+function updateGutterPosition(): void {
+  const ed = editor.value;
+  const shellEl = shellRef.value;
+  if (!ed || !shellEl || props.readOnlyMode) return;
+  if (showBlockHandleMenu.value) return;
+
+  const activeEl = getActiveBlockElement();
+  if (activeEl && shellEl.contains(activeEl)) {
+    hoveredBlockElement.value = activeEl;
+    gutterTop.value = calculateGutterTop(activeEl, shellEl);
+    isGutterVisible.value = true;
+    try {
+      const sel = ed.state.selection;
+      hoveredBlockPos.value =
+        sel instanceof NodeSelection
+          ? sel.from
+          : sel.$from.depth > 0
+            ? sel.$from.before(1)
+            : sel.$from.pos;
+    } catch {
+      hoveredBlockPos.value = null;
+    }
   }
 }
 
@@ -481,17 +542,7 @@ function handleShellMouseMove(event: MouseEvent): void {
   const blockEl = target.closest('.ProseMirror > *') as HTMLElement | null;
   if (blockEl && prosemirrorEl.contains(blockEl)) {
     hoveredBlockElement.value = blockEl;
-    const shellRect = shellEl.getBoundingClientRect();
-    const blockRect = blockEl.getBoundingClientRect();
-
-    const blockTop = blockRect.top - shellRect.top;
-    const tag = blockEl.tagName.toLowerCase();
-    let lineOffset = 2;
-    if (tag === 'h1') lineOffset = 8;
-    else if (tag === 'h2') lineOffset = 5;
-    else if (tag === 'h3') lineOffset = 3;
-
-    gutterTop.value = Math.max(0, Math.round(blockTop + lineOffset));
+    gutterTop.value = calculateGutterTop(blockEl, shellEl);
     isGutterVisible.value = true;
 
     try {
@@ -509,16 +560,7 @@ function handleShellMouseMove(event: MouseEvent): void {
       const marginBlockEl = elAtY?.closest('.ProseMirror > *') as HTMLElement | null;
       if (marginBlockEl && prosemirrorEl.contains(marginBlockEl)) {
         hoveredBlockElement.value = marginBlockEl;
-        const shellRect = shellEl.getBoundingClientRect();
-        const blockRect = marginBlockEl.getBoundingClientRect();
-        const blockTop = blockRect.top - shellRect.top;
-        const tag = marginBlockEl.tagName.toLowerCase();
-        let lineOffset = 2;
-        if (tag === 'h1') lineOffset = 8;
-        else if (tag === 'h2') lineOffset = 5;
-        else if (tag === 'h3') lineOffset = 3;
-
-        gutterTop.value = Math.max(0, Math.round(blockTop + lineOffset));
+        gutterTop.value = calculateGutterTop(marginBlockEl, shellEl);
         isGutterVisible.value = true;
         try {
           hoveredBlockPos.value = editor.value.view.posAtDOM(marginBlockEl, 0);
@@ -556,19 +598,70 @@ function updateBubbleMenuPosition(): void {
   }
 
   try {
-    const coords = ed.view.coordsAtPos(from);
-    const container = (ed.view.dom.closest('.mind-editor-shell') ||
-      ed.view.dom.closest('.tiptap-editor-shell')) as HTMLElement | null;
-    if (container && coords) {
-      const rect = container.getBoundingClientRect();
-      bubbleMenuCoords.value = {
-        top: Math.max(0, coords.top - rect.top - 46),
-        left: Math.max(10, Math.min(coords.left - rect.left, rect.width - 340)),
-      };
+    const domSel = typeof window !== 'undefined' ? window.getSelection() : null;
+    let rect: DOMRect | null = null;
+    if (domSel && domSel.rangeCount > 0) {
+      const range = domSel.getRangeAt(0);
+      const r = range.getBoundingClientRect();
+      if (r.width > 0 && r.height > 0) {
+        rect = r;
+      }
     }
+    if (!rect) {
+      const start = ed.view.coordsAtPos(from);
+      const end = ed.view.coordsAtPos(to);
+      rect = new DOMRect(
+        Math.min(start.left, end.left),
+        start.top,
+        Math.max(20, Math.abs(end.right - start.left)),
+        Math.max(20, Math.abs(end.bottom - start.top)),
+      );
+    }
+
+    const menuWidth = 360;
+    const menuHeight = 36;
+    const viewportW = typeof window !== 'undefined' ? window.innerWidth : 1024;
+
+    let left = rect.left + rect.width / 2 - menuWidth / 2;
+    left = Math.max(12, Math.min(left, viewportW - menuWidth - 12));
+
+    let top = rect.top - menuHeight - 8;
+    if (top < 10) {
+      top = rect.bottom + 8;
+    }
+
+    bubbleMenuCoords.value = {
+      top: Math.round(top),
+      left: Math.round(left),
+    };
     showBubbleMenu.value = true;
   } catch {
     showBubbleMenu.value = true;
+  }
+}
+
+function handleDocumentPointerDown(event: MouseEvent | PointerEvent): void {
+  const rawTarget = event.target as Node | null;
+  const target = (rawTarget instanceof Element ? rawTarget : rawTarget?.parentElement) as HTMLElement | null;
+  if (!target || typeof target.closest !== 'function') {
+    showSlashMenu.value = false;
+    showMentionMenu.value = false;
+    showBlockHandleMenu.value = false;
+    return;
+  }
+
+  if (showSlashMenu.value && !target.closest('.slash-command-popover')) {
+    showSlashMenu.value = false;
+  }
+  if (showMentionMenu.value && !target.closest('.mention-popover')) {
+    showMentionMenu.value = false;
+  }
+  if (
+    showBlockHandleMenu.value &&
+    !target.closest('.block-handle-popover') &&
+    !target.closest('.gutter-icon-btn')
+  ) {
+    showBlockHandleMenu.value = false;
   }
 }
 
@@ -1120,11 +1213,28 @@ function duplicateActiveBlock(): void {
 function deleteActiveBlock(): void {
   const ed = editor.value;
   if (!ed) return;
-  const { $from } = ed.state.selection;
-  const start = $from.before(1);
-  const end = $from.after(1);
-  ed.chain().focus().deleteRange({ from: start, to: end }).run();
+
+  let targetPos: number | null = null;
+  const sel = ed.state.selection;
+  if (hoveredBlockPos.value !== null) {
+    targetPos = hoveredBlockPos.value;
+  } else if (sel instanceof NodeSelection) {
+    targetPos = sel.from;
+  } else if (sel.$from.depth > 0) {
+    targetPos = sel.$from.before(1);
+  } else {
+    targetPos = sel.$from.pos;
+  }
+
+  if (targetPos === null) return;
+  const doc = ed.state.doc;
+  const node = doc.nodeAt(targetPos);
+  if (!node) return;
+
+  ed.chain().focus().deleteRange({ from: targetPos, to: targetPos + node.nodeSize }).run();
   showBlockHandleMenu.value = false;
+  hoveredBlockPos.value = null;
+  hoveredBlockElement.value = null;
 }
 
 function turnActiveLineInto(commandId: string): void {
@@ -1218,7 +1328,16 @@ function insertPageMention(icon: string, title: string): void {
   mentionFilter.value = '';
 }
 
+onMounted(() => {
+  if (typeof document !== 'undefined') {
+    document.addEventListener('pointerdown', handleDocumentPointerDown);
+  }
+});
+
 onBeforeUnmount(() => {
+  if (typeof document !== 'undefined') {
+    document.removeEventListener('pointerdown', handleDocumentPointerDown);
+  }
   if (emitDebounceTimer) {
     clearTimeout(emitDebounceTimer);
     if (editor.value && isLocalInput) {
@@ -1451,58 +1570,6 @@ defineExpose({
   font-weight: 700;
   margin-right: 8px;
   flex-shrink: 0;
-}
-
-/* Notion-like Floating Bubble Menu */
-.mind-bubble-menu {
-  display: flex;
-  align-items: center;
-  background: var(--mind-bg-canvas);
-  border: 1px solid var(--mind-border-subtle);
-  border-radius: 6px;
-  box-shadow: var(--mind-shadow-popover);
-  padding: 3px 4px;
-  gap: 2px;
-  z-index: 100;
-}
-
-.bubble-menu-row {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-}
-
-.bubble-menu-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 26px;
-  height: 26px;
-  padding: 0 4px;
-  border: none;
-  background: transparent;
-  color: var(--mind-text-secondary);
-  border-radius: 4px;
-  font-size: 12px;
-  cursor: pointer;
-  transition: all 0.1s ease;
-}
-
-.bubble-menu-btn:hover {
-  background: var(--mind-bg-hover);
-  color: var(--mind-text-primary);
-}
-
-.bubble-menu-btn.is-active {
-  background: var(--mind-bg-active);
-  color: var(--mind-accent-primary);
-}
-
-.bubble-menu-sep {
-  width: 1px;
-  height: 16px;
-  background: var(--mind-border-subtle);
-  margin: 0 3px;
 }
 
 .text-danger-row {

@@ -1,29 +1,20 @@
 <template>
   <q-layout view="lHh Lpr lFf" class="mind-light-style mind-light-theme">
-    <!-- Top Header Bar (03-app-shell-editor-comments.jpg) -->
+    <!-- Top Header Bar (Issue #33 & mind-light-style) -->
     <q-header class="mind-header">
-      <q-toolbar>
+      <q-toolbar class="mind-toolbar">
         <button
           type="button"
           class="topbar-icon-btn"
           aria-label="Toggle sidebar"
+          title="Alternar barra lateral (Ctrl+\)"
+          data-testid="toggle-sidebar-btn"
           @click="leftDrawerOpen = !leftDrawerOpen"
         >
-          ◧
+          <component :is="leftDrawerOpen ? PanelLeftClose : Menu" :size="16" />
         </button>
 
-        <div class="topbar-brand-group">
-          <span class="topbar-brand-name">Mind Hub</span>
-          <button
-            type="button"
-            class="topbar-text-btn"
-            @click="store.activeSurface = 'editor'"
-          >
-            Home
-          </button>
-        </div>
-
-        <!-- Center Page Breadcrumb -->
+        <!-- Center Page Breadcrumb (Starts cleanly without 'Mind Hub' text) -->
         <div v-if="store.activePage" class="topbar-breadcrumb gt-xs">
           <template v-for="(crumb, idx) in store.breadcrumbs" :key="crumb.id">
             <span v-if="idx > 0" class="crumb-sep">/</span>
@@ -35,7 +26,7 @@
                 store.selectPage(crumb.id);
               "
             >
-              <span>{{ crumb.icon }}</span>
+              <span>{{ crumb.icon || '📄' }}</span>
               <span>{{ crumb.title }}</span>
             </button>
           </template>
@@ -43,7 +34,7 @@
 
         <q-space />
 
-        <!-- Right Page Controls: Share, Comments, AI, Actions (...) & Workspace -->
+        <!-- Right Page Controls: Share, Comments, AI, Actions (...) -->
         <div class="topbar-actions-right">
           <MindIconButton
             :icon="Share2"
@@ -77,12 +68,6 @@
             :active="showOverflowMenu"
             @click.stop="showOverflowMenu = !showOverflowMenu"
           />
-
-          <div class="workspace-switcher gt-xs">
-            <span class="workspace-avatar">AI</span>
-            <span class="workspace-name">ACME INC</span>
-            <span class="workspace-caret">⌄</span>
-          </div>
         </div>
       </q-toolbar>
 
@@ -95,61 +80,77 @@
       />
     </q-header>
 
-    <!-- Left Sidebar (03-app-shell-editor-comments.jpg: 250px, #f8f9fa) -->
+    <!-- Edge Peek Zone when sidebar is collapsed (Issue #28) -->
+    <div
+      v-if="!leftDrawerOpen"
+      class="sidebar-edge-peek-zone"
+      title="Passe o mouse para abrir a barra lateral"
+      @mouseenter="handleEdgeMouseEnter"
+    />
+
+    <!-- Left Sidebar with Resizer & Sticky Footer (Issues #28, #31, #33, #35) -->
     <q-drawer
       v-model="leftDrawerOpen"
       show-if-above
       bordered
-      :width="250"
-      class="mind-sidebar q-pa-sm column no-wrap"
+      :width="sidebarWidth"
+      class="mind-sidebar column no-wrap"
     >
-      <!-- Space Switcher Header -->
-      <div class="space-switcher-row">
-        <span class="space-avatar">PM</span>
-        <span class="space-title">Product Management</span>
-        <span class="space-caret">⌄</span>
+      <!-- Top Workspace Switcher with Collapse Button -->
+      <div class="sidebar-workspace-header">
+        <div class="workspace-brand">
+          <span class="workspace-avatar-sq">PM</span>
+          <span class="workspace-title-text">Product Management</span>
+          <span class="workspace-caret">⌄</span>
+        </div>
+        <button
+          type="button"
+          class="sidebar-collapse-trigger"
+          title="Fechar barra lateral (Ctrl+\)"
+          aria-label="Fechar barra lateral"
+          @click="leftDrawerOpen = false"
+        >
+          <component :is="PanelLeftClose" :size="15" />
+        </button>
       </div>
 
-      <!-- 4 Clean Utility Nav Items -->
+      <!-- Minimalist Search Trigger Bar in Sidebar (Issue #31) -->
+      <div class="sidebar-search-area">
+        <MindSidebarSearch @open="openSearchModal" />
+      </div>
+
+      <!-- Quick Utility Nav Items -->
       <nav class="sidebar-utility-nav" aria-label="Space navigation">
         <div
           class="sidebar-nav-item"
           :class="{ 'is-active': store.activeSurface === 'editor' }"
           @click="store.activeSurface = 'editor'"
         >
-          <span class="nav-item-icon">⌂</span>
-          <span>Overview</span>
+          <component :is="Home" :size="15" class="nav-item-lucide" />
+          <span>Página inicial</span>
         </div>
         <div
           class="sidebar-nav-item"
           data-testid="open-search-btn"
           @click="openSearchModal"
         >
-          <span class="nav-item-icon">🔍</span>
-          <span>Search</span>
+          <component :is="SearchIcon" :size="15" class="nav-item-lucide" />
+          <span>Busca rápida</span>
         </div>
         <div
           class="sidebar-nav-item"
           @click="store.isMcpModalOpen = true"
         >
-          <span class="nav-item-icon">⚙</span>
-          <span>Space settings</span>
+          <component :is="Settings" :size="15" class="nav-item-lucide" />
+          <span>Configurações</span>
         </div>
         <div
           class="sidebar-nav-item"
           data-testid="sidebar-bulk-import-btn"
           @click="store.isImportModalOpen = true"
         >
-          <span class="nav-item-icon">📦</span>
-          <span>Import Second Brain</span>
-        </div>
-        <div
-          class="sidebar-nav-item"
-          data-testid="new-page-btn"
-          @click="handleCreateRootPage"
-        >
-          <span class="nav-item-icon">+</span>
-          <span>New page</span>
+          <component :is="Package" :size="15" class="nav-item-lucide" />
+          <span>Importar Second Brain</span>
         </div>
       </nav>
 
@@ -162,15 +163,16 @@
             class="sidebar-mini-btn"
             title="New page"
             aria-label="Create page"
+            data-testid="new-page-btn"
             @click="handleCreateRootPage"
           >
-            +
+            <component :is="Plus" :size="13" />
           </button>
         </div>
       </div>
 
-      <!-- Hierarchical Page Tree -->
-      <div class="col scroll">
+      <!-- Hierarchical Page Tree (Scrollable body) -->
+      <div class="col scroll sidebar-tree-container">
         <PageTreeItem
           v-for="node in store.pageTree"
           :key="node.id"
@@ -185,30 +187,42 @@
           "
           @create-child="handleCreateChildPage"
         />
-
-        <!-- Collapsible Secondary Trash Section (modern-web-guidance: details) -->
-        <details v-if="store.deletedPages.length > 0" class="trash-details q-mt-md">
-          <summary class="sidebar-section-label cursor-pointer">
-            Trash ({{ store.deletedPages.length }})
-          </summary>
-          <div
-            v-for="del in store.deletedPages"
-            :key="`del-${del.id}`"
-            class="trash-row"
-          >
-            <span class="ellipsis">{{ del.icon }} {{ del.title }}</span>
-            <button
-              type="button"
-              class="sidebar-mini-btn"
-              title="Restore page"
-              :data-testid="`restore-${del.id}`"
-              @click="store.restorePage(del.id)"
-            >
-              ↩
-            </button>
-          </div>
-        </details>
       </div>
+
+      <!-- Sticky Sidebar Footer (Issue #33: Luiz Pulz Profile + Lixeira Modal Trigger) -->
+      <div class="sidebar-sticky-footer">
+        <!-- User Profile Card -->
+        <div class="sidebar-user-card" title="Perfil do usuário">
+          <div class="sidebar-user-avatar">LP</div>
+          <div class="sidebar-user-meta">
+            <span class="sidebar-user-name">Luiz Pulz</span>
+            <span class="sidebar-user-role">Workspace Admin</span>
+          </div>
+          <span class="sidebar-user-caret">⌄</span>
+        </div>
+
+        <!-- Clean Trash Button with Badge -->
+        <button
+          type="button"
+          class="sidebar-trash-row-btn"
+          data-testid="sidebar-trash-btn"
+          title="Abrir lixeira"
+          @click="isTrashModalOpen = true"
+        >
+          <component :is="Trash2" :size="15" class="sidebar-trash-icon" />
+          <span class="sidebar-trash-text">Lixeira</span>
+          <span v-if="store.deletedPages.length > 0" class="sidebar-trash-badge">
+            {{ store.deletedPages.length }}
+          </span>
+        </button>
+      </div>
+
+      <!-- Drag Resizer Handle on right edge of sidebar (Issue #35) -->
+      <div
+        class="sidebar-drag-resizer"
+        title="Arraste para redimensionar (270px a 600px)"
+        @mousedown="onResizerMouseDown"
+      />
     </q-drawer>
 
     <!-- Right Comments & AI Drawer (03-app-shell-editor-comments.jpg: 300px, #ffffff) -->
@@ -438,53 +452,28 @@
       </div>
     </q-dialog>
 
-    <!-- Clean Search Modal (07-search-modal-results.jpg) -->
-    <q-dialog v-model="store.isSearchDialogOpen">
-      <div
-        class="mind-search-modal"
-        style="width: 620px; max-width: 94vw"
-        data-testid="clean-search-modal"
-      >
-        <div class="search-modal-header">
-          <span class="search-lens-icon" aria-hidden="true">🔍</span>
-          <input
-            v-model="store.searchQuery"
-            type="search"
-            enterkeyhint="search"
-            placeholder="software"
-            class="search-modal-bare-input"
-            data-testid="search-modal-input"
-            @input="() => store.runSearch()"
-          />
-        </div>
+    <!-- 2-Column Split Search Modal with Instant Preview (Issue #32) -->
+    <MindSearchModal
+      v-model="store.isSearchDialogOpen"
+      :pages="store.pages"
+      :search-results="store.searchResults"
+      :search-query="store.searchQuery"
+      @update:search-query="store.searchQuery = $event"
+      @search="store.runSearch($event)"
+      @select="
+        (id) => {
+          store.activeSurface = 'editor';
+          store.selectPage(id);
+        }
+      "
+    />
 
-        <div class="search-results-container">
-          <div
-            v-for="(item, idx) in store.searchResults"
-            :key="item.page.id"
-            class="search-result-row"
-            :class="{ 'is-selected': idx === selectedSearchIdx }"
-            :data-testid="`search-result-${item.page.id}`"
-            @mouseenter="selectedSearchIdx = idx"
-            @click="selectSearchResult(item.page.id)"
-          >
-            <span class="search-item-emoji">{{ item.page.icon }}</span>
-            <div class="search-item-body">
-              <div class="search-item-title">{{ item.page.title }}</div>
-              <div class="search-result-snippet">
-                <template
-                  v-for="(seg, sIdx) in splitSnippetSegments(item.snippet, store.searchQuery)"
-                  :key="sIdx"
-                >
-                  <strong v-if="seg.bold">{{ seg.text }}</strong>
-                  <span v-else>{{ seg.text }}</span>
-                </template>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </q-dialog>
+    <!-- Clean Trash Modal with Search & Restore (Issue #33) -->
+    <MindTrashModal
+      v-model="isTrashModalOpen"
+      :deleted-pages="store.deletedPages"
+      @restore="store.restorePage"
+    />
 
     <!-- Space Settings & Git Markdown Export Modal -->
     <q-dialog v-model="store.isMcpModalOpen">
@@ -594,18 +583,25 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue';
+import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue';
 import { Dark } from 'quasar';
 import {
   Copy,
   CopyPlus,
   Download,
   FolderDown,
+  Home,
   Inbox,
   Link2,
   Lock,
+  Menu,
   MessageSquare,
   MoreHorizontal,
+  Package,
+  PanelLeftClose,
+  Plus,
+  Search as SearchIcon,
+  Settings,
   Share2,
   Sparkles,
   Trash2,
@@ -620,14 +616,19 @@ import DiagramEmbedsBlock from './components/DiagramEmbedsBlock.vue';
 import CleanLoginView from './components/CleanLoginView.vue';
 import MindIconButton from './components/ui/MindIconButton.vue';
 import MindActionMenu from './components/ui/MindActionMenu.vue';
+import MindSidebarSearch from './components/ui/MindSidebarSearch.vue';
+import MindSearchModal from './components/ui/MindSearchModal.vue';
+import MindTrashModal from './components/ui/MindTrashModal.vue';
 import type { ActionMenuItem, ActionMenuPageMeta } from './components/ui/types.js';
 
 const store = useMindStore();
 const leftDrawerOpen = ref(true);
+const isTrashModalOpen = ref(false);
+const sidebarWidth = ref(Number(localStorage.getItem('mind_sidebar_width')) || 280);
+const isResizingSidebar = ref(false);
 const showOverflowMenu = ref(false);
 const quickInsightText = ref('');
 const aiPromptInput = ref('');
-const selectedSearchIdx = ref(0);
 const replyBuffers = reactive<Record<string, string>>({});
 
 const actionMenuItems = computed<ActionMenuItem[]>(() => {
@@ -778,7 +779,58 @@ const pageMetadata = computed<ActionMenuPageMeta>(() => {
 onMounted(() => {
   Dark.set(false);
   void store.initializeStore();
+  window.addEventListener('keydown', handleGlobalKeydown);
 });
+
+onBeforeUnmount(() => {
+  window.removeEventListener('keydown', handleGlobalKeydown);
+  window.removeEventListener('mousemove', onResizerMouseMove);
+  window.removeEventListener('mouseup', onResizerMouseUp);
+});
+
+function handleEdgeMouseEnter(): void {
+  leftDrawerOpen.value = true;
+}
+
+function onResizerMouseDown(e: MouseEvent): void {
+  e.preventDefault();
+  isResizingSidebar.value = true;
+  window.addEventListener('mousemove', onResizerMouseMove);
+  window.addEventListener('mouseup', onResizerMouseUp);
+}
+
+function onResizerMouseMove(e: MouseEvent): void {
+  if (!isResizingSidebar.value) return;
+  const clientX = e.clientX;
+  if (clientX < 200) {
+    leftDrawerOpen.value = false;
+    isResizingSidebar.value = false;
+    window.removeEventListener('mousemove', onResizerMouseMove);
+    window.removeEventListener('mouseup', onResizerMouseUp);
+    return;
+  }
+  const clamped = Math.max(270, Math.min(600, clientX));
+  sidebarWidth.value = clamped;
+}
+
+function onResizerMouseUp(): void {
+  if (isResizingSidebar.value) {
+    isResizingSidebar.value = false;
+    localStorage.setItem('mind_sidebar_width', String(sidebarWidth.value));
+  }
+  window.removeEventListener('mousemove', onResizerMouseMove);
+  window.removeEventListener('mouseup', onResizerMouseUp);
+}
+
+function handleGlobalKeydown(e: KeyboardEvent): void {
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+    e.preventDefault();
+    openSearchModal();
+  } else if ((e.ctrlKey || e.metaKey) && e.key === '\\') {
+    e.preventDefault();
+    leftDrawerOpen.value = !leftDrawerOpen.value;
+  }
+}
 
 function toggleRightPanel(mode: 'comments' | 'ai'): void {
   if (store.isCommentsDrawerOpen && store.rightDrawerMode === mode) {
@@ -820,15 +872,8 @@ function handleSaveQuickInsight(): void {
 }
 
 function openSearchModal(): void {
-  selectedSearchIdx.value = 0;
   store.isSearchDialogOpen = true;
   store.runSearch();
-}
-
-function selectSearchResult(pageId: string): void {
-  store.activeSurface = 'editor';
-  store.selectPage(pageId);
-  store.isSearchDialogOpen = false;
 }
 
 function submitThreadReply(threadId: string): void {
@@ -909,38 +954,10 @@ function splitSnippetSegments(
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  transition: all 0.12s ease;
 }
 
 .topbar-icon-btn:hover {
-  background: var(--mind-bg-hover);
-  color: var(--mind-text-primary);
-}
-
-.topbar-brand-group {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-left: 6px;
-}
-
-.topbar-brand-name {
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--mind-text-primary);
-}
-
-.topbar-text-btn {
-  border: none;
-  background: transparent;
-  color: var(--mind-text-secondary);
-  font-size: 13px;
-  font-weight: 500;
-  padding: 4px 8px;
-  border-radius: 6px;
-  cursor: pointer;
-}
-
-.topbar-text-btn:hover {
   background: var(--mind-bg-hover);
   color: var(--mind-text-primary);
 }
@@ -949,7 +966,7 @@ function splitSnippetSegments(
   display: flex;
   align-items: center;
   gap: 4px;
-  margin-left: 20px;
+  margin-left: 12px;
   font-size: 13px;
 }
 
@@ -969,6 +986,7 @@ function splitSnippetSegments(
   padding: 3px 6px;
   border-radius: 4px;
   cursor: pointer;
+  transition: background-color 0.12s ease;
 }
 
 .crumb-btn:hover {
@@ -981,36 +999,64 @@ function splitSnippetSegments(
   gap: 6px;
 }
 
-.workspace-switcher {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 3px 8px;
-  border-radius: 6px;
+/* Edge Hover Peek Zone when sidebar is collapsed (Issue #28) */
+.sidebar-edge-peek-zone {
+  position: fixed;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: 14px;
+  z-index: 1500;
   cursor: pointer;
+  background: transparent;
 }
 
-.workspace-switcher:hover {
+/* Sidebar Elements (Issues #28, #31, #33, #35) */
+.sidebar-workspace-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 10px 4px;
+  min-height: 40px;
+}
+
+.workspace-brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  min-width: 0;
+  flex: 1;
+  border-radius: 6px;
+  padding: 4px;
+  transition: background-color 0.12s ease;
+}
+
+.workspace-brand:hover {
   background: var(--mind-bg-hover);
 }
 
-.workspace-avatar {
+.workspace-avatar-sq {
   width: 22px;
   height: 22px;
-  border-radius: 50%;
+  border-radius: 5px;
   background: #e03131;
   color: #ffffff;
-  font-size: 10px;
+  font-size: 10.5px;
   font-weight: 700;
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  flex-shrink: 0;
 }
 
-.workspace-name {
-  font-size: 12.5px;
+.workspace-title-text {
+  font-size: 13px;
   font-weight: 600;
   color: var(--mind-text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .workspace-caret {
@@ -1018,78 +1064,49 @@ function splitSnippetSegments(
   color: var(--mind-text-muted);
 }
 
-.overflow-dropdown {
-  position: absolute;
-  right: 16px;
-  top: 46px;
-  width: 240px;
-}
-
-.popover-row-label {
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--mind-text-primary);
-}
-
-/* Sidebar Elements */
-.space-switcher-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 8px;
-  margin-bottom: 6px;
-  border-radius: 6px;
-  cursor: pointer;
-}
-
-.space-switcher-row:hover {
-  background: var(--mind-bg-hover);
-}
-
-.space-avatar {
-  width: 22px;
-  height: 22px;
-  border-radius: 50%;
-  background: #e03131;
-  color: #ffffff;
-  font-size: 10px;
-  font-weight: 700;
+.sidebar-collapse-trigger {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-}
-
-.space-title {
-  font-size: 13.5px;
-  font-weight: 600;
-  color: var(--mind-text-primary);
-  flex: 1;
-}
-
-.space-caret {
-  font-size: 11px;
+  width: 26px;
+  height: 26px;
+  border: none;
+  background: transparent;
   color: var(--mind-text-muted);
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.12s ease;
+  flex-shrink: 0;
+}
+
+.sidebar-collapse-trigger:hover {
+  background: var(--mind-bg-hover);
+  color: var(--mind-text-primary);
+}
+
+.sidebar-search-area {
+  padding: 0 10px 4px;
 }
 
 .sidebar-utility-nav {
   display: flex;
   flex-direction: column;
   gap: 2px;
-  margin-bottom: 14px;
+  padding: 0 8px;
+  margin-bottom: 10px;
 }
 
-.nav-item-icon {
-  width: 18px;
-  text-align: center;
-  font-size: 13px;
+.nav-item-lucide {
   color: var(--mind-text-muted);
+  flex-shrink: 0;
 }
 
 .pages-section-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 4px;
+  padding: 4px 12px;
+  margin-bottom: 2px;
 }
 
 .pages-section-actions {
@@ -1107,6 +1124,10 @@ function splitSnippetSegments(
   border-radius: 4px;
   cursor: pointer;
   font-size: 13px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.12s ease;
 }
 
 .sidebar-mini-btn:hover {
@@ -1114,18 +1135,134 @@ function splitSnippetSegments(
   color: var(--mind-text-primary);
 }
 
-.trash-details {
-  border-top: 1px solid var(--mind-border-subtle);
-  padding-top: 8px;
+.sidebar-tree-container {
+  padding: 0 8px;
+  overflow-y: auto;
 }
 
-.trash-row {
+/* Sticky Footer at the bottom of the sidebar */
+.sidebar-sticky-footer {
+  margin-top: auto;
+  border-top: 1px solid var(--mind-border-subtle);
+  padding: 8px 10px;
+  background: var(--mind-bg-sidebar);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.sidebar-user-card {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  padding: 4px 10px;
-  font-size: 12.5px;
+  gap: 10px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background-color 0.12s ease;
+}
+
+.sidebar-user-card:hover {
+  background: var(--mind-bg-hover);
+}
+
+.sidebar-user-avatar {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: #495057;
+  color: #ffffff;
+  font-size: 10.5px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.sidebar-user-meta {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.sidebar-user-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--mind-text-primary);
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sidebar-user-role {
+  font-size: 10.5px;
   color: var(--mind-text-muted);
+  line-height: 1.2;
+}
+
+.sidebar-user-caret {
+  font-size: 11px;
+  color: var(--mind-text-muted);
+}
+
+.sidebar-trash-row-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 8px;
+  border: none;
+  background: transparent;
+  border-radius: 6px;
+  color: var(--mind-text-secondary);
+  cursor: pointer;
+  font-size: 12.5px;
+  transition: all 0.12s ease;
+  text-align: left;
+}
+
+.sidebar-trash-row-btn:hover {
+  background: var(--mind-bg-hover);
+  color: var(--mind-text-primary);
+}
+
+.sidebar-trash-icon {
+  color: var(--mind-text-muted);
+  flex-shrink: 0;
+}
+
+.sidebar-trash-text {
+  flex: 1;
+}
+
+.sidebar-trash-badge {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 1px 6px;
+  background: var(--mind-bg-surface-subtle);
+  border: 1px solid var(--mind-border-subtle);
+  border-radius: 999px;
+  color: var(--mind-text-muted);
+}
+
+/* Drag Resizer on right edge of sidebar */
+.sidebar-drag-resizer {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 5px;
+  cursor: col-resize;
+  background: transparent;
+  transition: background-color 0.15s ease;
+  z-index: 100;
+}
+
+.sidebar-drag-resizer:hover,
+.sidebar-drag-resizer:active {
+  background: rgba(33, 37, 41, 0.12);
 }
 
 /* Right Comments Drawer */

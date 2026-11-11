@@ -1,5 +1,23 @@
 import type { MindPage, TiptapDoc, TiptapNode } from './types.js';
 
+const CALLOUT_ICONS: Record<string, string> = {
+  NOTE: 'ℹ️',
+  TIP: '💡',
+  IMPORTANT: '📌',
+  WARNING: '⚠️',
+  CAUTION: '🛑',
+  INFO: 'ℹ️',
+  TODO: '📝',
+  SUMMARY: '📋',
+  ABSTRACT: '📋',
+  EXAMPLE: '🧪',
+  QUESTION: '❓',
+  QUOTE: '💬',
+  SUCCESS: '✅',
+  BUG: '🐛',
+  DANGER: '🚨',
+};
+
 interface ParseState {
   lines: string[];
   index: number;
@@ -196,6 +214,17 @@ function parseBlock(state: ParseState): TiptapNode | null {
         break;
       }
     }
+
+    if (quoteLines.length > 0 && quoteLines[0]) {
+      const calloutMatch = /^\[!([A-Za-z]+)\][-+]?\s*(.*)$/.exec(quoteLines[0].trim());
+      if (calloutMatch) {
+        const kind = (calloutMatch[1] ?? 'NOTE').toUpperCase();
+        const icon = CALLOUT_ICONS[kind] ?? 'ℹ️';
+        const rest = (calloutMatch[2] ?? '').trim();
+        quoteLines[0] = rest ? `${icon} **[${kind}]** ${rest}` : `${icon} **[${kind}]**`;
+      }
+    }
+
     return {
       type: 'blockquote',
       content: [

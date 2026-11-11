@@ -1,8 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { mount } from '@vue/test-utils';
 import { nextTick } from 'vue';
-import { markdownToTiptap, type TiptapDoc } from '@mind-hub/shared';
-import TiptapBlockEditor from './TiptapBlockEditor.vue';
+import { markdownToMindDoc, type MindDoc } from '@mind-hub/shared';
+import MindBlockEditor from './MindBlockEditor.vue';
 
 const sampleMarkdown = [
   '# Arquitetura do Homelab',
@@ -13,9 +13,9 @@ const sampleMarkdown = [
   '- Segundo item de lista',
 ].join('\n');
 
-const initialDoc: TiptapDoc = markdownToTiptap(sampleMarkdown);
+const initialDoc: MindDoc = markdownToMindDoc(sampleMarkdown);
 
-describe('@mind-hub/web — Notion-like TiptapBlockEditor (Refs #37, #43)', () => {
+describe('@mind-hub/web — Notion-like MindBlockEditor (Refs #37, #43, #45)', () => {
   beforeEach(() => {
     vi.useFakeTimers();
   });
@@ -25,7 +25,7 @@ describe('@mind-hub/web — Notion-like TiptapBlockEditor (Refs #37, #43)', () =
   });
 
   it('mounts properly and renders initial document in edit mode', () => {
-    const wrapper = mount(TiptapBlockEditor, {
+    const wrapper = mount(MindBlockEditor, {
       props: {
         modelValue: initialDoc,
         markdownValue: sampleMarkdown,
@@ -33,9 +33,9 @@ describe('@mind-hub/web — Notion-like TiptapBlockEditor (Refs #37, #43)', () =
       },
     });
 
-    expect(wrapper.find('[data-testid="tiptap-block-editor"]').exists()).toBe(true);
+    expect(wrapper.find('[data-testid="mind-block-editor"]').exists()).toBe(true);
     expect(wrapper.find('[data-testid="editor-edit-mode"]').exists()).toBe(true);
-    expect(wrapper.find('.tiptap-canvas').exists()).toBe(true);
+    expect(wrapper.find('.mind-editor-canvas').exists()).toBe(true);
     expect(wrapper.find('[data-testid="block-gutter-add-btn"]').exists()).toBe(true);
     expect(wrapper.find('[data-testid="block-gutter-handle-btn"]').exists()).toBe(true);
     expect((wrapper.vm as any).editor).toBeDefined();
@@ -43,7 +43,7 @@ describe('@mind-hub/web — Notion-like TiptapBlockEditor (Refs #37, #43)', () =
   });
 
   it('handles read-only mode toggle cleanly without blanking canvas (Issue #37 invariant)', async () => {
-    const wrapper = mount(TiptapBlockEditor, {
+    const wrapper = mount(MindBlockEditor, {
       props: {
         modelValue: initialDoc,
         markdownValue: sampleMarkdown,
@@ -74,7 +74,7 @@ describe('@mind-hub/web — Notion-like TiptapBlockEditor (Refs #37, #43)', () =
   });
 
   it('renders block gutter controls (+ and ⠿) and toggles block handle menu', async () => {
-    const wrapper = mount(TiptapBlockEditor, {
+    const wrapper = mount(MindBlockEditor, {
       props: {
         modelValue: initialDoc,
         markdownValue: sampleMarkdown,
@@ -105,7 +105,7 @@ describe('@mind-hub/web — Notion-like TiptapBlockEditor (Refs #37, #43)', () =
   });
 
   it('clicking + gutter button inserts block below and reveals slash menu', async () => {
-    const wrapper = mount(TiptapBlockEditor, {
+    const wrapper = mount(MindBlockEditor, {
       props: {
         modelValue: initialDoc,
         markdownValue: sampleMarkdown,
@@ -124,7 +124,7 @@ describe('@mind-hub/web — Notion-like TiptapBlockEditor (Refs #37, #43)', () =
   });
 
   it('opens slash command menu on "/" keypress and filters commands dynamically', async () => {
-    const wrapper = mount(TiptapBlockEditor, {
+    const wrapper = mount(MindBlockEditor, {
       props: {
         modelValue: initialDoc,
         markdownValue: sampleMarkdown,
@@ -132,7 +132,7 @@ describe('@mind-hub/web — Notion-like TiptapBlockEditor (Refs #37, #43)', () =
       },
     });
 
-    const canvas = wrapper.find('.tiptap-canvas');
+    const canvas = wrapper.find('.mind-editor-canvas');
     await canvas.trigger('keydown', { key: '/' });
     await nextTick();
 
@@ -155,7 +155,7 @@ describe('@mind-hub/web — Notion-like TiptapBlockEditor (Refs #37, #43)', () =
   });
 
   it('supports keyboard navigation (ArrowDown, ArrowUp, Enter) in slash menu', async () => {
-    const wrapper = mount(TiptapBlockEditor, {
+    const wrapper = mount(MindBlockEditor, {
       props: {
         modelValue: initialDoc,
         markdownValue: sampleMarkdown,
@@ -163,7 +163,7 @@ describe('@mind-hub/web — Notion-like TiptapBlockEditor (Refs #37, #43)', () =
       },
     });
 
-    const canvas = wrapper.find('.tiptap-canvas');
+    const canvas = wrapper.find('.mind-editor-canvas');
     await canvas.trigger('keydown', { key: '/' });
     await nextTick();
 
@@ -186,7 +186,7 @@ describe('@mind-hub/web — Notion-like TiptapBlockEditor (Refs #37, #43)', () =
   });
 
   it('emits insert-database-block and insert-diagram-block on slash command selection', async () => {
-    const wrapper = mount(TiptapBlockEditor, {
+    const wrapper = mount(MindBlockEditor, {
       props: {
         modelValue: initialDoc,
         markdownValue: sampleMarkdown,
@@ -194,7 +194,7 @@ describe('@mind-hub/web — Notion-like TiptapBlockEditor (Refs #37, #43)', () =
       },
     });
 
-    const canvas = wrapper.find('.tiptap-canvas');
+    const canvas = wrapper.find('.mind-editor-canvas');
     await canvas.trigger('keydown', { key: '/' });
     await nextTick();
 
@@ -229,7 +229,7 @@ describe('@mind-hub/web — Notion-like TiptapBlockEditor (Refs #37, #43)', () =
   });
 
   it('opens mention menu on "@" keypress and filters users and pages', async () => {
-    const wrapper = mount(TiptapBlockEditor, {
+    const wrapper = mount(MindBlockEditor, {
       props: {
         modelValue: initialDoc,
         markdownValue: sampleMarkdown,
@@ -241,7 +241,7 @@ describe('@mind-hub/web — Notion-like TiptapBlockEditor (Refs #37, #43)', () =
       },
     });
 
-    const canvas = wrapper.find('.tiptap-canvas');
+    const canvas = wrapper.find('.mind-editor-canvas');
     await canvas.trigger('keydown', { key: '@' });
     await nextTick();
 
@@ -264,7 +264,7 @@ describe('@mind-hub/web — Notion-like TiptapBlockEditor (Refs #37, #43)', () =
   });
 
   it('renders floating bubble menu toolbar with formatting buttons', async () => {
-    const wrapper = mount(TiptapBlockEditor, {
+    const wrapper = mount(MindBlockEditor, {
       props: {
         modelValue: initialDoc,
         markdownValue: sampleMarkdown,
@@ -298,7 +298,7 @@ describe('@mind-hub/web — Notion-like TiptapBlockEditor (Refs #37, #43)', () =
   });
 
   it('debounces update:modelValue emission to guarantee zero-lag typing and zero cursor flicker', async () => {
-    const wrapper = mount(TiptapBlockEditor, {
+    const wrapper = mount(MindBlockEditor, {
       props: {
         modelValue: initialDoc,
         markdownValue: sampleMarkdown,

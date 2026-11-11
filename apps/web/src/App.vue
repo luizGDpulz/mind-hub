@@ -459,8 +459,8 @@
             "
           />
 
-          <!-- Notion/Docmost Block Editor with Left Gutter (+ / ⠿), Slash (/) & Mention (@) -->
-          <TiptapBlockEditor
+          <!-- MindBlockEditor with Left Gutter (+ / ⠿), Slash (/) & Mention (@) -->
+          <MindBlockEditor
             :key="store.activePage.id"
             :model-value="store.activePage.contentJson"
             :markdown-value="store.activePage.contentMarkdown"
@@ -714,7 +714,7 @@ import {
 import type { RawMarkdownFileEntry } from '@mind-hub/shared';
 import { useMindStore } from './stores/mind-store.js';
 import PageTreeItem from './components/PageTreeItem.vue';
-import TiptapBlockEditor from './components/TiptapBlockEditor.vue';
+import MindBlockEditor from './components/MindBlockEditor.vue';
 import DatabaseViewBlock from './components/DatabaseViewBlock.vue';
 import DiagramEmbedsBlock from './components/DiagramEmbedsBlock.vue';
 import CleanLoginView from './components/CleanLoginView.vue';

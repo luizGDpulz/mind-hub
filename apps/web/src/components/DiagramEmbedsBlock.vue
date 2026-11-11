@@ -427,7 +427,7 @@ const excalidrawBoxes = ref([
     id: 'experience',
     title: 'Experience highlights ⭐',
     bullets: [
-      '✅ Designed high-throughput block engine with Tiptap v2',
+      '✅ Designed high-throughput block engine with MindBlockEditor',
       '⚙️ Tech: Vue 3, Quasar, Fastify, Drizzle, pgvector',
       '📈 Result: Sub-10ms query execution & Git sovereignty',
     ],
@@ -451,7 +451,7 @@ function addExcalidrawCard(): void {
   excalidrawBoxes.value.push({
     id: `custom-${excalidrawBoxes.value.length + 1}`,
     title: `System Component #${excalidrawBoxes.value.length + 1} 🧩`,
-    bullets: ['New hand-drawn architecture note', 'Synced with Tiptap block AST'],
+    bullets: ['New hand-drawn architecture note', 'Synced with Mind block AST'],
   });
 }
 

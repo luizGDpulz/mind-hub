@@ -1,5 +1,5 @@
 <template>
-  <div class="tiptap-editor-shell" data-testid="tiptap-block-editor">
+  <div class="mind-editor-shell tiptap-editor-shell" data-testid="mind-block-editor">
     <!-- Block-Level Left Gutter Controls (+ and ⠿) following active line (Notion-like) -->
     <div class="block-row-shell">
       <div
@@ -306,9 +306,9 @@
         </div>
       </div>
 
-      <!-- Single Tiptap v2 Rich Block Canvas (prevents DOM detachment, closes #37) -->
+      <!-- Single Rich Block Canvas (prevents DOM detachment, closes #37) -->
       <div
-        class="tiptap-canvas"
+        class="mind-editor-canvas tiptap-canvas"
         :class="{ 'read-mode-surface': readOnlyMode }"
         :data-testid="readOnlyMode ? 'editor-read-mode' : 'editor-edit-mode'"
         @keydown="handleCanvasKeydown"
@@ -349,19 +349,19 @@ import {
   DEFAULT_SLASH_COMMANDS,
   type DiagramKind,
   type SlashCommandDefinition,
-  type TiptapDoc,
-  type TiptapNode,
+  type MindDoc,
+  type MindNode,
 } from '@mind-hub/shared';
 
 const props = defineProps<{
-  modelValue: TiptapDoc;
+  modelValue: MindDoc;
   markdownValue: string;
   readOnlyMode?: boolean;
   mentionPages?: ReadonlyArray<{ id: string; title: string; icon: string }>;
 }>();
 
 const emit = defineEmits<{
-  (e: 'update:modelValue', doc: TiptapDoc): void;
+  (e: 'update:modelValue', doc: MindDoc): void;
   (e: 'update:markdownValue', md: string): void;
   (e: 'insert-database-block'): void;
   (e: 'insert-diagram-block', kind: DiagramKind): void;
@@ -443,7 +443,7 @@ const filteredMentionPages = computed(() => {
 const editorExtensions = createEditorExtensions();
 const editorSchema = createEditorSchema(editorExtensions);
 
-function resolveSafeDoc(doc: TiptapDoc, markdown: string): TiptapDoc {
+function resolveSafeDoc(doc: MindDoc, markdown: string): MindDoc {
   const result = toSchemaSafeDoc(doc, editorSchema, markdown);
   if (result.dropped.length > 0 || result.usedMarkdownFallback) {
     console.warn('[mind-hub/editor] document sanitized before render', {
@@ -475,7 +475,8 @@ function updateCursorCoords(): void {
   try {
     const { from } = editor.value.state.selection;
     const coords = editor.value.view.coordsAtPos(from);
-    const container = editor.value.view.dom.closest('.tiptap-editor-shell') as HTMLElement | null;
+    const container = (editor.value.view.dom.closest('.mind-editor-shell') ||
+      editor.value.view.dom.closest('.tiptap-editor-shell')) as HTMLElement | null;
     if (container && coords) {
       const rect = container.getBoundingClientRect();
       const top = Math.max(10, coords.bottom - rect.top + 6);
@@ -492,7 +493,8 @@ function updateGutterPosition(): void {
   try {
     const { from } = editor.value.state.selection;
     const coords = editor.value.view.coordsAtPos(from);
-    const container = editor.value.view.dom.closest('.tiptap-editor-shell') as HTMLElement | null;
+    const container = (editor.value.view.dom.closest('.mind-editor-shell') ||
+      editor.value.view.dom.closest('.tiptap-editor-shell')) as HTMLElement | null;
     if (container && coords) {
       const rect = container.getBoundingClientRect();
       gutterTop.value = Math.max(4, coords.top - rect.top - 2);
@@ -516,7 +518,8 @@ function updateBubbleMenuPosition(): void {
 
   try {
     const coords = ed.view.coordsAtPos(from);
-    const container = ed.view.dom.closest('.tiptap-editor-shell') as HTMLElement | null;
+    const container = (ed.view.dom.closest('.mind-editor-shell') ||
+      ed.view.dom.closest('.tiptap-editor-shell')) as HTMLElement | null;
     if (container && coords) {
       const rect = container.getBoundingClientRect();
       bubbleMenuCoords.value = {
@@ -562,7 +565,7 @@ const editor = useEditor({
     }
 
     emitDebounceTimer = setTimeout(() => {
-      const json = activeEditor.getJSON() as TiptapDoc;
+      const json = activeEditor.getJSON() as MindDoc;
       lastEmittedJsonString = JSON.stringify(json);
       emit('update:modelValue', json);
       setTimeout(() => {
@@ -902,7 +905,7 @@ onBeforeUnmount(() => {
   if (emitDebounceTimer) {
     clearTimeout(emitDebounceTimer);
     if (editor.value && isLocalInput) {
-      emit('update:modelValue', editor.value.getJSON() as TiptapDoc);
+      emit('update:modelValue', editor.value.getJSON() as MindDoc);
     }
   }
   editor.value?.destroy();
@@ -923,6 +926,7 @@ defineExpose({
 </script>
 
 <style scoped>
+.mind-editor-shell,
 .tiptap-editor-shell {
   position: relative;
 }

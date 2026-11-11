@@ -9,17 +9,17 @@ import TableRow from '@tiptap/extension-table-row';
 import TableHeader from '@tiptap/extension-table-header';
 import TableCell from '@tiptap/extension-table-cell';
 import Underline from '@tiptap/extension-underline';
-import type { TiptapDoc, TiptapNode } from '@mind-hub/shared';
+import type { MindDoc, MindNode, TiptapDoc, TiptapNode } from '@mind-hub/shared';
 
 type Schema = ReturnType<typeof getSchema>;
 
 /**
- * Single source of truth for the Tiptap schema used by the block editor.
+ * Single source of truth for the MindBlockEditor schema.
  *
- * Every node/mark produced by `markdownToTiptap` (packages/shared) MUST have a
+ * Every node/mark produced by `markdownToMindDoc` (packages/shared) MUST have a
  * matching extension here. If the editor receives a document containing an
- * unknown node or mark, ProseMirror rejects the whole document and Tiptap
- * silently renders it empty (root cause of #34: `link` marks were missing).
+ * unknown node or mark, ProseMirror rejects the whole document and silently
+ * renders it empty (root cause of #34: `link` marks were missing).
  */
 export function createEditorExtensions(): AnyExtension[] {
   return [

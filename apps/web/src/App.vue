@@ -179,6 +179,17 @@
         </div>
         <div
           class="sidebar-nav-item"
+          data-testid="sidebar-trash-btn"
+          @click="isTrashModalOpen = true"
+        >
+          <component :is="Trash2" :size="15" class="nav-item-lucide" />
+          <span class="ellipsis col">Lixeira</span>
+          <span v-if="store.deletedPages.length > 0" class="sidebar-trash-badge">
+            {{ store.deletedPages.length }}
+          </span>
+        </div>
+        <div
+          class="sidebar-nav-item"
           data-testid="sidebar-bulk-import-btn"
           @click="store.isImportModalOpen = true"
         >

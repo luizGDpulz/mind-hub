@@ -59,7 +59,7 @@ export function createInitialSeedPages(): MindPage[] {
         '',
         '## Pilares Inegociáveis',
         '',
-        '- [x] Editor em blocos **Tiptap v2** com Slash Commands (`/h1`, `/tarefa`, `/codigo`, `/tabela`)',
+        '- [x] Editor em blocos **MindBlockEditor** com Slash Commands (`/h1`, `/tarefa`, `/codigo`, `/tabela`)',
         '- [x] Backend **Fastify + Drizzle ORM** com execução SQL sub-milissegundo',
         '- [x] Servidor **Model Context Protocol (`/mcp`)** nativo e 100% aberto',
         '- [x] Busca Híbrida (`tsvector` + **pgvector** por similaridade de cosseno)',

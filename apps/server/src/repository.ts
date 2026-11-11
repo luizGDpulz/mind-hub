@@ -9,10 +9,10 @@ import {
   createInitialSeedPages,
   exportPageWithFrontmatter,
   generateDeterministicEmbedding,
-  markdownToTiptap,
+  markdownToMindDoc,
+  mindDocToMarkdown,
   searchPagesEngine,
   slugifyTitle,
-  tiptapToMarkdown,
   type AddCommentReplyInput,
   type CreateDatabaseTaskInput,
   type CreatePageCommentInput,
@@ -186,11 +186,11 @@ export class InMemoryPageRepository implements PageRepository {
 
     const contentJson = input.contentJson
       ? input.contentJson
-      : markdownToTiptap(input.contentMarkdown ?? '');
+      : markdownToMindDoc(input.contentMarkdown ?? '');
     const contentMarkdown =
       input.contentMarkdown !== undefined
         ? input.contentMarkdown
-        : tiptapToMarkdown(contentJson);
+        : mindDocToMarkdown(contentJson);
 
     const tags = input.tags ? [...input.tags] : [];
     const embedding = generateDeterministicEmbedding(
@@ -243,10 +243,10 @@ export class InMemoryPageRepository implements PageRepository {
       contentJson = input.contentJson;
     } else if (input.contentMarkdown !== undefined) {
       contentMarkdown = input.contentMarkdown;
-      contentJson = markdownToTiptap(input.contentMarkdown);
+      contentJson = markdownToMindDoc(input.contentMarkdown);
     } else if (input.contentJson !== undefined) {
       contentJson = input.contentJson;
-      contentMarkdown = tiptapToMarkdown(input.contentJson);
+      contentMarkdown = mindDocToMarkdown(input.contentJson);
     }
 
     const updatedTags = input.tags !== undefined ? [...input.tags] : existing.tags;

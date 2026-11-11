@@ -1,22 +1,26 @@
-export type TiptapMarkType = 'bold' | 'italic' | 'code' | 'strike' | 'link';
+export type MindMarkType = 'bold' | 'italic' | 'code' | 'strike' | 'link';
+export type TiptapMarkType = MindMarkType;
 
-export interface TiptapMark {
-  type: TiptapMarkType;
+export interface MindMark {
+  type: MindMarkType;
   attrs?: Record<string, string | number | boolean>;
 }
+export type TiptapMark = MindMark;
 
-export interface TiptapNode {
+export interface MindNode {
   type: string;
   attrs?: Record<string, string | number | boolean | null>;
-  content?: TiptapNode[];
-  marks?: TiptapMark[];
+  content?: MindNode[];
+  marks?: MindMark[];
   text?: string;
 }
+export type TiptapNode = MindNode;
 
-export interface TiptapDoc {
+export interface MindDoc {
   type: 'doc';
-  content: TiptapNode[];
+  content: MindNode[];
 }
+export type TiptapDoc = MindDoc;
 
 export interface MindPage {
   id: string;
@@ -26,7 +30,7 @@ export interface MindPage {
   parentId: string | null;
   sortOrder: number;
   contentMarkdown: string;
-  contentJson: TiptapDoc;
+  contentJson: MindDoc;
   isFavorite: boolean;
   isInbox: boolean;
   tags: string[];
@@ -50,7 +54,7 @@ export interface CreatePageInput {
   parentId?: string | null;
   sortOrder?: number;
   contentMarkdown?: string;
-  contentJson?: TiptapDoc;
+  contentJson?: MindDoc;
   isFavorite?: boolean;
   isInbox?: boolean;
   tags?: string[];
@@ -64,7 +68,7 @@ export interface UpdatePageInput {
   parentId?: string | null;
   sortOrder?: number;
   contentMarkdown?: string;
-  contentJson?: TiptapDoc;
+  contentJson?: MindDoc;
   isFavorite?: boolean;
   isInbox?: boolean;
   tags?: string[];

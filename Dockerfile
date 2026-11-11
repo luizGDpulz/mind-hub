@@ -26,7 +26,10 @@ WORKDIR /app
 ENV NODE_ENV=production \
     HOST=0.0.0.0 \
     PORT=3333 \
-    STATIC_DIR=/app/public
+    STATIC_DIR=/app/public \
+    DATA_FILE_PATH=/app/data/mind-hub-store.json
+
+RUN mkdir -p /app/data && chown -R node:node /app/data
 
 COPY --from=builder --chown=node:node /prod/server/package.json ./package.json
 COPY --from=builder --chown=node:node /prod/server/node_modules ./node_modules

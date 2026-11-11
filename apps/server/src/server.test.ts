@@ -279,6 +279,7 @@ describe('@mind-hub/server — Fastify API, Soft Delete, Durable Persistence, MC
       'list_database_tasks',
       'create_database_task',
       'add_page_comment',
+      'import_markdown_vault',
     ]);
 
     const mcpCreate = await app.inject({
@@ -355,6 +356,80 @@ describe('@mind-hub/server — Fastify API, Soft Delete, Durable Persistence, MC
     expect(aiBody.provider).toBe('local-rag');
     expect(aiBody.answer).toContain('ADR 001');
     expect(aiBody.referencedPages.length).toBeGreaterThan(0);
+
+    await app.close();
+  });
+
+  it('ingests Second Brain Markdown vault in bulk with folder hierarchy, WikiLinks & idempotent hash skip', async () => {
+    const app = await buildApp();
+
+    const bulkRes = await app.inject({
+      method: 'POST',
+      url: '/api/import/markdown-bulk',
+      payload: {
+        useSampleSecondBrain: true,
+        conflictStrategy: 'upsert',
+      },
+    });
+    expect(bulkRes.statusCode).toBe(201);
+    const bulkBody = bulkRes.json<{
+      notesProcessed: number;
+      folderPagesCreated: number;
+      createdCount: number;
+      skippedCount: number;
+      wikiLinksResolved: number;
+      pages: Array<{ title: string; parentId: string | null }>;
+    }>();
+    expect(bulkBody.notesProcessed).toBe(4);
+    expect(bulkBody.folderPagesCreated).toBeGreaterThanOrEqual(3);
+    expect(bulkBody.createdCount).toBeGreaterThanOrEqual(7);
+    expect(bulkBody.wikiLinksResolved).toBeGreaterThanOrEqual(2);
+
+    // Second run with exact same hash should reuse existing folders and skip all 4 unchanged notes idempotently
+    const secondRunRes = await app.inject({
+      method: 'POST',
+      url: '/api/import/markdown-bulk',
+      payload: {
+        useSampleSecondBrain: true,
+        conflictStrategy: 'upsert',
+      },
+    });
+    expect(secondRunRes.statusCode).toBe(201);
+    const secondBody = secondRunRes.json<{
+      skippedCount: number;
+      folderPagesCreated: number;
+    }>();
+    expect(secondBody.folderPagesCreated).toBe(0);
+    expect(secondBody.skippedCount).toBe(4);
+
+    // Also test MCP tool import_markdown_vault
+    const mcpBulkRes = await app.inject({
+      method: 'POST',
+      url: '/mcp',
+      payload: {
+        jsonrpc: '2.0',
+        id: 99,
+        method: 'tools/call',
+        params: {
+          name: 'import_markdown_vault',
+          arguments: {
+            files: [
+              {
+                path: 'Inbox/Nota Rapida MCP.md',
+                content: '---\ntags: [mcp, bulk]\n---\n# Nota Rápida via MCP Bulk\nConectada a [[Mind Hub]].',
+              },
+            ],
+          },
+        },
+      },
+    });
+    expect(mcpBulkRes.statusCode).toBe(200);
+    const mcpBulkText =
+      mcpBulkRes.json<{ result: { content: Array<{ text: string }> } }>().result.content[0]?.text ??
+      '{}';
+    const mcpBulkParsed = JSON.parse(mcpBulkText) as { notesProcessed: number; wikiLinksResolved: number };
+    expect(mcpBulkParsed.notesProcessed).toBe(1);
+    expect(mcpBulkParsed.wikiLinksResolved).toBe(1);
 
     await app.close();
   });

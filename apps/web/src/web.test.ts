@@ -82,4 +82,18 @@ describe('@mind-hub/web — Pinia Store, Page Tree, Quick Insight & Search Engin
     store.addCommentReply('thread-1', 'Aligned with mind-light-style!');
     expect(store.pageComments[0]?.replies.length).toBe(initialReplies + 1);
   });
+
+  it('imports Second Brain Markdown batch into store with folder hierarchy and WikiLinks', async () => {
+    const store = useMindStore();
+    const initialCount = store.activePages.length;
+
+    const report = await store.importMarkdownBulk([], {
+      useSampleSecondBrain: true,
+    });
+    expect(report.notesProcessed).toBe(4);
+    expect(report.folderPagesCreated).toBeGreaterThanOrEqual(3);
+    expect(report.wikiLinksResolved).toBeGreaterThanOrEqual(2);
+    expect(store.activePages.length).toBeGreaterThan(initialCount);
+    expect(store.lastBulkImportReport?.notesProcessed).toBe(4);
+  });
 });

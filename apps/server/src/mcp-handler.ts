@@ -1,4 +1,10 @@
-import type { DatabasePriority, DatabaseStatus, SearchMode } from '@mind-hub/shared';
+import {
+  planBulkVaultImport,
+  type DatabasePriority,
+  type DatabaseStatus,
+  type RawMarkdownFileEntry,
+  type SearchMode,
+} from '@mind-hub/shared';
 import type { PageRepository } from './repository.js';
 
 export interface JsonRpcRequest {
@@ -140,6 +146,33 @@ export const MCP_TOOLS: ReadonlyArray<McpToolSchema> = [
         author_name: { type: 'string', description: 'Autor do comentário' },
       },
       required: ['page_id', 'body'],
+    },
+  },
+  {
+    name: 'import_markdown_vault',
+    description:
+      'Importa em massa múltiplos arquivos Markdown (.md) com Frontmatter YAML, hierarquia de pastas e [[WikiLinks]] para o banco de dados do Mind Hub.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        files: {
+          type: 'array',
+          description: 'Lista de arquivos Markdown ({ path, content })',
+          items: {
+            type: 'object',
+            properties: {
+              path: { type: 'string' },
+              content: { type: 'string' },
+            },
+          },
+        },
+        conflict_strategy: {
+          type: 'string',
+          enum: ['upsert', 'skip'],
+          description: 'Estratégia em caso de página já existente (upsert ou skip)',
+        },
+      },
+      required: ['files'],
     },
   },
 ];
@@ -476,6 +509,66 @@ export class McpHandler {
               {
                 type: 'text',
                 text: JSON.stringify(comment, null, 2),
+              },
+            ],
+          },
+        };
+      }
+
+      case 'import_markdown_vault': {
+        const rawFiles = Array.isArray(args.files) ? args.files : [];
+        const files: RawMarkdownFileEntry[] = [];
+        for (const item of rawFiles) {
+          if (item && typeof item === 'object') {
+            const obj = item as Record<string, unknown>;
+            if (typeof obj.path === 'string' && typeof obj.content === 'string') {
+              files.push({ path: obj.path, content: obj.content });
+            }
+          }
+        }
+
+        if (files.length === 0) {
+          return {
+            jsonrpc: '2.0',
+            id,
+            error: {
+              code: -32602,
+              message: 'Missing or empty files array for import_markdown_vault',
+            },
+          };
+        }
+
+        const conflictStrategy =
+          args.conflict_strategy === 'skip' ? 'skip' : 'upsert';
+        const existingPages = await this.repo.listPages(false);
+        const plan = planBulkVaultImport(files, existingPages, {
+          conflictStrategy,
+        });
+        const upsertResult = await this.repo.upsertPagesBatch(
+          plan.pagesToUpsert,
+          conflictStrategy,
+        );
+
+        return {
+          jsonrpc: '2.0',
+          id,
+          result: {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify(
+                  {
+                    notesProcessed: plan.notesProcessed,
+                    folderPagesCreated: plan.folderPagesCreated,
+                    createdCount: upsertResult.createdCount,
+                    updatedCount: upsertResult.updatedCount,
+                    skippedCount: upsertResult.skippedCount,
+                    wikiLinksResolved: plan.wikiLinksResolved,
+                    discoveredTags: plan.discoveredTags,
+                  },
+                  null,
+                  2,
+                ),
               },
             ],
           },

@@ -3,6 +3,7 @@ import {
   buildPageTree,
   cosineSimilarity,
   createInitialSeedPages,
+  createSampleSecondBrainBatch,
   DEFAULT_SLASH_COMMANDS,
   exportPageWithFrontmatter,
   extractPlainText,
@@ -10,6 +11,7 @@ import {
   generateDeterministicEmbedding,
   getPageBreadcrumbs,
   markdownToTiptap,
+  planBulkVaultImport,
   searchPagesEngine,
   slugifyTitle,
   tiptapToMarkdown,
@@ -122,5 +124,24 @@ describe('@mind-hub/shared — Markdown <-> Tiptap AST & Domain Engine', () => {
     expect(exported).toContain('---\nid: page-manifesto');
     expect(exported).toContain('tags: [arquitetura, rfc, mcp, tiptap]');
     expect(DEFAULT_SLASH_COMMANDS.length).toBeGreaterThanOrEqual(8);
+  });
+
+  it('plans bulk Second Brain Markdown import with YAML Frontmatter, nested folder hierarchy and WikiLinks', () => {
+    const sampleBatch = createSampleSecondBrainBatch();
+    const plan = planBulkVaultImport(sampleBatch);
+
+    expect(plan.notesProcessed).toBe(4);
+    expect(plan.folderPagesCreated).toBeGreaterThanOrEqual(3);
+    expect(plan.wikiLinksResolved).toBeGreaterThanOrEqual(2);
+    expect(plan.discoveredTags).toContain('soft-delete');
+    expect(plan.discoveredTags).toContain('mind-light-style');
+
+    const softDeletePage = plan.pagesToUpsert.find((p) =>
+      p.title.includes('Soft Delete Universal'),
+    );
+    expect(softDeletePage).toBeDefined();
+    expect(softDeletePage?.icon).toBe('🛡️');
+    expect(softDeletePage?.parentId).toBe('folder-padroes');
+    expect(softDeletePage?.contentMarkdown).toContain('(#/page/mind-hub)');
   });
 });

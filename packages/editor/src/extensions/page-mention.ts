@@ -5,7 +5,7 @@ import type { PageReference } from '../types.js';
 export interface PageMentionOptions {
   pages: PageReference[];
   HTMLAttributes: Record<string, unknown>;
-  onOpen?: (data: { query: string; coords: { top: number; left: number }; range: { from: number; to: number } }) => void;
+  onOpen?: (data: { query: string; coords: { top: number; left: number; bottom?: number }; range: { from: number; to: number } }) => void;
   onClose?: () => void;
   onUpdate?: (data: { query: string }) => void;
   onNavigate?: (pageId: string) => void;
@@ -135,6 +135,7 @@ export const PageMention = Node.create<PageMentionOptions>({
                   coords: {
                     top: coords.top,
                     left: coords.left,
+                    bottom: coords.bottom,
                   },
                   range: {
                     from: queryStartIndex,

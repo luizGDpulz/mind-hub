@@ -138,14 +138,14 @@ function handleKeyNavigation(e: KeyboardEvent) {
 
 <style scoped>
 .mind-slash-menu-shell {
-  position: absolute;
+  position: fixed;
   width: 280px;
   max-height: 320px;
   background-color: #ffffff;
   border: 1px solid #e9ecef;
   border-radius: 8px;
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
-  z-index: 100;
+  z-index: 1000;
   display: flex;
   flex-direction: column;
   overflow: hidden;

@@ -280,7 +280,7 @@ const editor = useEditor({
         pageMentionState.value = {
           visible: true,
           query: data.query,
-          coords: { top: data.coords.top, left: data.coords.left },
+          coords: { top: data.coords.bottom ?? data.coords.top, left: data.coords.left },
           range: data.range,
         };
       },
@@ -328,6 +328,59 @@ function handleAddBlockBelow(): void {
   if (!editor.value) return;
   const pos = gutterState.value.nodePos;
   editor.value.chain().focus().insertContentAt(pos + 1, { type: 'paragraph' }).run();
+}
+
+function handleGutterAction(action: 'moveUp' | 'moveDown' | 'duplicate' | 'delete'): void {
+  if (!editor.value) return;
+  const pos = gutterState.value.nodePos;
+  const { state, view } = editor.value;
+  const $pos = state.doc.resolve(pos);
+  const node = $pos.nodeAfter || $pos.parent;
+  if (!node) return;
+
+  if (action === 'delete') {
+    editor.value.chain().focus().deleteRange({ from: pos, to: pos + node.nodeSize }).run();
+    gutterState.value.visible = false;
+  } else if (action === 'duplicate') {
+    editor.value.chain().focus().insertContentAt(pos + node.nodeSize, node.toJSON()).run();
+  } else if (action === 'moveUp') {
+    const beforePos = $pos.before();
+    if (beforePos > 0) {
+      const prevNode = state.doc.resolve(beforePos).nodeBefore;
+      if (prevNode) {
+        const tr = state.tr;
+        tr.delete(pos, pos + node.nodeSize);
+        tr.insert(beforePos - prevNode.nodeSize, node);
+        view.dispatch(tr);
+      }
+    }
+  } else if (action === 'moveDown') {
+    const afterPos = pos + node.nodeSize;
+    if (afterPos < state.doc.content.size) {
+      const nextNode = state.doc.resolve(afterPos).nodeAfter;
+      if (nextNode) {
+        const tr = state.tr;
+        tr.delete(pos, pos + node.nodeSize);
+        tr.insert(pos + nextNode.nodeSize, node);
+        view.dispatch(tr);
+      }
+    }
+  }
+}
+
+function handleGutterTurnInto(type: string): void {
+  if (!editor.value) return;
+  const pos = gutterState.value.nodePos;
+  editor.value.chain().focus().setTextSelection(pos + 1).run();
+
+  if (type === 'h1') editor.value.chain().focus().toggleHeading({ level: 1 }).run();
+  else if (type === 'h2') editor.value.chain().focus().toggleHeading({ level: 2 }).run();
+  else if (type === 'h3') editor.value.chain().focus().toggleHeading({ level: 3 }).run();
+  else if (type === 'bulletList') editor.value.chain().focus().toggleBulletList().run();
+  else if (type === 'taskList') editor.value.chain().focus().toggleTaskList().run();
+  else if (type === 'callout') editor.value.chain().focus().setCallout().run();
+  else if (type === 'mermaid') editor.value.chain().focus().insertContent({ type: 'mermaid' }).run();
+  else editor.value.chain().focus().setParagraph().run();
 }
 
 // Slash menu actions
@@ -406,6 +459,8 @@ onBeforeUnmount(() => {
         :top="gutterState.top"
         :node-pos="gutterState.nodePos"
         @add-block="handleAddBlockBelow"
+        @action="handleGutterAction"
+        @turn-into="handleGutterTurnInto"
       />
 
       <!-- Bubble Formatting Menu Inline on Text Selection -->
@@ -449,9 +504,9 @@ onBeforeUnmount(() => {
   display: flex;
   flex-direction: column;
   width: 100%;
-  max-width: 780px;
+  max-width: 820px;
   margin: 0 auto;
-  padding: 16px 24px 64px;
+  padding: 24px 64px 80px;
   background-color: #ffffff;
   color: #111827;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;

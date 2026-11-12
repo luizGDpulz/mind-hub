@@ -127,7 +127,9 @@ export const GlobalDragHandle = Extension.create<DragHandleOptions>({
               hoveredNodeType = node?.type?.name || 'paragraph';
 
               if (this.options.onPositionChange) {
-                const calculated = calculateHandlePosition(target);
+                const shell = (view.dom.closest('.mind-editor-canvas-container') ||
+                  view.dom.parentElement) as HTMLElement | null;
+                const calculated = calculateHandlePosition(target, shell);
                 this.options.onPositionChange({
                   top: calculated.top,
                   left: calculated.left,

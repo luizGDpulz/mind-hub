@@ -453,15 +453,21 @@ watch(
 function handleAddBlockBelow(): void {
   if (!editor.value) return;
   const pos = gutterState.value.nodePos;
-  editor.value.chain().focus().insertContentAt(pos + 1, { type: 'paragraph' }).run();
+  const node = editor.value.state.doc.nodeAt(pos);
+  const insertPos = node ? pos + node.nodeSize : pos + 1;
+  editor.value
+    .chain()
+    .focus()
+    .insertContentAt(insertPos, { type: 'paragraph' })
+    .setTextSelection(insertPos + 1)
+    .run();
 }
 
 function handleGutterAction(action: 'moveUp' | 'moveDown' | 'duplicate' | 'delete'): void {
   if (!editor.value) return;
   const pos = gutterState.value.nodePos;
   const { state, view } = editor.value;
-  const $pos = state.doc.resolve(pos);
-  const node = $pos.nodeAfter || $pos.parent;
+  const node = state.doc.nodeAt(pos);
   if (!node) return;
 
   if (action === 'delete') {
@@ -470,25 +476,28 @@ function handleGutterAction(action: 'moveUp' | 'moveDown' | 'duplicate' | 'delet
   } else if (action === 'duplicate') {
     editor.value.chain().focus().insertContentAt(pos + node.nodeSize, node.toJSON()).run();
   } else if (action === 'moveUp') {
-    const beforePos = $pos.before();
-    if (beforePos > 0) {
-      const prevNode = state.doc.resolve(beforePos).nodeBefore;
+    if (pos > 0) {
+      const $pos = state.doc.resolve(pos);
+      const prevNode = $pos.nodeBefore;
       if (prevNode) {
+        const prevPos = pos - prevNode.nodeSize;
         const tr = state.tr;
         tr.delete(pos, pos + node.nodeSize);
-        tr.insert(beforePos - prevNode.nodeSize, node);
+        tr.insert(prevPos, node);
         view.dispatch(tr);
+        gutterState.value.nodePos = prevPos;
       }
     }
   } else if (action === 'moveDown') {
     const afterPos = pos + node.nodeSize;
     if (afterPos < state.doc.content.size) {
-      const nextNode = state.doc.resolve(afterPos).nodeAfter;
+      const nextNode = state.doc.nodeAt(afterPos);
       if (nextNode) {
         const tr = state.tr;
         tr.delete(pos, pos + node.nodeSize);
         tr.insert(pos + nextNode.nodeSize, node);
         view.dispatch(tr);
+        gutterState.value.nodePos = pos + nextNode.nodeSize;
       }
     }
   }

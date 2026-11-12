@@ -181,7 +181,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue';
+import { ref, onMounted, onBeforeUnmount } from 'vue';
 import {
   Plus,
   GripVertical,
@@ -251,6 +251,23 @@ function handleTurnInto(type: string) {
   emit('menuToggle', false);
   emit('turnInto', type);
 }
+
+function handleDocumentClick(e: MouseEvent) {
+  if (!showMenu.value) return;
+  const target = e.target as HTMLElement | null;
+  if (target && !target.closest('.mind-block-gutter-shell')) {
+    showMenu.value = false;
+    emit('menuToggle', false);
+  }
+}
+
+onMounted(() => {
+  document.addEventListener('mousedown', handleDocumentClick);
+});
+
+onBeforeUnmount(() => {
+  document.removeEventListener('mousedown', handleDocumentClick);
+});
 </script>
 
 <style scoped>

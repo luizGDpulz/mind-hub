@@ -6,7 +6,9 @@ import type { Node as PmNode } from '@tiptap/pm/model';
 export interface DragHandleOptions {
   dragHandleWidth: number;
   customSelectors?: string[];
-  onPositionChange?: (pos: { top: number; left: number; nodePos: number; nodeType: string } | null) => void;
+  onPositionChange?: (
+    pos: { top: number; left: number; nodePos: number; nodeType: string } | null
+  ) => void;
 }
 
 const DEFAULT_BLOCK_SELECTORS = [
@@ -32,25 +34,44 @@ export function findBlockDOMAtCoords(
   extraSelectors: string[] = []
 ): Element | null {
   const allSelectors = [...DEFAULT_BLOCK_SELECTORS, ...extraSelectors].join(', ');
-
-  // If the cursor is in the left margin / gutter zone (within 120px to the left of the editor),
-  // sample horizontally inside the editor (+ 24px) at the same vertical coordinate (coords.y)
-  // so the block remains detected even while moving towards and hovering the handle buttons!
   const viewRect = view.dom.getBoundingClientRect();
-  const sampleX =
-    coords.x < viewRect.left + 10 && coords.x >= viewRect.left - 120
-      ? viewRect.left + 24
-      : coords.x;
+
+  // Only detect blocks when cursor is within the horizontal band of the editor + left/right margins
+  if (coords.x < viewRect.left - 120 || coords.x > viewRect.right + 60) {
+    return null;
+  }
+
+  // Project horizontal sample coordinate inside the editor whenever cursor is in left or right margin
+  const sampleX = Math.min(Math.max(coords.x, viewRect.left + 24), viewRect.right - 24);
 
   const elements = document.elementsFromPoint(sampleX, coords.y);
-
   for (const elem of elements) {
+    if (elem === view.dom) continue;
     if (elem.closest('.ProseMirror') !== view.dom) continue;
     if (elem.matches(allSelectors) || elem.parentElement?.matches('.ProseMirror')) {
       return elem;
     }
   }
-  return null;
+
+  // Fallback for vertical gaps (margins between paragraphs/headings):
+  // Find direct child block of .ProseMirror closest to coords.y within 16px tolerance
+  const children = Array.from(view.dom.children);
+  let bestMatch: Element | null = null;
+  let bestDistance = 16;
+
+  for (const child of children) {
+    const rect = child.getBoundingClientRect();
+    if (coords.y >= rect.top && coords.y <= rect.bottom) {
+      return child;
+    }
+    const dist = Math.min(Math.abs(coords.y - rect.top), Math.abs(coords.y - rect.bottom));
+    if (dist < bestDistance) {
+      bestDistance = dist;
+      bestMatch = child;
+    }
+  }
+
+  return bestMatch;
 }
 
 export function calculateHandlePosition(
@@ -67,7 +88,8 @@ export function calculateHandlePosition(
     : parsedLineHeight;
   const paddingTop = parseInt(comp.paddingTop, 10) || 0;
 
-  const topOffset = (lineHeight - 24) / 2 + paddingTop;
+  // Align the 20px gutter buttons with the vertical center of the first line
+  const topOffset = Math.max(0, (lineHeight - 20) / 2) + paddingTop;
 
   if (shellRect) {
     return {
@@ -85,6 +107,8 @@ export function calculateHandlePosition(
 }
 
 export function getNodePosAtDOM(nodeElem: Element, view: EditorView): number | null {
+  let rawPos: number | null = null;
+
   try {
     const directPos = view.posAtDOM(nodeElem, 0);
     if (
@@ -92,31 +116,43 @@ export function getNodePosAtDOM(nodeElem: Element, view: EditorView): number | n
       directPos >= 0 &&
       directPos <= view.state.doc.content.size
     ) {
-      return directPos;
+      rawPos = directPos;
     }
   } catch {
     // Fallback to coordinates below
   }
 
-  const rect = nodeElem.getBoundingClientRect();
-  const posAtCoords = view.posAtCoords({
-    left: rect.left + 15,
-    top: rect.top + 5,
-  });
+  if (rawPos === null) {
+    const rect = nodeElem.getBoundingClientRect();
+    const posAtCoords = view.posAtCoords({
+      left: rect.left + 15,
+      top: rect.top + 5,
+    });
 
-  if (!posAtCoords) return null;
-
-  // In ProseMirror, posAtCoords.inside is -1 when hovering top-level nodes; fallback to posAtCoords.pos!
-  const candidate = posAtCoords.inside >= 0 ? posAtCoords.inside : posAtCoords.pos;
-  if (
-    typeof candidate === 'number' &&
-    candidate >= 0 &&
-    candidate <= view.state.doc.content.size
-  ) {
-    return candidate;
+    if (posAtCoords) {
+      // In ProseMirror, posAtCoords.inside is -1 when hovering top-level nodes; fallback to posAtCoords.pos!
+      const candidate = posAtCoords.inside >= 0 ? posAtCoords.inside : posAtCoords.pos;
+      if (
+        typeof candidate === 'number' &&
+        candidate >= 0 &&
+        candidate <= view.state.doc.content.size
+      ) {
+        rawPos = candidate;
+      }
+    }
   }
 
-  return null;
+  if (rawPos === null) return null;
+
+  try {
+    const $pos = view.state.doc.resolve(rawPos);
+    if ($pos.depth >= 1) {
+      return $pos.before(1);
+    }
+    return rawPos;
+  } catch {
+    return null;
+  }
 }
 
 export const GlobalDragHandleKey = new PluginKey('globalDragHandle');
@@ -136,86 +172,93 @@ export const GlobalDragHandle = Extension.create<DragHandleOptions>({
     let hoveredNodePos: number | null = null;
     let hoveredNodeType = 'paragraph';
 
+    const updateHandleFromPoint = (view: EditorView, clientX: number, clientY: number) => {
+      if (!view.editable) return;
+      if (view.dom.classList.contains('is-dragging-block')) return;
+
+      const target = findBlockDOMAtCoords(
+        { x: clientX, y: clientY },
+        view,
+        this.options.customSelectors
+      );
+
+      if (!target) {
+        return;
+      }
+
+      const pos = getNodePosAtDOM(target, view);
+      if (pos === null || pos < 0 || pos > view.state.doc.content.size) {
+        return;
+      }
+
+      let nodeType: string;
+      try {
+        const node: PmNode | null = view.state.doc.nodeAt(pos);
+        nodeType = node?.type?.name || 'paragraph';
+      } catch {
+        return;
+      }
+
+      hoveredNodePos = pos;
+      hoveredNodeType = nodeType;
+
+      if (this.options.onPositionChange) {
+        const shell = (view.dom.closest('.mind-editor-canvas-container') ||
+          view.dom.parentElement) as HTMLElement | null;
+        const calculated = calculateHandlePosition(target, shell);
+        this.options.onPositionChange({
+          top: calculated.top,
+          left: calculated.left,
+          nodePos: pos,
+          nodeType: hoveredNodeType,
+        });
+      }
+    };
+
     return [
       new Plugin({
         key: GlobalDragHandleKey,
+        view: (editorView) => {
+          // Attach listeners to the outer editor root so hovering in the left margin/padding
+          // (outside .ProseMirror) still detects the block and shows the gutter!
+          const rootElem = (editorView.dom.closest('.mind-editor-root') ||
+            editorView.dom.parentElement ||
+            editorView.dom) as HTMLElement;
+
+          const onRootMouseMove = (event: MouseEvent) => {
+            const targetEl = event.target as HTMLElement | null;
+            // Keep current block locked if user is interacting with an open block action popover
+            if (targetEl?.closest('.block-actions-popover')) {
+              return;
+            }
+            updateHandleFromPoint(editorView, event.clientX, event.clientY);
+          };
+
+          const onRootMouseLeave = () => {
+            if (this.options.onPositionChange) {
+              this.options.onPositionChange(null);
+            }
+          };
+
+          rootElem.addEventListener('mousemove', onRootMouseMove);
+          rootElem.addEventListener('mouseleave', onRootMouseLeave);
+
+          return {
+            destroy: () => {
+              rootElem.removeEventListener('mousemove', onRootMouseMove);
+              rootElem.removeEventListener('mouseleave', onRootMouseLeave);
+            },
+          };
+        },
         props: {
           handleDOMEvents: {
-            mousemove: (view, event) => {
-              if (view.dom.classList.contains('is-dragging-block')) return false;
-
-              const target = findBlockDOMAtCoords(
-                { x: event.clientX, y: event.clientY },
-                view,
-                this.options.customSelectors
-              );
-
-              if (!target) {
-                return false;
-              }
-
-              const pos = getNodePosAtDOM(target, view);
-              if (pos === null || pos < 0 || pos > view.state.doc.content.size) {
-                return false;
-              }
-
-              let nodeType: string;
-              try {
-                const $pos = view.state.doc.resolve(pos);
-                const node: PmNode | null = $pos.nodeAfter || $pos.parent;
-                nodeType = node?.type?.name || 'paragraph';
-              } catch {
-                return false;
-              }
-
-              hoveredNodePos = pos;
-              hoveredNodeType = nodeType;
-
-              if (this.options.onPositionChange) {
-                const shell = (view.dom.closest('.mind-editor-canvas-container') ||
-                  view.dom.parentElement) as HTMLElement | null;
-                const calculated = calculateHandlePosition(target, shell);
-                this.options.onPositionChange({
-                  top: calculated.top,
-                  left: calculated.left,
-                  nodePos: pos,
-                  nodeType: hoveredNodeType,
-                });
-              }
-
-              return false;
-            },
-            mouseleave: (view, event) => {
-              const mouseEvent = event as MouseEvent;
-              const viewRect = view.dom.getBoundingClientRect();
-
-              // If moving into the left margin zone where the gutter lives, preserve it!
-              if (
-                mouseEvent.clientX >= viewRect.left - 120 &&
-                mouseEvent.clientX <= viewRect.left + 20 &&
-                mouseEvent.clientY >= viewRect.top &&
-                mouseEvent.clientY <= viewRect.bottom
-              ) {
-                return false;
-              }
-
-              const related = mouseEvent.relatedTarget as HTMLElement | null;
-              if (
-                related &&
-                (view.dom.contains(related) ||
-                  related.closest('.mind-block-gutter-shell') ||
-                  related.closest('.mind-editor-canvas-container'))
-              ) {
-                return false;
-              }
-              if (this.options.onPositionChange) {
-                this.options.onPositionChange(null);
-              }
-              return false;
-            },
             dragstart: (view) => {
               view.dom.classList.add('is-dragging-block');
-              if (hoveredNodePos !== null) {
+              if (
+                hoveredNodePos !== null &&
+                hoveredNodePos >= 0 &&
+                hoveredNodePos < view.state.doc.content.size
+              ) {
                 try {
                   const tr = view.state.tr.setSelection(
                     NodeSelection.create(view.state.doc, hoveredNodePos)

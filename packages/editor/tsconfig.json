@@ -3,6 +3,7 @@
   "compilerOptions": {
     "rootDir": "./src",
     "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "types": ["node"],
     "jsx": "preserve",
     "jsxImportSource": "vue"
   },

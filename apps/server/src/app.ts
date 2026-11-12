@@ -263,6 +263,22 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
     return { page: deleted };
   });
 
+  app.delete<{ Params: { id: string } }>(
+    '/api/pages/:id/permanent',
+    async (request, reply) => {
+      const removed = await repo.permanentlyDeletePage(request.params.id);
+      if (!removed) {
+        return reply.code(404).send({ error: 'Page not found' });
+      }
+      return { success: true, id: request.params.id };
+    },
+  );
+
+  app.post('/api/pages/trash/empty', async () => {
+    const result = await repo.emptyTrash();
+    return result;
+  });
+
   app.post<{ Params: { id: string } }>(
     '/api/pages/:id/restore',
     async (request, reply) => {

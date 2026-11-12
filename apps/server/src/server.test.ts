@@ -95,6 +95,36 @@ describe('@mind-hub/server — Fastify API, Soft Delete, Durable Persistence, MC
     expect(restoreRes.statusCode).toBe(200);
     expect(restoreRes.json<{ page: { deletedAt: string | null } }>().page.deletedAt).toBeNull();
 
+    // Permanent delete
+    const permDeleteRes = await app.inject({
+      method: 'DELETE',
+      url: `/api/pages/${created.id}/permanent`,
+    });
+    expect(permDeleteRes.statusCode).toBe(200);
+    expect(permDeleteRes.json<{ success: boolean }>().success).toBe(true);
+
+    const getPermDeletedRes = await app.inject({
+      method: 'GET',
+      url: `/api/pages/${created.id}`,
+    });
+    expect(getPermDeletedRes.statusCode).toBe(404);
+
+    // Empty trash test
+    const pageForTrash = await app.inject({
+      method: 'POST',
+      url: '/api/pages',
+      payload: { title: 'Nota Para Lixeira' },
+    });
+    const pageTrashId = pageForTrash.json<{ page: { id: string } }>().page.id;
+    await app.inject({ method: 'DELETE', url: `/api/pages/${pageTrashId}` });
+
+    const emptyTrashRes = await app.inject({
+      method: 'POST',
+      url: '/api/pages/trash/empty',
+    });
+    expect(emptyTrashRes.statusCode).toBe(200);
+    expect(emptyTrashRes.json<{ deletedCount: number }>().deletedCount).toBeGreaterThanOrEqual(1);
+
     await app.close();
   });
 

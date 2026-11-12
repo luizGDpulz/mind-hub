@@ -65,7 +65,7 @@ export function createInitialSeedPages(): MindPage[] {
       parentId: null,
       sortOrder: 1,
       isFavorite: true,
-      tags: ['arquitetura', 'rfc', 'mcp', 'tiptap'],
+      tags: ['arquitetura', 'rfc', 'mcp', 'editor'],
       markdown: [
         '# A Nova Geração de Gestão de Conhecimento',
         '',

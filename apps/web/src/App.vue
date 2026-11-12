@@ -108,7 +108,7 @@
       :width="sidebarWidth"
       class="mind-sidebar column no-wrap"
     >
-      <!-- Top Notion-Style Header Row (Issue #40: Collapse left, Inbox & New Note right) -->
+      <!-- Top Notion-Style Header Row (Collapse left, Inbox & New Note right) -->
       <div class="sidebar-top-bar">
         <!-- Left: Close Sidebar -->
         <button
@@ -239,14 +239,41 @@
         />
       </div>
 
-      <!-- Sticky Sidebar Footer (Issue #33 & #40: User Profile Card) -->
+      <!-- Sticky Sidebar Footer (Issues #33, #40, #46: User Profile Card & Help/Releases/Apps) -->
       <div class="sidebar-sticky-footer">
-        <div class="sidebar-user-card" title="Perfil do usuário">
+        <div
+          class="sidebar-user-card"
+          title="Clique para abrir opções da conta e configurações"
+          data-testid="sidebar-user-card-btn"
+          @click="isWorkspaceMenuOpen = !isWorkspaceMenuOpen"
+        >
           <div class="sidebar-user-avatar">LP</div>
           <div class="sidebar-user-meta">
             <span class="sidebar-user-name">Luiz Pulz</span>
-            <span class="sidebar-user-role">Workspace Admin</span>
+            <span class="sidebar-user-role">Workspace Admin · v{{ store.currentVersion }}</span>
           </div>
+        </div>
+        <div class="sidebar-footer-actions">
+          <button
+            type="button"
+            class="sidebar-footer-icon-btn sidebar-footer-help-btn"
+            title="Ajuda, Documentação & Novidades"
+            aria-label="Ajuda e Novidades"
+            data-testid="sidebar-help-versions-btn"
+            @click="isHelpVersionsMenuOpen = !isHelpVersionsMenuOpen"
+          >
+            <component :is="HelpCircle" :size="15" />
+          </button>
+          <button
+            type="button"
+            class="sidebar-footer-icon-btn"
+            title="Mais opções e utilitários (Lixeira, IA, Tarefas)"
+            aria-label="Mais opções e utilitários"
+            data-testid="sidebar-footer-apps-btn"
+            @click="isAppsMenuOpen = !isAppsMenuOpen"
+          >
+            <component :is="LayoutGrid" :size="15" />
+          </button>
         </div>
       </div>
 
@@ -585,11 +612,63 @@
       "
     />
 
-    <!-- Clean Trash Modal with Search & Restore (Issue #33) -->
+    <!-- Clean Trash Modal with Search, Restore & Purge (Issues #33, #46) -->
     <MindTrashModal
       v-model="isTrashModalOpen"
       :deleted-pages="store.deletedPages"
       @restore="store.restorePage"
+      @permanent-delete="store.permanentlyDeletePage"
+      @empty-trash="store.emptyTrash"
+    />
+
+    <!-- Mind Workspace Switcher Menu (Issue #46) -->
+    <MindWorkspaceMenu
+      v-model="isWorkspaceMenuOpen"
+      :workspace-name="'Mind de Luiz Gustavo Dias Pulz'"
+      :user-email="'luizg.pulz@gmail.com'"
+      :current-version="store.currentVersion"
+      :repo-url="store.repoUrl"
+      :bottom="56"
+      :left="10"
+      @open-settings="store.isMcpModalOpen = true"
+      @open-versions="isHelpVersionsMenuOpen = true"
+      @logout="store.activeSurface = 'login'"
+    />
+
+    <!-- Mind Help & Versions / What's New Popover (Issue #46) -->
+    <MindHelpVersionsMenu
+      v-model="isHelpVersionsMenuOpen"
+      :current-version="store.currentVersion"
+      :version-history="store.versionHistory"
+      :repo-url="store.repoUrl"
+      :bottom="56"
+      :left="14"
+      @open-all-releases="store.isVersionHistoryModalOpen = true"
+    />
+
+    <!-- Mind Sidebar Apps Menu (Issue #46) -->
+    <MindSidebarAppsMenu
+      v-model="isAppsMenuOpen"
+      :trash-count="store.deletedPages.length"
+      :bottom="56"
+      :left="Math.max(10, sidebarWidth - 230)"
+      @open-trash="isTrashModalOpen = true"
+      @open-ai="
+        store.isCommentsDrawerOpen = true;
+        store.rightDrawerMode = 'ai';
+      "
+      @open-tasks="
+        store.activeSurface = 'editor';
+        store.showEmbeddedDatabase = true;
+      "
+    />
+
+    <!-- Mind Version Evolution History Modal (Issue #46) -->
+    <MindVersionHistoryModal
+      v-model="store.isVersionHistoryModalOpen"
+      :current-version="store.currentVersion"
+      :version-history="store.versionHistory"
+      :repo-url="store.repoUrl"
     />
 
     <!-- Clean Icon Picker Modal (Issue #26) -->
@@ -709,12 +788,15 @@
 import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue';
 import { Dark } from 'quasar';
 import {
+  ChevronDown,
   Copy,
   CopyPlus,
   Download,
   FolderDown,
+  HelpCircle,
   Home,
   Inbox,
+  LayoutGrid,
   Link2,
   Lock,
   Menu,
@@ -745,11 +827,18 @@ import MindSearchModal from './components/ui/MindSearchModal.vue';
 import MindTrashModal from './components/ui/MindTrashModal.vue';
 import MindSubpageLink from './components/ui/MindSubpageLink.vue';
 import MindIconPickerModal from './components/ui/MindIconPickerModal.vue';
+import MindWorkspaceMenu from './components/ui/MindWorkspaceMenu.vue';
+import MindSidebarAppsMenu from './components/ui/MindSidebarAppsMenu.vue';
+import MindHelpVersionsMenu from './components/ui/MindHelpVersionsMenu.vue';
+import MindVersionHistoryModal from './components/ui/MindVersionHistoryModal.vue';
 import type { ActionMenuItem, ActionMenuPageMeta } from './components/ui/types.js';
 
 const store = useMindStore();
 const leftDrawerOpen = ref(true);
 const isTrashModalOpen = ref(false);
+const isWorkspaceMenuOpen = ref(false);
+const isAppsMenuOpen = ref(false);
+const isHelpVersionsMenuOpen = ref(false);
 const isIconPickerOpen = ref(false);
 const sidebarWidth = ref(Number(localStorage.getItem('mind_sidebar_width')) || 280);
 const isResizingSidebar = ref(false);
@@ -1020,6 +1109,10 @@ async function handleOpenInbox(): Promise<void> {
   store.selectPage(inbox.id);
 }
 
+function handleOpenHelp(): void {
+  window.open(store.repoUrl, '_blank', 'noopener,noreferrer');
+}
+
 function handleCreateChildPage(parentId: string): void {
   store.activeSurface = 'editor';
   void store.createPage({
@@ -1185,19 +1278,87 @@ function splitSnippetSegments(
   background: transparent;
 }
 
-/* Sidebar Top Bar (Issue #40: Collapse left, Inbox & New Note right) */
+/* Sidebar Top Bar (Issues #40, #46: Notion Workspace Header) */
 .sidebar-top-bar {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 10px 12px 6px;
-  min-height: 40px;
+  padding: 8px 10px 4px;
+  min-height: 42px;
+  gap: 4px;
+}
+
+.sidebar-workspace-btn {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 4px 6px;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  max-width: calc(100% - 94px);
+  min-width: 0;
+  text-align: left;
+  transition: background-color 0.12s ease;
+}
+
+.sidebar-workspace-btn:hover {
+  background: var(--mind-bg-hover, #f1f3f5);
+}
+
+.sidebar-workspace-icon-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.sidebar-workspace-icon {
+  width: 22px;
+  height: 22px;
+  border-radius: 5px;
+  background: var(--mind-text-primary, #212529);
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.sidebar-workspace-status-dot {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #ff6b6b;
+  border: 1px solid var(--mind-bg-canvas, #ffffff);
+}
+
+.sidebar-workspace-title {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--mind-text-primary, #212529);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+}
+
+.sidebar-workspace-chevron {
+  color: var(--mind-text-muted, #868e96);
+  flex-shrink: 0;
 }
 
 .sidebar-top-actions {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 2px;
+  flex-shrink: 0;
 }
 
 .sidebar-top-icon-btn {
@@ -1208,7 +1369,7 @@ function splitSnippetSegments(
   height: 28px;
   border: none;
   background: transparent;
-  color: var(--mind-text-muted);
+  color: var(--mind-text-muted, #868e96);
   border-radius: 6px;
   cursor: pointer;
   transition: all 0.12s ease;
@@ -1216,8 +1377,8 @@ function splitSnippetSegments(
 }
 
 .sidebar-top-icon-btn:hover {
-  background: var(--mind-bg-hover);
-  color: var(--mind-text-primary);
+  background: var(--mind-bg-hover, #f1f3f5);
+  color: var(--mind-text-primary, #212529);
 }
 
 .sidebar-search-area {
@@ -1280,25 +1441,57 @@ function splitSnippetSegments(
 .sidebar-sticky-footer {
   margin-top: auto;
   border-top: 1px solid var(--mind-border-subtle);
-  padding: 8px 10px;
+  padding: 6px 8px;
   background: var(--mind-bg-sidebar);
   display: flex;
-  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
   gap: 4px;
 }
 
 .sidebar-user-card {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 6px 8px;
+  gap: 8px;
+  padding: 5px 6px;
   border-radius: 6px;
   cursor: pointer;
+  flex: 1;
+  min-width: 0;
   transition: background-color 0.12s ease;
 }
 
 .sidebar-user-card:hover {
   background: var(--mind-bg-hover);
+}
+
+.sidebar-footer-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.sidebar-footer-help-btn,
+.sidebar-footer-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border: none;
+  background: transparent;
+  color: var(--mind-text-muted, #868e96);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.12s ease;
+  flex-shrink: 0;
+}
+
+.sidebar-footer-help-btn:hover,
+.sidebar-footer-icon-btn:hover {
+  background: var(--mind-bg-hover, #f1f3f5);
+  color: var(--mind-text-primary, #212529);
 }
 
 .sidebar-user-avatar {

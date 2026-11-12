@@ -491,4 +491,73 @@ describe('@mind-hub/web — Notion-like MindBlockEditor (Refs #37, #43, #45)', (
 
     wrapper.unmount();
   });
+
+  it('closes slash menu and mention menu on document pointerdown (click outside) (Issue #48)', async () => {
+    const wrapper = mount(MindBlockEditor, {
+      props: {
+        modelValue: initialDoc,
+        markdownValue: sampleMarkdown,
+        readOnlyMode: false,
+      },
+    });
+
+    const vm = wrapper.vm as any;
+    vm.showSlashMenu = true;
+    await nextTick();
+    expect(wrapper.find('[data-testid="slash-command-menu"]').exists()).toBe(true);
+
+    // Clicking outside on document dispatches pointerdown and closes the menu
+    document.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true }));
+    await nextTick();
+    expect(vm.showSlashMenu).toBe(false);
+    expect(wrapper.find('[data-testid="slash-command-menu"]').exists()).toBe(false);
+
+    // Same for mention menu
+    vm.showMentionMenu = true;
+    await nextTick();
+    expect(wrapper.find('[data-testid="mention-menu-popover"]').exists()).toBe(true);
+
+    document.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true }));
+    await nextTick();
+    expect(vm.showMentionMenu).toBe(false);
+    expect(wrapper.find('[data-testid="mention-menu-popover"]').exists()).toBe(false);
+
+    wrapper.unmount();
+  });
+
+  it('supports deleting horizontalRule (<hr>) divider block cleanly (Issue #48)', async () => {
+    const hrDoc: MindDoc = {
+      type: 'doc',
+      content: [
+        { type: 'paragraph', content: [{ type: 'text', text: 'Linha 1' }] },
+        { type: 'horizontalRule' },
+        { type: 'paragraph', content: [{ type: 'text', text: 'Linha 2' }] },
+      ],
+    };
+
+    const wrapper = mount(MindBlockEditor, {
+      props: {
+        modelValue: hrDoc,
+        markdownValue: 'Linha 1\n\n---\n\nLinha 2',
+        readOnlyMode: false,
+      },
+    });
+
+    const vm = wrapper.vm as any;
+    expect(vm.editor.state.doc.childCount).toBe(3);
+    expect(vm.editor.state.doc.child(1).type.name).toBe('horizontalRule');
+
+    // Hover over the <hr> (pos is after child 0)
+    const hrPos = vm.editor.state.doc.child(0).nodeSize;
+    vm.hoveredBlockPos = hrPos;
+    vm.deleteActiveBlock();
+    await nextTick();
+
+    // Verify <hr> has been removed cleanly
+    expect(vm.editor.state.doc.childCount).toBe(2);
+    expect(vm.editor.state.doc.child(0).textContent).toBe('Linha 1');
+    expect(vm.editor.state.doc.child(1).textContent).toBe('Linha 2');
+
+    wrapper.unmount();
+  });
 });

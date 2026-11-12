@@ -459,11 +459,12 @@
             "
           />
 
-          <!-- Notion/Docmost Block Editor with Left Gutter (+ / ⠿), Slash (/) & Mention (@) -->
-          <TiptapBlockEditor
+          <!-- MindBlockEditor with Left Gutter (+ / ⠿), Slash (/) & Mention (@) -->
+          <MindBlockEditor
             :key="store.activePage.id"
             :model-value="store.activePage.contentJson"
             :markdown-value="store.activePage.contentMarkdown"
+            :page-title="store.activePage.title"
             :read-only-mode="store.editorReadMode"
             :mention-pages="store.activePages"
             @update:model-value="store.updateActivePageContent"
@@ -513,6 +514,25 @@
               />
             </div>
           </div>
+        </div>
+
+        <!-- Empty State when there are no active pages -->
+        <div v-else class="empty-workspace-state q-pa-xl flex flex-center column" style="min-height: 400px">
+          <span style="font-size: 40px; margin-bottom: 12px">📄</span>
+          <div style="font-size: 16px; font-weight: 600; color: var(--mind-text-primary); margin-bottom: 6px">
+            Nenhuma página encontrada
+          </div>
+          <div style="font-size: 13px; color: var(--mind-text-muted); margin-bottom: 16px">
+            Crie sua primeira página limpa para começar a escrever.
+          </div>
+          <button
+            type="button"
+            class="primary-blue-btn"
+            data-testid="create-first-page-btn"
+            @click="handleCreateRootPage"
+          >
+            + Criar página
+          </button>
         </div>
       </q-page>
     </q-page-container>
@@ -714,7 +734,7 @@ import {
 import type { RawMarkdownFileEntry } from '@mind-hub/shared';
 import { useMindStore } from './stores/mind-store.js';
 import PageTreeItem from './components/PageTreeItem.vue';
-import TiptapBlockEditor from './components/TiptapBlockEditor.vue';
+import MindBlockEditor from './components/MindBlockEditor.vue';
 import DatabaseViewBlock from './components/DatabaseViewBlock.vue';
 import DiagramEmbedsBlock from './components/DiagramEmbedsBlock.vue';
 import CleanLoginView from './components/CleanLoginView.vue';
@@ -1583,7 +1603,7 @@ function splitSnippetSegments(
   display: flex;
   align-items: center;
   gap: 12px;
-  margin-bottom: 8px;
+  margin-bottom: 16px;
 }
 
 .page-header-icon-box {

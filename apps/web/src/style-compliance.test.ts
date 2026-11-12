@@ -90,7 +90,7 @@ describe('Gatekeeper UI — Validação Rigorosa mind-light-style (Veto ao Azul 
 
   it('verifica presença dos componentes obrigatórios: Left Gutter Handles (+ / ⠿), Menus / e @, Database, Diagramas e Login Clean', () => {
     const editorVue = fs.readFileSync(
-      path.join(currentDir, 'components', 'TiptapBlockEditor.vue'),
+      path.join(currentDir, 'components', 'MindBlockEditor.vue'),
       'utf-8',
     );
     expect(editorVue).toContain('data-testid="block-gutter-add-btn"');

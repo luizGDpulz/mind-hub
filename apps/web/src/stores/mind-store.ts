@@ -120,13 +120,17 @@ export const useMindStore = defineStore('mindHub', () => {
           databaseTasks?: DatabaseTaskRow[];
           comments?: PageCommentThread[];
         };
-        if (data.pages && data.pages.length > 0) {
+        if (Array.isArray(data.pages)) {
           pages.value = data.pages;
+          const first = data.pages[0];
+          if (first && !data.pages.some((p) => p.id === activePageId.value)) {
+            activePageId.value = first.id;
+          }
         }
-        if (data.databaseTasks && data.databaseTasks.length > 0) {
+        if (Array.isArray(data.databaseTasks)) {
           databaseRows.value = data.databaseTasks;
         }
-        if (data.comments && data.comments.length > 0) {
+        if (Array.isArray(data.comments)) {
           pageComments.value = data.comments;
         }
         backendConnected.value = true;
@@ -134,8 +138,12 @@ export const useMindStore = defineStore('mindHub', () => {
         const fallbackRes = await fetch('/api/pages?includeDeleted=true');
         if (fallbackRes.ok) {
           const fallbackData = (await fallbackRes.json()) as { pages?: MindPage[] };
-          if (fallbackData.pages && fallbackData.pages.length > 0) {
+          if (Array.isArray(fallbackData.pages)) {
             pages.value = fallbackData.pages;
+            const first = fallbackData.pages[0];
+            if (first && !fallbackData.pages.some((p) => p.id === activePageId.value)) {
+              activePageId.value = first.id;
+            }
             backendConnected.value = true;
           }
         }
@@ -212,7 +220,7 @@ export const useMindStore = defineStore('mindHub', () => {
     const title = input.title.trim() || 'Nova Página';
     const id = input.id ?? `page-${Math.random().toString(36).slice(2, 10)}`;
     const slug = input.slug ?? slugifyTitle(title);
-    const contentMarkdown = input.contentMarkdown ?? `# ${title}\n\nComece a digitar ou use \`/\` para comandos de bloco...`;
+    const contentMarkdown = input.contentMarkdown ?? 'Comece a digitar ou use `/` para comandos de bloco...';
     const contentJson = input.contentJson ?? markdownToTiptap(contentMarkdown);
     const tags = input.tags ? [...input.tags] : ['nota'];
 
@@ -258,6 +266,8 @@ export const useMindStore = defineStore('mindHub', () => {
     return newPage;
   }
 
+  let patchDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+
   async function updateActivePageContent(doc: TiptapDoc): Promise<void> {
     const current = activePage.value;
     if (!current) return;
@@ -280,18 +290,23 @@ export const useMindStore = defineStore('mindHub', () => {
     pages.value = pages.value.map((p) => (p.id === current.id ? updated : p));
     lastLatencyMs.value = Number((performance.now() - t0).toFixed(2));
 
-    try {
-      await fetch(`/api/pages/${current.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contentJson: doc,
-          contentMarkdown: markdown,
-        }),
-      });
-    } catch {
-      // Local state already updated
+    if (patchDebounceTimer) {
+      clearTimeout(patchDebounceTimer);
     }
+    patchDebounceTimer = setTimeout(async () => {
+      try {
+        await fetch(`/api/pages/${current.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contentJson: doc,
+            contentMarkdown: markdown,
+          }),
+        });
+      } catch {
+        // Local state already updated
+      }
+    }, 300);
   }
 
   async function updateActivePageMarkdown(markdown: string): Promise<void> {

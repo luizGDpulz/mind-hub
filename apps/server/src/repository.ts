@@ -9,10 +9,10 @@ import {
   createInitialSeedPages,
   exportPageWithFrontmatter,
   generateDeterministicEmbedding,
-  markdownToTiptap,
+  markdownToMindDoc,
+  mindDocToMarkdown,
   searchPagesEngine,
   slugifyTitle,
-  tiptapToMarkdown,
   type AddCommentReplyInput,
   type CreateDatabaseTaskInput,
   type CreatePageCommentInput,
@@ -186,11 +186,11 @@ export class InMemoryPageRepository implements PageRepository {
 
     const contentJson = input.contentJson
       ? input.contentJson
-      : markdownToTiptap(input.contentMarkdown ?? '');
+      : markdownToMindDoc(input.contentMarkdown ?? '');
     const contentMarkdown =
       input.contentMarkdown !== undefined
         ? input.contentMarkdown
-        : tiptapToMarkdown(contentJson);
+        : mindDocToMarkdown(contentJson);
 
     const tags = input.tags ? [...input.tags] : [];
     const embedding = generateDeterministicEmbedding(
@@ -243,10 +243,10 @@ export class InMemoryPageRepository implements PageRepository {
       contentJson = input.contentJson;
     } else if (input.contentMarkdown !== undefined) {
       contentMarkdown = input.contentMarkdown;
-      contentJson = markdownToTiptap(input.contentMarkdown);
+      contentJson = markdownToMindDoc(input.contentMarkdown);
     } else if (input.contentJson !== undefined) {
       contentJson = input.contentJson;
-      contentMarkdown = tiptapToMarkdown(input.contentJson);
+      contentMarkdown = mindDocToMarkdown(input.contentJson);
     }
 
     const updatedTags = input.tags !== undefined ? [...input.tags] : existing.tags;
@@ -718,28 +718,28 @@ export class DurableFilePageRepository extends InMemoryPageRepository {
       const raw = readFileSync(this.filePath, 'utf-8');
       const parsed = JSON.parse(raw) as Partial<DurableStoreSnapshot>;
 
-      if (Array.isArray(parsed.pages) && parsed.pages.length > 0) {
+      if (Array.isArray(parsed.pages)) {
         this.pages.clear();
         for (const p of parsed.pages) {
           this.pages.set(p.id, p);
         }
       }
 
-      if (Array.isArray(parsed.databaseTasks) && parsed.databaseTasks.length > 0) {
+      if (Array.isArray(parsed.databaseTasks)) {
         this.databaseTasks.clear();
         for (const t of parsed.databaseTasks) {
           this.databaseTasks.set(t.id, t);
         }
       }
 
-      if (Array.isArray(parsed.comments) && parsed.comments.length > 0) {
+      if (Array.isArray(parsed.comments)) {
         this.comments.clear();
         for (const c of parsed.comments) {
           this.comments.set(c.id, c);
         }
       }
 
-      if (Array.isArray(parsed.diagrams) && parsed.diagrams.length > 0) {
+      if (Array.isArray(parsed.diagrams)) {
         this.diagrams.clear();
         for (const d of parsed.diagrams) {
           this.diagrams.set(d.id, d);

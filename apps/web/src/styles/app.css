@@ -139,9 +139,9 @@ body.body--dark,
 
 /* Editor Container */
 .editor-container {
-  max-width: 760px;
+  max-width: 820px;
   margin: 0 auto;
-  padding: 28px 24px 96px;
+  padding: 36px 60px 120px;
 }
 
 .page-title-h1 {
@@ -153,7 +153,7 @@ body.body--dark,
   outline: none;
   width: 100%;
   background: transparent;
-  margin: 0 0 16px 0;
+  margin: 0 0 28px 0;
   padding: 0;
 }
 
@@ -218,27 +218,31 @@ body.body--dark,
   font-size: 14px;
 }
 
-/* Left Block Gutter Controls (+ and ⠿) */
+/* Left Block Gutter Controls (+ and ⠿) following hover line (Notion-like) */
 .block-row-shell {
   position: relative;
-  padding-left: 52px;
+  padding-left: 0;
 }
 
 .block-left-gutter {
   position: absolute;
-  left: 0;
+  left: -46px;
   top: 4px;
   display: flex;
   align-items: center;
   gap: 2px;
   opacity: 0;
-  transition: opacity 0.14s ease;
+  pointer-events: none;
+  transition: opacity 0.12s ease;
+  z-index: 50;
+  user-select: none;
 }
 
 .block-row-shell:hover .block-left-gutter,
 .block-row-shell:focus-within .block-left-gutter,
 .block-left-gutter.is-visible {
   opacity: 1;
+  pointer-events: auto;
 }
 
 .gutter-icon-btn {
@@ -261,7 +265,8 @@ body.body--dark,
   color: var(--mind-text-primary);
 }
 
-/* Tiptap ProseMirror Surface (Notion Standard Typography, Issue #26) */
+/* Mind Rich Editor Surface (Notion Standard Typography, Issue #26) */
+.mind-editor-canvas .ProseMirror,
 .tiptap-canvas .ProseMirror {
   min-height: 380px;
   outline: none;
@@ -270,12 +275,14 @@ body.body--dark,
   color: var(--mind-text-primary);
 }
 
+.mind-editor-canvas .ProseMirror p,
 .tiptap-canvas .ProseMirror p {
   font-size: 16px;
   line-height: 1.7;
   margin-bottom: 0.5rem;
 }
 
+.mind-editor-canvas .ProseMirror h1,
 .tiptap-canvas .ProseMirror h1 {
   font-size: 2.1rem;
   font-weight: 700;
@@ -283,6 +290,7 @@ body.body--dark,
   color: var(--mind-text-primary);
 }
 
+.mind-editor-canvas .ProseMirror h2,
 .tiptap-canvas .ProseMirror h2 {
   font-size: 1.75rem;
   font-weight: 600;
@@ -290,6 +298,7 @@ body.body--dark,
   color: var(--mind-text-primary);
 }
 
+.mind-editor-canvas .ProseMirror h3,
 .tiptap-canvas .ProseMirror h3 {
   font-size: 1.35rem;
   font-weight: 600;
@@ -297,6 +306,7 @@ body.body--dark,
   color: var(--mind-text-primary);
 }
 
+.mind-editor-canvas .ProseMirror pre,
 .tiptap-canvas .ProseMirror pre {
   background: var(--mind-bg-sidebar);
   color: var(--mind-text-primary);
@@ -308,6 +318,7 @@ body.body--dark,
   font-size: 13.5px;
 }
 
+.mind-editor-canvas .ProseMirror blockquote,
 .tiptap-canvas .ProseMirror blockquote {
   background: #ebfbee;
   border-left: 3px solid #2b8a3e;
@@ -318,6 +329,7 @@ body.body--dark,
   font-style: normal;
 }
 
+.mind-editor-canvas .ProseMirror table,
 .tiptap-canvas .ProseMirror table {
   width: 100%;
   border-collapse: collapse;
@@ -325,6 +337,8 @@ body.body--dark,
   font-size: 14px;
 }
 
+.mind-editor-canvas .ProseMirror th,
+.mind-editor-canvas .ProseMirror td,
 .tiptap-canvas .ProseMirror th,
 .tiptap-canvas .ProseMirror td {
   border: 1px solid var(--mind-border-subtle);
@@ -332,17 +346,20 @@ body.body--dark,
   text-align: left;
 }
 
+.mind-editor-canvas .ProseMirror th,
 .tiptap-canvas .ProseMirror th {
   background: var(--mind-bg-sidebar);
   font-weight: 600;
   color: var(--mind-text-primary);
 }
 
+.mind-editor-canvas .ProseMirror ul[data-type='taskList'],
 .tiptap-canvas .ProseMirror ul[data-type='taskList'] {
   list-style: none;
   padding: 0;
 }
 
+.mind-editor-canvas .ProseMirror ul[data-type='taskList'] li,
 .tiptap-canvas .ProseMirror ul[data-type='taskList'] li {
   display: flex;
   align-items: center;
@@ -350,6 +367,7 @@ body.body--dark,
   margin: 4px 0;
 }
 
+.mind-editor-canvas .ProseMirror ul[data-type='taskList'] input[type='checkbox'],
 .tiptap-canvas .ProseMirror ul[data-type='taskList'] input[type='checkbox'] {
   accent-color: var(--mind-accent-primary);
   width: 16px;

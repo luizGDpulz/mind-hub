@@ -1,7 +1,7 @@
 {
   "name": "Mind Hub — Knowledge Base & Second Brain",
   "short_name": "Mind Hub",
-  "description": "Gestão de conhecimento autohospedada com editor em blocos Tiptap v2, servidor MCP nativo e soberania Git.",
+  "description": "Gestão de conhecimento autohospedada com editor em blocos MindBlockEditor, servidor MCP nativo e soberania Git.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",

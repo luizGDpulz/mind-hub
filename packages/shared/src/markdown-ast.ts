@@ -1,4 +1,4 @@
-import type { MindPage, TiptapDoc, TiptapNode } from './types.js';
+import type { MindDoc, MindNode, MindPage, TiptapDoc, TiptapNode } from './types.js';
 
 const CALLOUT_ICONS: Record<string, string> = {
   NOTE: 'ℹ️',
@@ -338,11 +338,11 @@ function parseBlock(state: ParseState): TiptapNode | null {
   };
 }
 
-export function markdownToTiptap(markdown: string): TiptapDoc {
+export function markdownToMindDoc(markdown: string): MindDoc {
   const normalized = markdown.replace(/\r\n/g, '\n');
   const lines = normalized.split('\n');
   const state: ParseState = { lines, index: 0 };
-  const content: TiptapNode[] = [];
+  const content: MindNode[] = [];
 
   while (state.index < state.lines.length) {
     const node = parseBlock(state);
@@ -357,6 +357,8 @@ export function markdownToTiptap(markdown: string): TiptapDoc {
 
   return { type: 'doc', content };
 }
+
+export const markdownToTiptap = markdownToMindDoc;
 
 function serializeInline(nodes: ReadonlyArray<TiptapNode>): string {
   return nodes
@@ -469,14 +471,16 @@ function serializeNode(node: TiptapNode): string {
   }
 }
 
-export function tiptapToMarkdown(doc: TiptapDoc): string {
+export function mindDocToMarkdown(doc: MindDoc): string {
   return doc.content
     .map((node) => serializeNode(node))
     .filter((block) => block.length > 0)
     .join('\n\n');
 }
 
-export function extractPlainText(doc: TiptapDoc): string {
+export const tiptapToMarkdown = mindDocToMarkdown;
+
+export function extractPlainText(doc: MindDoc): string {
   function extract(node: TiptapNode): string {
     if (node.type === 'text') {
       return node.text ?? '';

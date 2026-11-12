@@ -5,7 +5,7 @@
 ## 🚀 Sobre o Projeto
 
 O **Mind Hub** é a evolução da gestão de conhecimento pessoal e corporativo no ecossistema:
-- **Frontend PWA:** Vue 3 + Quasar Framework (Vite) + Tiptap v2 + Pinia.
+- **Frontend PWA:** Vue 3 + Quasar Framework (Vite) + MindBlockEditor (ProseMirror aberto) + Pinia.
 - **Backend API:** Fastify (Node.js 22 + TypeScript) + Drizzle ORM.
 - **Banco de Dados:** PostgreSQL 16 + extensão `pgvector`.
 - **IA & Agentes:** Servidor Model Context Protocol (MCP) nativo (`/mcp`) e IA com Bring Your Own Key (BYOK).

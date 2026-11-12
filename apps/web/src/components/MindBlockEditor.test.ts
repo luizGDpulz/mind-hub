@@ -1,0 +1,494 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { mount } from '@vue/test-utils';
+import { nextTick } from 'vue';
+import { markdownToMindDoc, type MindDoc } from '@mind-hub/shared';
+import MindBlockEditor from './MindBlockEditor.vue';
+
+const sampleMarkdown = [
+  '# Arquitetura do Homelab',
+  '',
+  'Este documento descreve a infraestrutura.',
+  '',
+  '- Primeiro item de lista',
+  '- Segundo item de lista',
+].join('\n');
+
+const initialDoc: MindDoc = markdownToMindDoc(sampleMarkdown);
+
+describe('@mind-hub/web — Notion-like MindBlockEditor (Refs #37, #43, #45)', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('mounts properly and renders initial document in edit mode', () => {
+    const wrapper = mount(MindBlockEditor, {
+      props: {
+        modelValue: initialDoc,
+        markdownValue: sampleMarkdown,
+        readOnlyMode: false,
+      },
+    });
+
+    expect(wrapper.find('[data-testid="mind-block-editor"]').exists()).toBe(true);
+    expect(wrapper.find('[data-testid="editor-edit-mode"]').exists()).toBe(true);
+    expect(wrapper.find('.mind-editor-canvas').exists()).toBe(true);
+    expect(wrapper.find('[data-testid="block-gutter-add-btn"]').exists()).toBe(true);
+    expect(wrapper.find('[data-testid="block-gutter-handle-btn"]').exists()).toBe(true);
+    expect((wrapper.vm as any).editor).toBeDefined();
+    wrapper.unmount();
+  });
+
+  it('handles read-only mode toggle cleanly without blanking canvas (Issue #37 invariant)', async () => {
+    const wrapper = mount(MindBlockEditor, {
+      props: {
+        modelValue: initialDoc,
+        markdownValue: sampleMarkdown,
+        readOnlyMode: false,
+      },
+    });
+
+    expect(wrapper.find('[data-testid="editor-edit-mode"]').exists()).toBe(true);
+    expect(wrapper.find('.block-left-gutter').exists()).toBe(true);
+    expect((wrapper.vm as any).editor?.isEditable).toBe(true);
+
+    // Switch to read-only mode
+    await wrapper.setProps({ readOnlyMode: true });
+    await nextTick();
+
+    expect(wrapper.find('[data-testid="editor-read-mode"]').exists()).toBe(true);
+    expect(wrapper.find('.block-left-gutter').exists()).toBe(false);
+    expect((wrapper.vm as any).editor?.isEditable).toBe(false);
+
+    // Switch back to edit mode
+    await wrapper.setProps({ readOnlyMode: false });
+    await nextTick();
+
+    expect(wrapper.find('[data-testid="editor-edit-mode"]').exists()).toBe(true);
+    expect(wrapper.find('.block-left-gutter').exists()).toBe(true);
+    expect((wrapper.vm as any).editor?.isEditable).toBe(true);
+    wrapper.unmount();
+  });
+
+  it('renders block gutter controls (+ and ⠿) and toggles block handle menu', async () => {
+    const wrapper = mount(MindBlockEditor, {
+      props: {
+        modelValue: initialDoc,
+        markdownValue: sampleMarkdown,
+        readOnlyMode: false,
+      },
+    });
+
+    expect(wrapper.find('[data-testid="block-handle-menu"]').exists()).toBe(false);
+
+    const handleBtn = wrapper.find('[data-testid="block-gutter-handle-btn"]');
+    await handleBtn.trigger('click');
+    await nextTick();
+
+    const handleMenu = wrapper.find('[data-testid="block-handle-menu"]');
+    expect(handleMenu.exists()).toBe(true);
+    expect(wrapper.find('[data-testid="block-move-up-btn"]').exists()).toBe(true);
+    expect(wrapper.find('[data-testid="block-move-down-btn"]').exists()).toBe(true);
+    expect(wrapper.find('[data-testid="block-duplicate-btn"]').exists()).toBe(true);
+    expect(wrapper.find('[data-testid="block-delete-btn"]').exists()).toBe(true);
+    expect(wrapper.find('[data-testid="turn-into-h1"]').exists()).toBe(true);
+    expect(wrapper.find('[data-testid="turn-into-tarefa"]').exists()).toBe(true);
+
+    // Clicking handle button again closes the menu
+    await handleBtn.trigger('click');
+    await nextTick();
+    expect(wrapper.find('[data-testid="block-handle-menu"]').exists()).toBe(false);
+    wrapper.unmount();
+  });
+
+  it('clicking + gutter button inserts block below and reveals slash menu', async () => {
+    const wrapper = mount(MindBlockEditor, {
+      props: {
+        modelValue: initialDoc,
+        markdownValue: sampleMarkdown,
+        readOnlyMode: false,
+      },
+    });
+
+    expect(wrapper.find('[data-testid="slash-command-menu"]').exists()).toBe(false);
+
+    const addBtn = wrapper.find('[data-testid="block-gutter-add-btn"]');
+    await addBtn.trigger('click');
+    await nextTick();
+
+    expect(wrapper.find('[data-testid="slash-command-menu"]').exists()).toBe(true);
+    wrapper.unmount();
+  });
+
+  it('opens slash command menu on "/" keypress and filters commands dynamically', async () => {
+    const wrapper = mount(MindBlockEditor, {
+      props: {
+        modelValue: initialDoc,
+        markdownValue: sampleMarkdown,
+        readOnlyMode: false,
+      },
+    });
+
+    const canvas = wrapper.find('.mind-editor-canvas');
+    await canvas.trigger('keydown', { key: '/' });
+    await nextTick();
+
+    expect(wrapper.find('[data-testid="slash-command-menu"]').exists()).toBe(true);
+
+    const filterInput = wrapper.find('[data-testid="slash-filter-input"]');
+    expect(filterInput.exists()).toBe(true);
+
+    await filterInput.setValue('tabela');
+    await nextTick();
+
+    expect(wrapper.find('[data-testid="slash-item-tabela"]').exists()).toBe(true);
+    expect(wrapper.find('[data-testid="slash-item-h1"]').exists()).toBe(false);
+
+    // Escape closes slash menu
+    await canvas.trigger('keydown', { key: 'Escape' });
+    await nextTick();
+    expect(wrapper.find('[data-testid="slash-command-menu"]').exists()).toBe(false);
+    wrapper.unmount();
+  });
+
+  it('supports keyboard navigation (ArrowDown, ArrowUp, Enter) in slash menu', async () => {
+    const wrapper = mount(MindBlockEditor, {
+      props: {
+        modelValue: initialDoc,
+        markdownValue: sampleMarkdown,
+        readOnlyMode: false,
+      },
+    });
+
+    const canvas = wrapper.find('.mind-editor-canvas');
+    await canvas.trigger('keydown', { key: '/' });
+    await nextTick();
+
+    const menu = wrapper.find('[data-testid="slash-command-menu"]');
+    expect(menu.exists()).toBe(true);
+
+    // Arrow down selects second item
+    await canvas.trigger('keydown', { key: 'ArrowDown' });
+    await nextTick();
+
+    const items = wrapper.findAll('.mind-popover-row');
+    expect(items.length).toBeGreaterThan(1);
+
+    // Enter applies command
+    await canvas.trigger('keydown', { key: 'Enter' });
+    await nextTick();
+
+    expect(wrapper.find('[data-testid="slash-command-menu"]').exists()).toBe(false);
+    wrapper.unmount();
+  });
+
+  it('emits insert-database-block and insert-diagram-block on slash command selection', async () => {
+    const wrapper = mount(MindBlockEditor, {
+      props: {
+        modelValue: initialDoc,
+        markdownValue: sampleMarkdown,
+        readOnlyMode: false,
+      },
+    });
+
+    const canvas = wrapper.find('.mind-editor-canvas');
+    await canvas.trigger('keydown', { key: '/' });
+    await nextTick();
+
+    const filterInput = wrapper.find('[data-testid="slash-filter-input"]');
+    await filterInput.setValue('database');
+    await nextTick();
+
+    const dbItem = wrapper.find('[data-testid="slash-item-database"]');
+    expect(dbItem.exists()).toBe(true);
+    await dbItem.trigger('click');
+    await nextTick();
+
+    expect(wrapper.emitted('insert-database-block')).toBeTruthy();
+    expect(wrapper.find('[data-testid="slash-command-menu"]').exists()).toBe(false);
+
+    // Now test diagram command
+    await canvas.trigger('keydown', { key: '/' });
+    await nextTick();
+
+    const filterInput2 = wrapper.find('[data-testid="slash-filter-input"]');
+    await filterInput2.setValue('mermaid');
+    await nextTick();
+
+    const diagramItem = wrapper.find('[data-testid="slash-item-mermaid"]');
+    expect(diagramItem.exists()).toBe(true);
+    await diagramItem.trigger('click');
+    await nextTick();
+
+    expect(wrapper.emitted('insert-diagram-block')).toBeTruthy();
+    expect(wrapper.emitted('insert-diagram-block')![0]).toEqual(['mermaid']);
+    wrapper.unmount();
+  });
+
+  it('opens mention menu on "@" keypress and filters users and pages', async () => {
+    const wrapper = mount(MindBlockEditor, {
+      props: {
+        modelValue: initialDoc,
+        markdownValue: sampleMarkdown,
+        readOnlyMode: false,
+        mentionPages: [
+          { id: 'page-homelab', title: 'Arquitetura do Homelab', icon: '🚀' },
+          { id: 'page-vault', title: 'Second Brain Vault', icon: '🧠' },
+        ],
+      },
+    });
+
+    const canvas = wrapper.find('.mind-editor-canvas');
+    await canvas.trigger('keydown', { key: '@' });
+    await nextTick();
+
+    expect(wrapper.find('[data-testid="mention-menu-popover"]').exists()).toBe(true);
+    expect(wrapper.find('[data-testid="mention-page-page-homelab"]').exists()).toBe(true);
+
+    const filterInput = wrapper.find('[data-testid="mention-filter-input"]');
+    await filterInput.setValue('homelab');
+    await nextTick();
+
+    expect(wrapper.find('[data-testid="mention-page-page-homelab"]').exists()).toBe(true);
+    expect(wrapper.find('[data-testid="mention-page-page-vault"]').exists()).toBe(false);
+
+    // Clicking page mention inserts wikilink and closes popover
+    await wrapper.find('[data-testid="mention-page-page-homelab"]').trigger('click');
+    await nextTick();
+
+    expect(wrapper.find('[data-testid="mention-menu-popover"]').exists()).toBe(false);
+    wrapper.unmount();
+  });
+
+  it('renders floating bubble menu toolbar with formatting buttons', async () => {
+    const wrapper = mount(MindBlockEditor, {
+      props: {
+        modelValue: initialDoc,
+        markdownValue: sampleMarkdown,
+        readOnlyMode: false,
+      },
+    });
+
+    // Initially hidden until text selection occurs
+    expect(wrapper.find('[data-testid="editor-bubble-menu"]').exists()).toBe(false);
+
+    // Trigger bubble menu visibility
+    (wrapper.vm as any).showBubbleMenu = true;
+    await nextTick();
+
+    const bubbleMenu = wrapper.find('[data-testid="editor-bubble-menu"]');
+    expect(bubbleMenu.exists()).toBe(true);
+
+    // Formatting buttons check
+    expect(bubbleMenu.find('button[title*="Negrito"]').exists()).toBe(true);
+    expect(bubbleMenu.find('button[title*="Itálico"]').exists()).toBe(true);
+    expect(bubbleMenu.find('button[title*="Sublinhado"]').exists()).toBe(true);
+    expect(bubbleMenu.find('button[title*="Tachado"]').exists()).toBe(true);
+    expect(bubbleMenu.find('button[title*="Código"]').exists()).toBe(true);
+    expect(bubbleMenu.find('button[title*="Link"]').exists()).toBe(true);
+    expect(bubbleMenu.find('button[title*="Título H1"]').exists()).toBe(true);
+    expect(bubbleMenu.find('button[title*="Título H2"]').exists()).toBe(true);
+    expect(bubbleMenu.find('button[title*="Título H3"]').exists()).toBe(true);
+    expect(bubbleMenu.find('button[title*="Lista de tarefas"]').exists()).toBe(true);
+    expect(bubbleMenu.find('button[title*="Citação"]').exists()).toBe(true);
+    wrapper.unmount();
+  });
+
+  it('debounces update:modelValue emission to guarantee zero-lag typing and zero cursor flicker', async () => {
+    const wrapper = mount(MindBlockEditor, {
+      props: {
+        modelValue: initialDoc,
+        markdownValue: sampleMarkdown,
+        readOnlyMode: false,
+      },
+    });
+
+    // Verify initially no emit has been made
+    expect(wrapper.emitted('update:modelValue')).toBeFalsy();
+
+    // Advancing timers beyond the 250ms debounce threshold
+    vi.advanceTimersByTime(300);
+    await nextTick();
+
+    // Clean unmount cancels any pending timers cleanly
+    wrapper.unmount();
+  });
+
+  it('strips duplicate title H1 heading when pageTitle is provided (Notion single-title invariant)', () => {
+    const wrapper = mount(MindBlockEditor, {
+      props: {
+        modelValue: initialDoc,
+        markdownValue: sampleMarkdown,
+        pageTitle: 'Arquitetura do Homelab',
+        readOnlyMode: false,
+      },
+    });
+
+    const currentDoc = (wrapper.vm as any).editor?.getJSON();
+    expect(currentDoc).toBeDefined();
+    // First node must NOT be the duplicate H1 heading
+    const firstNode = currentDoc.content[0];
+    const firstText = firstNode.content?.[0]?.text ?? '';
+    expect(firstText).not.toBe('Arquitetura do Homelab');
+    // Content starts with the actual body paragraph
+    expect(firstText).toBe('Este documento descreve a infraestrutura.');
+    wrapper.unmount();
+  });
+
+  it('displays Notion-like tooltip when hovering over grip handle ⠿', async () => {
+    const wrapper = mount(MindBlockEditor, {
+      props: {
+        modelValue: initialDoc,
+        markdownValue: sampleMarkdown,
+        readOnlyMode: false,
+      },
+    });
+
+    expect(wrapper.find('[data-testid="gutter-grip-tooltip"]').exists()).toBe(false);
+
+    const gripWrapper = wrapper.find('.gutter-grip-wrapper');
+    expect(gripWrapper.exists()).toBe(true);
+
+    await gripWrapper.trigger('mouseenter');
+    await nextTick();
+
+    const tooltip = wrapper.find('[data-testid="gutter-grip-tooltip"]');
+    expect(tooltip.exists()).toBe(true);
+    expect(tooltip.text()).toContain('Arraste para mover');
+    expect(tooltip.text()).toContain('Clique ou ctrl/ para abrir o menu');
+
+    await gripWrapper.trigger('mouseleave');
+    await nextTick();
+    expect(wrapper.find('[data-testid="gutter-grip-tooltip"]').exists()).toBe(false);
+    wrapper.unmount();
+  });
+
+  it('toggles block actions menu with Ctrl+/ shortcut as advertised in tooltip', async () => {
+    const wrapper = mount(MindBlockEditor, {
+      props: {
+        modelValue: initialDoc,
+        markdownValue: sampleMarkdown,
+        readOnlyMode: false,
+      },
+    });
+
+    expect(wrapper.find('[data-testid="block-handle-menu"]').exists()).toBe(false);
+
+    const canvas = wrapper.find('.mind-editor-canvas');
+    await canvas.trigger('keydown', { key: '/', ctrlKey: true });
+    await nextTick();
+
+    expect(wrapper.find('[data-testid="block-handle-menu"]').exists()).toBe(true);
+
+    // Pressing again closes it
+    await canvas.trigger('keydown', { key: '/', ctrlKey: true });
+    await nextTick();
+
+    expect(wrapper.find('[data-testid="block-handle-menu"]').exists()).toBe(false);
+    wrapper.unmount();
+  });
+
+  it('supports moving blocks via Alt+ArrowDown and Alt+ArrowUp keyboard shortcuts', async () => {
+    const twoBlocksDoc: MindDoc = {
+      type: 'doc',
+      content: [
+        { type: 'paragraph', content: [{ type: 'text', text: 'Bloco A' }] },
+        { type: 'paragraph', content: [{ type: 'text', text: 'Bloco B' }] },
+      ],
+    };
+
+    const wrapper = mount(MindBlockEditor, {
+      props: {
+        modelValue: twoBlocksDoc,
+        markdownValue: 'Bloco A\n\nBloco B',
+        readOnlyMode: false,
+      },
+    });
+
+    const vm = wrapper.vm as any;
+    expect(vm.editor.state.doc.content.child(0).textContent).toBe('Bloco A');
+    expect(vm.editor.state.doc.content.child(1).textContent).toBe('Bloco B');
+
+    // Place selection in first block
+    vm.editor.commands.setTextSelection(2);
+
+    const canvas = wrapper.find('.mind-editor-canvas');
+    // Alt+ArrowDown moves Bloco A down
+    await canvas.trigger('keydown', { key: 'ArrowDown', altKey: true });
+    await nextTick();
+
+    expect(vm.editor.state.doc.content.child(0).textContent).toBe('Bloco B');
+    expect(vm.editor.state.doc.content.child(1).textContent).toBe('Bloco A');
+
+    // Alt+ArrowUp moves Bloco A back up
+    await canvas.trigger('keydown', { key: 'ArrowUp', altKey: true });
+    await nextTick();
+
+    expect(vm.editor.state.doc.content.child(0).textContent).toBe('Bloco A');
+    expect(vm.editor.state.doc.content.child(1).textContent).toBe('Bloco B');
+
+    wrapper.unmount();
+  });
+
+  it('supports drag and drop block reordering via grip handle ⠿', async () => {
+    const threeBlocksDoc: MindDoc = {
+      type: 'doc',
+      content: [
+        { type: 'paragraph', content: [{ type: 'text', text: 'Primeiro Bloco' }] },
+        { type: 'paragraph', content: [{ type: 'text', text: 'Segundo Bloco' }] },
+        { type: 'paragraph', content: [{ type: 'text', text: 'Terceiro Bloco' }] },
+      ],
+    };
+
+    const wrapper = mount(MindBlockEditor, {
+      props: {
+        modelValue: threeBlocksDoc,
+        markdownValue: 'Primeiro Bloco\n\nSegundo Bloco\n\nTerceiro Bloco',
+        readOnlyMode: false,
+      },
+    });
+
+    const vm = wrapper.vm as any;
+    expect(vm.editor.state.doc.content.child(0).textContent).toBe('Primeiro Bloco');
+
+    const gripBtn = wrapper.find('[data-testid="block-gutter-handle-btn"]');
+    expect(gripBtn.attributes('draggable')).toBe('true');
+
+    // Mock DragEvent dataTransfer
+    const dataTransfer = {
+      effectAllowed: '',
+      dropEffect: '',
+      setData: vi.fn(),
+      setDragImage: vi.fn(),
+    };
+
+    // Initiate drag on first block (pos 0)
+    vm.hoveredBlockPos = 1;
+    await gripBtn.trigger('dragstart', { dataTransfer });
+    await nextTick();
+
+    expect(vm.isDraggingBlock).toBe(true);
+
+    // Reorder block from pos 0 to end of doc using moveBlockTo
+    const firstNodeSize = vm.editor.state.doc.child(0).nodeSize;
+    const secondNodeSize = vm.editor.state.doc.child(1).nodeSize;
+    const targetPos = firstNodeSize + secondNodeSize;
+
+    vm.moveBlockTo(0, targetPos);
+    await nextTick();
+
+    // Verify first block is now after second block
+    expect(vm.editor.state.doc.content.child(0).textContent).toBe('Segundo Bloco');
+    expect(vm.editor.state.doc.content.child(1).textContent).toBe('Primeiro Bloco');
+
+    // Complete drag
+    await gripBtn.trigger('dragend');
+    await nextTick();
+    expect(vm.isDraggingBlock).toBe(false);
+
+    wrapper.unmount();
+  });
+});

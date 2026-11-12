@@ -18,7 +18,7 @@ import type {
   DrawioLayerNode,
   ExcalidrawShapeItem,
   PageCommentReply,
-  TiptapDoc,
+  MindDoc,
 } from '@mind-hub/shared';
 
 export const pagesTable = pgTable(
@@ -31,7 +31,7 @@ export const pagesTable = pgTable(
     parentId: varchar('parent_id', { length: 64 }),
     sortOrder: integer('sort_order').notNull().default(0),
     contentMarkdown: text('content_markdown').notNull().default(''),
-    contentJson: jsonb('content_json').$type<TiptapDoc>().notNull(),
+    contentJson: jsonb('content_json').$type<MindDoc>().notNull(),
     isFavorite: boolean('is_favorite').notNull().default(false),
     isInbox: boolean('is_inbox').notNull().default(false),
     tags: jsonb('tags').$type<string[]>().notNull().default([]),

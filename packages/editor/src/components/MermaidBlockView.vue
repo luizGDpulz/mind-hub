@@ -1,5 +1,5 @@
 <template>
-  <div
+  <NodeViewWrapper
     class="mind-mermaid-shell"
     data-testid="mermaid-block-shell"
     :class="{ 'is-editing': isEditingCode }"
@@ -12,12 +12,12 @@
       </div>
 
       <input
-        :value="title"
+        :value="currentTitle"
         type="text"
         class="diagram-title-input"
         data-testid="mermaid-title-input"
         placeholder="Título do diagrama..."
-        @input="emit('update:title', ($event.target as HTMLInputElement).value)"
+        @input="handleTitleInput(($event.target as HTMLInputElement).value)"
       >
 
       <div class="mermaid-actions">
@@ -50,13 +50,13 @@
     <!-- CODE EDITOR MODE -->
     <div v-if="isEditingCode" class="mermaid-code-editor-area">
       <textarea
-        :value="code"
+        :value="currentCode"
         class="mermaid-textarea"
         data-testid="mermaid-code-textarea"
         rows="8"
         spellcheck="false"
         placeholder="flowchart TD&#10;    A --> B"
-        @input="emit('update:code', ($event.target as HTMLTextAreaElement).value)"
+        @input="handleCodeInput(($event.target as HTMLTextAreaElement).value)"
       />
     </div>
 
@@ -75,24 +75,45 @@
         v-html="renderedSvg"
       />
     </div>
-  </div>
+  </NodeViewWrapper>
 </template>
 
 <script setup lang="ts">
-import { ref, watch, onMounted } from 'vue';
+import { ref, computed, watch, onMounted } from 'vue';
+import { NodeViewWrapper } from '@tiptap/vue-3';
 import { GitFork, Code2, Eye, Copy, Check, AlertTriangle } from 'lucide-vue-next';
 
-const props = withDefaults(
-  defineProps<{
-    code: string;
-    title?: string;
-    initialEditing?: boolean;
-  }>(),
-  {
-    title: 'Diagrama Mermaid',
-    initialEditing: false,
-  }
-);
+interface MermaidBlockProps {
+  code?: string;
+  title?: string;
+  initialEditing?: boolean;
+  node?: {
+    attrs: {
+      code?: string;
+      title?: string;
+      [key: string]: unknown;
+    };
+  };
+  updateAttributes?: (attrs: Record<string, unknown>) => void;
+  deleteNode?: () => void;
+  editor?: unknown;
+  extension?: unknown;
+  getPos?: () => number;
+  selected?: boolean;
+}
+
+const props = withDefaults(defineProps<MermaidBlockProps>(), {
+  code: undefined,
+  title: undefined,
+  initialEditing: false,
+  node: undefined,
+  updateAttributes: undefined,
+  deleteNode: undefined,
+  editor: undefined,
+  extension: undefined,
+  getPos: undefined,
+  selected: false,
+});
 
 const emit = defineEmits<{
   (e: 'update:code', val: string): void;
@@ -104,6 +125,36 @@ const copied = ref(false);
 const renderedSvg = ref('');
 const renderError = ref<string | null>(null);
 const svgContainerRef = ref<HTMLDivElement | null>(null);
+
+const currentCode = computed<string>(() => {
+  return (
+    (props.node?.attrs?.code as string | undefined) ??
+    props.code ??
+    'graph TD\n    A[Inicio] --> B[Fim]'
+  );
+});
+
+const currentTitle = computed<string>(() => {
+  return (
+    (props.node?.attrs?.title as string | undefined) ??
+    props.title ??
+    'Diagrama Mermaid'
+  );
+});
+
+function handleCodeInput(val: string) {
+  if (props.updateAttributes) {
+    props.updateAttributes({ code: val });
+  }
+  emit('update:code', val);
+}
+
+function handleTitleInput(val: string) {
+  if (props.updateAttributes) {
+    props.updateAttributes({ title: val });
+  }
+  emit('update:title', val);
+}
 
 function generateFallbackSvg(sourceCode: string): string {
   const lines = sourceCode.split('\n').filter((l) => l.trim().length > 0);
@@ -128,19 +179,19 @@ function generateFallbackSvg(sourceCode: string): string {
 
 async function renderDiagram() {
   renderError.value = null;
-  if (!props.code.trim()) {
+  const sourceCode = (currentCode.value || '').trim();
+  if (!sourceCode) {
     renderedSvg.value = '';
     return;
   }
 
   try {
-    // Tenta renderizar via mermaid.js se global/importado, senão usa fallback limpo
     if (typeof window !== 'undefined' && (window as any).mermaid) {
       const id = `mermaid-svg-${Math.random().toString(36).slice(2, 9)}`;
-      const { svg } = await (window as any).mermaid.render(id, props.code);
+      const { svg } = await (window as any).mermaid.render(id, sourceCode);
       renderedSvg.value = svg;
     } else {
-      renderedSvg.value = generateFallbackSvg(props.code);
+      renderedSvg.value = generateFallbackSvg(sourceCode);
     }
   } catch (err: unknown) {
     renderError.value = err instanceof Error ? err.message : 'Erro ao processar Mermaid';
@@ -150,7 +201,7 @@ async function renderDiagram() {
 async function copyCode() {
   try {
     if (navigator?.clipboard?.writeText) {
-      await navigator.clipboard.writeText(props.code);
+      await navigator.clipboard.writeText(currentCode.value);
     }
     copied.value = true;
     setTimeout(() => {
@@ -161,7 +212,7 @@ async function copyCode() {
   }
 }
 
-watch(() => props.code, renderDiagram, { immediate: true });
+watch(currentCode, renderDiagram, { immediate: true });
 onMounted(renderDiagram);
 </script>
 

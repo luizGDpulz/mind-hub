@@ -85,12 +85,38 @@ export function calculateHandlePosition(
 }
 
 export function getNodePosAtDOM(nodeElem: Element, view: EditorView): number | null {
+  try {
+    const directPos = view.posAtDOM(nodeElem, 0);
+    if (
+      typeof directPos === 'number' &&
+      directPos >= 0 &&
+      directPos <= view.state.doc.content.size
+    ) {
+      return directPos;
+    }
+  } catch {
+    // Fallback to coordinates below
+  }
+
   const rect = nodeElem.getBoundingClientRect();
   const posAtCoords = view.posAtCoords({
-    left: rect.left + 2,
-    top: rect.top + 2,
+    left: rect.left + 15,
+    top: rect.top + 5,
   });
-  return posAtCoords?.inside ?? posAtCoords?.pos ?? null;
+
+  if (!posAtCoords) return null;
+
+  // In ProseMirror, posAtCoords.inside is -1 when hovering top-level nodes; fallback to posAtCoords.pos!
+  const candidate = posAtCoords.inside >= 0 ? posAtCoords.inside : posAtCoords.pos;
+  if (
+    typeof candidate === 'number' &&
+    candidate >= 0 &&
+    candidate <= view.state.doc.content.size
+  ) {
+    return candidate;
+  }
+
+  return null;
 }
 
 export const GlobalDragHandleKey = new PluginKey('globalDragHandle');
@@ -129,12 +155,21 @@ export const GlobalDragHandle = Extension.create<DragHandleOptions>({
               }
 
               const pos = getNodePosAtDOM(target, view);
-              if (pos === null) return false;
+              if (pos === null || pos < 0 || pos > view.state.doc.content.size) {
+                return false;
+              }
 
-              const $pos = view.state.doc.resolve(pos);
-              const node: PmNode | null = $pos.nodeAfter || $pos.parent;
+              let nodeType: string;
+              try {
+                const $pos = view.state.doc.resolve(pos);
+                const node: PmNode | null = $pos.nodeAfter || $pos.parent;
+                nodeType = node?.type?.name || 'paragraph';
+              } catch {
+                return false;
+              }
+
               hoveredNodePos = pos;
-              hoveredNodeType = node?.type?.name || 'paragraph';
+              hoveredNodeType = nodeType;
 
               if (this.options.onPositionChange) {
                 const shell = (view.dom.closest('.mind-editor-canvas-container') ||

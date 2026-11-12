@@ -5,6 +5,7 @@ import MindMovePageModal from './MindMovePageModal.vue';
 import MindSettingsModal from './MindSettingsModal.vue';
 import MindQuickCaptureModal from './MindQuickCaptureModal.vue';
 import MindTreeContextMenu from './MindTreeContextMenu.vue';
+import MindFavoriteItem from './MindFavoriteItem.vue';
 import type { PageTreeNode, MindPage } from '@mind-hub/shared';
 
 describe('PageTreeItem — Árvore de Arquivos com Context Menu e Renomeação Inline', () => {
@@ -301,5 +302,95 @@ describe('MindTreeContextMenu — Ações Rápidas no Nó do Arquivo', () => {
     await duplicateBtn.trigger('click');
 
     expect(wrapper.emitted('action')?.[0]).toEqual(['duplicate', 'page-abc']);
+  });
+
+  it('exibe Remover dos favoritos quando a página já está favoritada', async () => {
+    const wrapper = mount(MindTreeContextMenu, {
+      props: {
+        modelValue: true,
+        page: {
+          id: 'page-fav-1',
+          title: 'Senhas Secullum',
+          isFavorite: true,
+        },
+        x: 50,
+        y: 80,
+      },
+      global: {
+        stubs: { Teleport: true, Transition: false },
+      },
+    });
+
+    const toggleFavBtn = wrapper.find('[data-testid="tree-context-action-toggle-favorite"]');
+    expect(toggleFavBtn.text()).toContain('Remover dos favoritos');
+
+    await toggleFavBtn.trigger('click');
+    expect(wrapper.emitted('action')?.[0]).toEqual(['toggle-favorite', 'page-fav-1']);
+  });
+});
+
+describe('MindFavoriteItem — Item da Seção Favoritos com (+) e (...) (Issue #71)', () => {
+  const favPage: MindPage = {
+    id: 'fav-1',
+    slug: 'senhas-secullum',
+    title: 'Senhas Secullum',
+    icon: '🔑',
+    parentId: null,
+    sortOrder: 0,
+    contentMarkdown: '',
+    contentJson: { type: 'doc', content: [] },
+    isFavorite: true,
+    isInbox: false,
+    tags: [],
+    embedding: null,
+    createdAt: '',
+    updatedAt: '',
+    deletedAt: null,
+  };
+
+  it('emite select ao clicar na linha e exibe botões (+) e (...) sem propagar clique', async () => {
+    const wrapper = mount(MindFavoriteItem, {
+      props: {
+        page: favPage,
+        activePageId: 'other-id',
+      },
+    });
+
+    expect(wrapper.text()).toContain('🔑');
+    expect(wrapper.text()).toContain('Senhas Secullum');
+
+    await wrapper.find('[data-testid="sidebar-fav-item"]').trigger('click');
+    expect(wrapper.emitted('select')).toEqual([['fav-1']]);
+
+    // Clique no '+' cria subpágina sem disparar select novamente
+    await wrapper.find('[data-testid="fav-add-child-btn"]').trigger('click');
+    expect(wrapper.emitted('create-child')).toEqual([['fav-1']]);
+    expect(wrapper.emitted('select')).toHaveLength(1);
+
+    // Clique no '...' abre menu de contexto com tooltip Notion e sem disparar select
+    const moreBtn = wrapper.find('[data-testid="fav-more-options-btn"]');
+    expect(moreBtn.attributes('title')).toBe('Remova, renomeie e...');
+    await moreBtn.trigger('click');
+    expect(wrapper.emitted('contextmenu')).toHaveLength(1);
+    expect(wrapper.emitted('contextmenu')?.[0]?.[1]).toEqual(favPage);
+    expect(wrapper.emitted('select')).toHaveLength(1);
+  });
+
+  it('ativa renomeação inline na seção Favoritos quando renamingId coincide', async () => {
+    const wrapper = mount(MindFavoriteItem, {
+      props: {
+        page: favPage,
+        activePageId: 'fav-1',
+        renamingId: 'fav-1',
+      },
+    });
+
+    const input = wrapper.find('[data-testid="fav-rename-input"]');
+    expect(input.exists()).toBe(true);
+
+    await input.setValue('Senhas Atualizadas');
+    await input.trigger('keydown.enter');
+
+    expect(wrapper.emitted('rename-save')?.[0]).toEqual(['fav-1', 'Senhas Atualizadas']);
   });
 });

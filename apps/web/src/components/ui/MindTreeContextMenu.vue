@@ -45,6 +45,7 @@ import {
   Link,
   Plus,
   Star,
+  StarOff,
   Trash2,
 } from 'lucide-vue-next';
 import MindDropdown from './MindDropdown.vue';
@@ -90,7 +91,7 @@ const menuItems = computed<DropdownMenuItem[]>(() => [
   {
     id: 'toggle-favorite',
     label: props.page.isFavorite ? 'Remover dos favoritos' : 'Adicionar aos favoritos',
-    icon: Star,
+    icon: props.page.isFavorite ? StarOff : Star,
     section: 'favorite',
     testId: 'tree-context-action-toggle-favorite',
   },

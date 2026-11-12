@@ -197,20 +197,22 @@
         </div>
 
         <div v-if="!isFavoritesCollapsed" class="favorites-list" data-testid="sidebar-favorites-list">
-          <div
+          <MindFavoriteItem
             v-for="fav in store.favoritePages"
             :key="fav.id"
-            class="sidebar-fav-item"
-            :class="{ 'is-active': store.activePageId === fav.id }"
-            data-testid="sidebar-fav-item"
-            @click="
-              store.activeSurface = 'editor';
-              store.selectPage(fav.id);
+            :page="fav"
+            :active-page-id="store.activePageId"
+            :renaming-id="renamingFavPageId"
+            @select="
+              (id) => {
+                store.activeSurface = 'editor';
+                store.selectPage(id);
+              }
             "
-          >
-            <span class="fav-icon">{{ fav.icon || '📄' }}</span>
-            <span class="fav-title">{{ fav.title }}</span>
-          </div>
+            @create-child="handleCreateChildPage"
+            @contextmenu="(ev, page) => handleTreeContextMenu(ev, page, 'favorites')"
+            @rename-save="handleRenameSave"
+          />
         </div>
       </div>
 
@@ -851,6 +853,7 @@ import MindTreeContextMenu from './components/ui/MindTreeContextMenu.vue';
 import MindMovePageModal from './components/ui/MindMovePageModal.vue';
 import MindSettingsModal from './components/ui/MindSettingsModal.vue';
 import MindQuickCaptureModal from './components/ui/MindQuickCaptureModal.vue';
+import MindFavoriteItem from './components/ui/MindFavoriteItem.vue';
 import type { ActionMenuItem, ActionMenuPageMeta, TreeContextMenuActionId, TreeContextMenuTarget } from './components/ui/types.js';
 
 const store = useMindStore();
@@ -870,6 +873,8 @@ const replyBuffers = reactive<Record<string, string>>({});
 const isFavoritesCollapsed = ref(false);
 const treeForceExpanded = ref<boolean | null>(null);
 const renamingPageId = ref<string>('');
+const renamingFavPageId = ref<string>('');
+const contextMenuSource = ref<'tree' | 'favorites'>('tree');
 const isTreeContextMenuOpen = ref(false);
 const treeContextMenuTarget = ref<TreeContextMenuTarget | null>(null);
 const treeContextMenuCoords = reactive({ x: 0, y: 0 });
@@ -881,7 +886,12 @@ function toggleTreeExpandAll(): void {
   treeForceExpanded.value = treeForceExpanded.value === true ? false : true;
 }
 
-function handleTreeContextMenu(event: MouseEvent, node: any): void {
+function handleTreeContextMenu(
+  event: MouseEvent,
+  node: any,
+  source: 'tree' | 'favorites' = 'tree',
+): void {
+  contextMenuSource.value = source;
   treeContextMenuTarget.value = {
     id: node.id,
     title: node.title,
@@ -900,12 +910,19 @@ function handleRenameSave(id: string, newTitle: string): void {
     void store.renamePage(id, newTitle);
   }
   renamingPageId.value = '';
+  renamingFavPageId.value = '';
 }
 
 async function handleTreeContextMenuAction(actionId: TreeContextMenuActionId, pageId: string): Promise<void> {
   switch (actionId) {
     case 'rename':
-      renamingPageId.value = pageId;
+      if (contextMenuSource.value === 'favorites') {
+        renamingPageId.value = '';
+        renamingFavPageId.value = pageId;
+      } else {
+        renamingFavPageId.value = '';
+        renamingPageId.value = pageId;
+      }
       break;
     case 'duplicate':
       await store.duplicatePage(pageId);
@@ -1355,41 +1372,6 @@ function splitSnippetSegments(
   flex-direction: column;
   gap: 1px;
   padding: 2px 8px 6px 8px;
-}
-
-.sidebar-fav-item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 4px 8px;
-  border-radius: 6px;
-  font-size: 13px;
-  color: var(--mind-text-secondary);
-  cursor: pointer;
-  transition: background-color 0.1s ease;
-}
-
-.sidebar-fav-item:hover {
-  background: var(--mind-bg-hover);
-  color: var(--mind-text-primary);
-}
-
-.sidebar-fav-item.is-active {
-  background: var(--mind-bg-active);
-  color: var(--mind-text-primary);
-  font-weight: 500;
-}
-
-.fav-icon {
-  font-size: 14px;
-  flex-shrink: 0;
-}
-
-.fav-title {
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  flex: 1;
 }
 
 .crumb-sep {

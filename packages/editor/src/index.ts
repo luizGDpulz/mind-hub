@@ -13,7 +13,12 @@ export {
   findBlockDOMAtCoords,
   calculateHandlePosition,
   getNodePosAtDOM,
+  resolveDropTarget,
+  moveBlockAtPos,
   type DragHandleOptions,
+  type DragHandlePositionPayload,
+  type DropIndicatorPayload,
+  type ResolvedDropTarget,
 } from './extensions/drag-handle.js';
 export {
   SlashCommand,
@@ -44,5 +49,13 @@ export {
   MarkdownShortcuts,
   TASK_EMPTY_BRACKETS_REGEX,
 } from './extensions/markdown-shortcuts.js';
+export {
+  BlockColor,
+  BLOCK_COLOR_PALETTE,
+  BLOCK_COLORABLE_TYPES,
+  normalizeBlockColorId,
+  getBlockColorOption,
+  applyBlockColorAtPos,
+} from './extensions/block-color.js';
 
 

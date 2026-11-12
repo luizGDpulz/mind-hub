@@ -1,14 +1,28 @@
 import { Extension } from '@tiptap/core';
-import { Plugin, PluginKey, NodeSelection } from '@tiptap/pm/state';
+import { Plugin, PluginKey, Selection } from '@tiptap/pm/state';
+import { Fragment } from '@tiptap/pm/model';
 import type { EditorView } from '@tiptap/pm/view';
 import type { Node as PmNode } from '@tiptap/pm/model';
+
+export interface DragHandlePositionPayload {
+  top: number;
+  left: number;
+  nodePos: number;
+  nodeType: string;
+  textColor?: string | null;
+  bgColor?: string | null;
+}
+
+export interface DropIndicatorPayload {
+  visible: boolean;
+  top: number;
+}
 
 export interface DragHandleOptions {
   dragHandleWidth: number;
   customSelectors?: string[];
-  onPositionChange?: (
-    pos: { top: number; left: number; nodePos: number; nodeType: string } | null
-  ) => void;
+  onPositionChange?: (pos: DragHandlePositionPayload | null) => void;
+  onDropIndicatorChange?: (indicator: DropIndicatorPayload | null) => void;
 }
 
 const DEFAULT_BLOCK_SELECTORS = [
@@ -32,7 +46,24 @@ const DEFAULT_BLOCK_SELECTORS = [
 
 const LEFT_GUTTER_HIT_WIDTH = 110;
 const RIGHT_GUTTER_HIT_WIDTH = 32;
+const LEFT_DROP_HIT_WIDTH = 140;
+const RIGHT_DROP_HIT_WIDTH = 48;
 const VERTICAL_GAP_TOLERANCE = 28;
+
+function collectBlockCandidates(viewDom: HTMLElement): Element[] {
+  const candidates: Element[] = [];
+  for (const child of Array.from(viewDom.children)) {
+    if (child.matches('ul, ol')) {
+      const items = Array.from(child.querySelectorAll('li'));
+      if (items.length > 0) {
+        candidates.push(...items);
+        continue;
+      }
+    }
+    candidates.push(child);
+  }
+  return candidates;
+}
 
 function resolveBlockOwner(elem: Element, viewDom: HTMLElement): Element | null {
   if (!viewDom.contains(elem) || elem === viewDom) {
@@ -59,19 +90,10 @@ function resolveBlockOwner(elem: Element, viewDom: HTMLElement): Element | null 
 
 function findClosestBlockByVerticalScan(
   clientY: number,
-  viewDom: HTMLElement
+  viewDom: HTMLElement,
+  tolerance = VERTICAL_GAP_TOLERANCE
 ): Element | null {
-  const candidates: Element[] = [];
-  for (const child of Array.from(viewDom.children)) {
-    if (child.matches('ul, ol')) {
-      const items = Array.from(child.querySelectorAll('li'));
-      if (items.length > 0) {
-        candidates.push(...items);
-        continue;
-      }
-    }
-    candidates.push(child);
-  }
+  const candidates = collectBlockCandidates(viewDom);
 
   // First pass: exact vertical containment (iterate in reverse so nested list items win)
   for (let i = candidates.length - 1; i >= 0; i--) {
@@ -84,9 +106,9 @@ function findClosestBlockByVerticalScan(
     }
   }
 
-  // Second pass: closest block within vertical gap tolerance (margins between blocks / hr)
+  // Second pass: closest block within vertical tolerance
   let bestMatch: Element | null = null;
-  let bestDistance = VERTICAL_GAP_TOLERANCE;
+  let bestDistance = tolerance;
   for (const candidate of candidates) {
     const rect = candidate.getBoundingClientRect();
     if (rect.width === 0 && rect.height === 0) continue;
@@ -94,13 +116,147 @@ function findClosestBlockByVerticalScan(
       Math.abs(clientY - rect.top),
       Math.abs(clientY - rect.bottom)
     );
-    if (dist < bestDistance) {
+    if (dist <= bestDistance) {
       bestDistance = dist;
       bestMatch = candidate;
     }
   }
 
   return bestMatch;
+}
+
+export interface ResolvedDropTarget {
+  targetPos: number;
+  placement: 'before' | 'after';
+  lineTop: number;
+}
+
+/**
+ * Resolves the target block & vertical edge ('before' | 'after') during block dragging,
+ * projecting across an expanded left margin so dragging along the gutter feels effortless.
+ */
+export function resolveDropTarget(
+  view: EditorView,
+  clientX: number,
+  clientY: number,
+  shellElem?: HTMLElement | null
+): ResolvedDropTarget | null {
+  const viewRect = view.dom.getBoundingClientRect();
+  if (viewRect.width === 0 && viewRect.height === 0) return null;
+
+  if (
+    clientX < viewRect.left - LEFT_DROP_HIT_WIDTH ||
+    clientX > viewRect.right + RIGHT_DROP_HIT_WIDTH ||
+    clientY < viewRect.top - 36 ||
+    clientY > viewRect.bottom + 64
+  ) {
+    return null;
+  }
+
+  const clampedY = Math.min(Math.max(clientY, viewRect.top + 2), viewRect.bottom - 2);
+  let targetDOM = findBlockDOMAtCoords({ x: clientX, y: clampedY }, view);
+
+  if (!targetDOM) {
+    targetDOM = findClosestBlockByVerticalScan(clientY, view.dom, Number.POSITIVE_INFINITY);
+  }
+  if (!targetDOM) return null;
+
+  const targetPos = getNodePosAtDOM(targetDOM, view);
+  if (targetPos === null) return null;
+
+  const targetNode = view.state.doc.nodeAt(targetPos);
+  if (!targetNode) return null;
+
+  const blockRect = targetDOM.getBoundingClientRect();
+  let placement: 'before' | 'after';
+  if (clientY < blockRect.top) {
+    placement = 'before';
+  } else if (clientY > blockRect.bottom) {
+    placement = 'after';
+  } else {
+    placement = clientY < blockRect.top + blockRect.height / 2 ? 'before' : 'after';
+  }
+
+  const lineY = placement === 'before' ? blockRect.top - 2 : blockRect.bottom + 2;
+  const shellRect = shellElem?.getBoundingClientRect();
+  const lineTop = shellRect ? lineY - shellRect.top : lineY + window.scrollY;
+
+  return {
+    targetPos,
+    placement,
+    lineTop,
+  };
+}
+
+/**
+ * Moves a block from `sourcePos` to before/after `targetPos` safely in a single transaction,
+ * automatically adapting cross-list boundaries (e.g. dropping paragraph next to list item).
+ */
+export function moveBlockAtPos(
+  view: EditorView,
+  sourcePos: number,
+  targetPos: number,
+  placement: 'before' | 'after'
+): boolean {
+  const { state } = view;
+  const { doc } = state;
+
+  const sourceNode = doc.nodeAt(sourcePos);
+  const targetNode = doc.nodeAt(targetPos);
+  if (!sourceNode || !targetNode) return false;
+
+  const sourceFrom = sourcePos;
+  const sourceTo = sourcePos + sourceNode.nodeSize;
+  let insertPos = placement === 'before' ? targetPos : targetPos + targetNode.nodeSize;
+
+  // No-op if dropping onto its own boundary
+  if (insertPos >= sourceFrom && insertPos <= sourceTo) {
+    return false;
+  }
+
+  const isSourceListItem =
+    sourceNode.type.name === 'listItem' || sourceNode.type.name === 'taskItem';
+  let nodeToInsert: PmNode = sourceNode;
+
+  const $rawInsert = doc.resolve(insertPos);
+  if (!isSourceListItem && $rawInsert.depth >= 1) {
+    // Climb out of list container when dropping a top-level block beside a list item
+    for (let d = $rawInsert.depth; d >= 1; d--) {
+      if (
+        $rawInsert.parent.canReplace(
+          $rawInsert.index(),
+          $rawInsert.index(),
+          Fragment.from(nodeToInsert)
+        )
+      ) {
+        break;
+      }
+      insertPos = placement === 'before' ? $rawInsert.before(d) : $rawInsert.after(d);
+    }
+  } else if (isSourceListItem && $rawInsert.depth === 0) {
+    // Wrap standalone listItem/taskItem in its parent list container when moved outside a list
+    const $source = doc.resolve(sourceFrom);
+    if ($source.depth >= 1) {
+      nodeToInsert = $source.parent.type.create(null, sourceNode);
+    }
+  }
+
+  const tr = state.tr;
+  tr.delete(sourceFrom, sourceTo);
+  const mappedInsertPos = tr.mapping.map(insertPos, -1);
+  const $mapped = tr.doc.resolve(mappedInsertPos);
+  const index = $mapped.index();
+
+  if (!$mapped.parent.canReplace(index, index, Fragment.from(nodeToInsert))) {
+    return false;
+  }
+
+  tr.insert(mappedInsertPos, nodeToInsert);
+  const $placed = tr.doc.resolve(Math.min(mappedInsertPos + 1, tr.doc.content.size));
+  tr.setSelection(Selection.near($placed));
+  tr.scrollIntoView();
+  view.dispatch(tr);
+  return true;
 }
 
 export function findBlockDOMAtCoords(
@@ -293,16 +449,26 @@ export const GlobalDragHandle = Extension.create<DragHandleOptions>({
       dragHandleWidth: 24,
       customSelectors: [],
       onPositionChange: undefined,
+      onDropIndicatorChange: undefined,
     };
   },
 
   addProseMirrorPlugins() {
     let hoveredNodePos: number | null = null;
     let hoveredNodeType = 'paragraph';
+    let activeDragSourcePos: number | null = null;
+    let activeDropTarget: ResolvedDropTarget | null = null;
 
     const hideHandle = () => {
       if (this.options.onPositionChange) {
         this.options.onPositionChange(null);
+      }
+    };
+
+    const clearDropIndicator = () => {
+      activeDropTarget = null;
+      if (this.options.onDropIndicatorChange) {
+        this.options.onDropIndicatorChange(null);
       }
     };
 
@@ -319,7 +485,7 @@ export const GlobalDragHandle = Extension.create<DragHandleOptions>({
         return;
       }
 
-      if (view.dom.classList.contains('is-dragging-block')) return;
+      if (activeDragSourcePos !== null || view.dom.classList.contains('is-dragging-block')) return;
 
       const editorRoot = view.dom.closest('.mind-editor-root');
 
@@ -359,6 +525,8 @@ export const GlobalDragHandle = Extension.create<DragHandleOptions>({
       }
 
       let nodeType: string;
+      let textColor: string | null;
+      let bgColor: string | null;
       try {
         const node: PmNode | null = view.state.doc.nodeAt(pos);
         if (!node) {
@@ -366,6 +534,8 @@ export const GlobalDragHandle = Extension.create<DragHandleOptions>({
           return;
         }
         nodeType = node.type.name || 'paragraph';
+        textColor = (node.attrs?.blockTextColor as string | null) ?? null;
+        bgColor = (node.attrs?.blockBackgroundColor as string | null) ?? null;
       } catch {
         hideHandle();
         return;
@@ -383,6 +553,8 @@ export const GlobalDragHandle = Extension.create<DragHandleOptions>({
           left: calculated.left,
           nodePos: pos,
           nodeType: hoveredNodeType,
+          textColor,
+          bgColor,
         });
       }
     };
@@ -391,6 +563,13 @@ export const GlobalDragHandle = Extension.create<DragHandleOptions>({
       new Plugin({
         key: GlobalDragHandleKey,
         view: (editorView) => {
+          const resetDragState = () => {
+            activeDragSourcePos = null;
+            editorView.dom.classList.remove('is-dragging-block');
+            editorView.dragging = null;
+            clearDropIndicator();
+          };
+
           // Attach to window/document instead of view.dom.parentElement because
           // @tiptap/vue-3 constructs EditorView inside a temporary detached div
           // before <EditorContent> reparents .ProseMirror into the DOM.
@@ -415,38 +594,94 @@ export const GlobalDragHandle = Extension.create<DragHandleOptions>({
             const node = editorView.state.doc.nodeAt(hoveredNodePos);
             if (!node) return;
 
-            try {
-              const selection = NodeSelection.create(editorView.state.doc, hoveredNodePos);
-              const slice = selection.content();
-              const { dom, text } = editorView.serializeForClipboard(slice);
+            activeDragSourcePos = hoveredNodePos;
 
+            try {
               event.dataTransfer.clearData();
-              event.dataTransfer.effectAllowed = 'copyMove';
-              event.dataTransfer.setData('text/html', dom.innerHTML);
-              event.dataTransfer.setData('text/plain', text);
+              event.dataTransfer.effectAllowed = 'move';
+              event.dataTransfer.setData('application/x-mind-block', String(hoveredNodePos));
+              event.dataTransfer.setData('text/plain', node.textContent || '');
 
               const blockDom = editorView.nodeDOM(hoveredNodePos);
               if (blockDom instanceof Element) {
-                event.dataTransfer.setDragImage(blockDom, 0, 0);
+                event.dataTransfer.setDragImage(blockDom, 16, 12);
               }
 
-              editorView.dom.classList.add('is-dragging-block');
-              editorView.dispatch(editorView.state.tr.setSelection(selection));
-              editorView.dragging = { slice, move: !event.ctrlKey };
-              editorView.focus();
+              // Defer class change one frame so browser snapshots full-opacity drag image first
+              window.requestAnimationFrame(() => {
+                if (activeDragSourcePos !== null) {
+                  editorView.dom.classList.add('is-dragging-block');
+                }
+              });
             } catch {
-              // Ignore if block is not directly NodeSelectable
+              resetDragState();
             }
           };
 
+          const onWindowDragOver = (event: DragEvent) => {
+            if (activeDragSourcePos === null) return;
+            if (!editorView.editable || !editorView.dom.isConnected) return;
+
+            const shell = (editorView.dom.closest('.mind-editor-canvas-container') ||
+              editorView.dom.parentElement) as HTMLElement | null;
+            const resolved = resolveDropTarget(editorView, event.clientX, event.clientY, shell);
+
+            if (!resolved) {
+              clearDropIndicator();
+              return;
+            }
+
+            event.preventDefault();
+            if (event.dataTransfer) {
+              event.dataTransfer.dropEffect = 'move';
+            }
+
+            activeDropTarget = resolved;
+            if (this.options.onDropIndicatorChange) {
+              this.options.onDropIndicatorChange({
+                visible: true,
+                top: resolved.lineTop,
+              });
+            }
+          };
+
+          const onWindowDrop = (event: DragEvent) => {
+            if (activeDragSourcePos === null) return;
+            if (!editorView.editable || !editorView.dom.isConnected) {
+              resetDragState();
+              return;
+            }
+
+            const shell = (editorView.dom.closest('.mind-editor-canvas-container') ||
+              editorView.dom.parentElement) as HTMLElement | null;
+            const resolved =
+              resolveDropTarget(editorView, event.clientX, event.clientY, shell) ??
+              activeDropTarget;
+
+            if (resolved) {
+              event.preventDefault();
+              event.stopPropagation();
+              moveBlockAtPos(
+                editorView,
+                activeDragSourcePos,
+                resolved.targetPos,
+                resolved.placement
+              );
+            }
+
+            resetDragState();
+            hideHandle();
+          };
+
           const onWindowDragEnd = () => {
-            editorView.dom.classList.remove('is-dragging-block');
-            editorView.dragging = null;
+            resetDragState();
           };
 
           window.addEventListener('mousemove', onWindowMouseMove);
           document.addEventListener('mouseleave', onDocumentMouseLeave);
           window.addEventListener('dragstart', onWindowDragStart);
+          window.addEventListener('dragover', onWindowDragOver);
+          window.addEventListener('drop', onWindowDrop, true);
           window.addEventListener('dragend', onWindowDragEnd);
 
           return {
@@ -454,42 +689,27 @@ export const GlobalDragHandle = Extension.create<DragHandleOptions>({
               window.removeEventListener('mousemove', onWindowMouseMove);
               document.removeEventListener('mouseleave', onDocumentMouseLeave);
               window.removeEventListener('dragstart', onWindowDragStart);
+              window.removeEventListener('dragover', onWindowDragOver);
+              window.removeEventListener('drop', onWindowDrop, true);
               window.removeEventListener('dragend', onWindowDragEnd);
             },
           };
         },
         props: {
           handleDOMEvents: {
-            dragstart: (view) => {
-              view.dom.classList.add('is-dragging-block');
-              if (
-                hoveredNodePos !== null &&
-                hoveredNodePos >= 0 &&
-                hoveredNodePos < view.state.doc.content.size
-              ) {
-                try {
-                  const tr = view.state.tr.setSelection(
-                    NodeSelection.create(view.state.doc, hoveredNodePos)
-                  );
-                  view.dispatch(tr);
-                } catch {
-                  // Fallback se o nó não for selecionável diretamente
-                }
+            dragover: (view, event) => {
+              if (activeDragSourcePos !== null) {
+                event.preventDefault();
+                return true;
               }
               return false;
             },
-            dragend: (view) => {
-              view.dom.classList.remove('is-dragging-block');
-              return false;
-            },
             drop: (view, event) => {
+              if (activeDragSourcePos !== null) {
+                event.preventDefault();
+                return true;
+              }
               view.dom.classList.remove('is-dragging-block');
-              const dropCoords = view.posAtCoords({
-                left: event.clientX,
-                top: event.clientY,
-              });
-              if (!dropCoords) return false;
-
               return false;
             },
           },

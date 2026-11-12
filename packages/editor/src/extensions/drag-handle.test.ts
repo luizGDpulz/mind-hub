@@ -6,6 +6,8 @@ import {
   calculateHandlePosition,
   findBlockDOMAtCoords,
   getNodePosAtDOM,
+  resolveDropTarget,
+  moveBlockAtPos,
 } from './drag-handle.js';
 
 function mockRect(
@@ -127,5 +129,74 @@ describe('GlobalDragHandle Extension', () => {
       new MouseEvent('mousemove', { clientX: 40, clientY: 150, bubbles: true })
     );
     expect(onPositionChange.mock.calls.at(-1)?.[0]).toBeNull();
+  });
+
+  it('resolves drop targets across expanded left margin with dynamic top/bottom placement', () => {
+    const canvas = document.createElement('div');
+    canvas.className = 'mind-editor-canvas-container';
+    document.body.appendChild(canvas);
+
+    const editor = new Editor({
+      element: canvas,
+      extensions: [StarterKit],
+      content: '<h1>Título</h1><p>Segundo bloco</p>',
+    });
+    createdEditors.push(editor);
+
+    mockRect(canvas, { top: 100, left: 200, width: 680, height: 200 });
+    mockRect(editor.view.dom, { top: 100, left: 200, width: 680, height: 200 });
+
+    const h1 = editor.view.dom.querySelector('h1')!;
+    const p = editor.view.dom.querySelector('p')!;
+    mockRect(h1, { top: 100, left: 200, width: 680, height: 36 });
+    mockRect(p, { top: 144, left: 200, width: 680, height: 24 });
+
+    // 90px to the left of proseMirror (inside LEFT_DROP_HIT_WIDTH = 140) on top half of <p>
+    const topTarget = resolveDropTarget(editor.view, 110, 148, canvas);
+    expect(topTarget).not.toBeNull();
+    expect(topTarget?.placement).toBe('before');
+    expect(topTarget?.lineTop).toBe(42);
+    expect(topTarget?.targetPos).toBe(getNodePosAtDOM(p, editor.view));
+
+    // Bottom half of <p>
+    const bottomTarget = resolveDropTarget(editor.view, 110, 162, canvas);
+    expect(bottomTarget?.placement).toBe('after');
+    expect(bottomTarget?.lineTop).toBe(70);
+
+    // Beyond 140px left threshold -> null
+    expect(resolveDropTarget(editor.view, 20, 150, canvas)).toBeNull();
+  });
+
+  it('moves blocks safely before/after targets and across list boundaries', () => {
+    const editor = new Editor({
+      extensions: [StarterKit],
+      content: '<h1>Primeiro</h1><p>Solto</p><ul><li><p>Item 1</p></li></ul>',
+    });
+    createdEditors.push(editor);
+
+    const h1 = editor.view.dom.querySelector('h1')!;
+    const p = editor.view.dom.querySelector('h1 + p')!;
+    const li = editor.view.dom.querySelector('li')!;
+
+    const h1Pos = getNodePosAtDOM(h1, editor.view)!;
+    const pPos = getNodePosAtDOM(p, editor.view)!;
+    const liPos = getNodePosAtDOM(li, editor.view)!;
+
+    // Dropping onto own boundary is a no-op
+    expect(moveBlockAtPos(editor.view, pPos, h1Pos, 'after')).toBe(false);
+
+    // Move standalone paragraph before <h1>
+    expect(moveBlockAtPos(editor.view, pPos, h1Pos, 'before')).toBe(true);
+    const firstChild = editor.state.doc.child(0);
+    expect(firstChild.type.name).toBe('paragraph');
+    expect(firstChild.textContent).toBe('Solto');
+
+    // Move first paragraph ("Solto") after the bulletList by targeting listItem inside <ul>
+    const updatedLiPos = getNodePosAtDOM(editor.view.dom.querySelector('li')!, editor.view)!;
+    expect(moveBlockAtPos(editor.view, 0, updatedLiPos, 'after')).toBe(true);
+    const lastChild = editor.state.doc.lastChild!;
+    expect(lastChild.type.name).toBe('paragraph');
+    expect(lastChild.textContent).toBe('Solto');
+    expect(liPos).toBeGreaterThan(0);
   });
 });

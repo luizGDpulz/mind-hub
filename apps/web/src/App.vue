@@ -892,7 +892,7 @@ import MindTreeContextMenu from './components/ui/MindTreeContextMenu.vue';
 import MindMovePageModal from './components/ui/MindMovePageModal.vue';
 import MindSettingsModal from './components/ui/MindSettingsModal.vue';
 import MindQuickCaptureModal from './components/ui/MindQuickCaptureModal.vue';
-import type { ActionMenuItem, ActionMenuPageMeta, TreeContextMenuActionId } from './components/ui/types.js';
+import type { ActionMenuItem, ActionMenuPageMeta, TreeContextMenuActionId, TreeContextMenuTarget } from './components/ui/types.js';
 
 const store = useMindStore();
 const leftDrawerOpen = ref(true);
@@ -912,7 +912,7 @@ const isFavoritesCollapsed = ref(false);
 const treeForceExpanded = ref<boolean | null>(null);
 const renamingPageId = ref<string>('');
 const isTreeContextMenuOpen = ref(false);
-const treeContextMenuTarget = ref<{ id: string; title: string; icon?: string; isFavorite?: boolean } | null>(null);
+const treeContextMenuTarget = ref<TreeContextMenuTarget | null>(null);
 const treeContextMenuCoords = reactive({ x: 0, y: 0 });
 
 const isMovePageModalOpen = ref(false);
@@ -928,6 +928,8 @@ function handleTreeContextMenu(event: MouseEvent, node: any): void {
     title: node.title,
     icon: node.icon,
     isFavorite: Boolean(node.isFavorite),
+    updatedAt: node.updatedAt,
+    authorName: 'Luiz Gustavo Dias Pulz',
   };
   treeContextMenuCoords.x = event.clientX;
   treeContextMenuCoords.y = event.clientY;
@@ -964,6 +966,21 @@ async function handleTreeContextMenuAction(actionId: TreeContextMenuActionId, pa
       if (page) {
         const url = `${window.location.origin}/#${page.slug}`;
         await navigator.clipboard.writeText(url);
+      }
+      break;
+    }
+    case 'open-new-tab': {
+      const page = store.pages.find((p) => p.id === pageId);
+      if (page) {
+        const url = `${window.location.origin}/#${page.slug}`;
+        window.open(url, '_blank');
+      }
+      break;
+    }
+    case 'open-side-by-side': {
+      const page = store.pages.find((p) => p.id === pageId);
+      if (page) {
+        store.activePageId = page.id;
       }
       break;
     }

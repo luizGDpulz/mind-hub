@@ -28,6 +28,7 @@ export interface DropdownMenuItem {
   disabled?: boolean;
   danger?: boolean;
   section?: string;
+  testId?: string;
   handler?: () => void;
 }
 
@@ -38,7 +39,9 @@ export type TreeContextMenuActionId =
   | 'move'
   | 'toggle-favorite'
   | 'copy-link'
-  | 'delete';
+  | 'delete'
+  | 'open-new-tab'
+  | 'open-side-by-side';
 
 export interface TreeContextMenuAction {
   id: TreeContextMenuActionId;
@@ -46,4 +49,14 @@ export interface TreeContextMenuAction {
   icon?: Component;
   shortcut?: string;
   danger?: boolean;
+  section?: string;
+}
+
+export interface TreeContextMenuTarget {
+  id: string;
+  title: string;
+  icon?: string;
+  isFavorite?: boolean;
+  updatedAt?: string | number | Date;
+  authorName?: string;
 }

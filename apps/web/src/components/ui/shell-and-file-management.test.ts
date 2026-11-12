@@ -273,6 +273,8 @@ describe('MindTreeContextMenu — Ações Rápidas no Nó do Arquivo', () => {
           id: 'page-abc',
           title: 'Nota Arquivada',
           isFavorite: false,
+          updatedAt: '2026-11-12T15:30:00.000Z',
+          authorName: 'Luiz Gustavo Dias Pulz',
         },
         x: 100,
         y: 150,
@@ -282,6 +284,19 @@ describe('MindTreeContextMenu — Ações Rápidas no Nó do Arquivo', () => {
       },
     });
 
+    // Valida Header estilo Notion
+    expect(wrapper.find('.tree-context-caption').text()).toBe('Página');
+    expect(wrapper.find('.tree-context-page-title').text()).toBe('Nota Arquivada');
+
+    // Valida Footer de Auditoria estilo Notion
+    expect(wrapper.find('.audit-caption').text()).toBe('Última edição');
+    expect(wrapper.find('.audit-author-name').text()).toBe('Luiz Gustavo Dias Pulz');
+    expect(wrapper.find('.audit-avatar').text()).toBe('L');
+
+    // Valida divisores de seção
+    expect(wrapper.findAll('.mind-dropdown-divider').length).toBeGreaterThan(0);
+
+    // Valida clique e disparo de ação
     const duplicateBtn = wrapper.find('[data-testid="tree-context-action-duplicate"]');
     await duplicateBtn.trigger('click');
 

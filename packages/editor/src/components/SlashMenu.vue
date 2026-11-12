@@ -211,16 +211,16 @@ onBeforeUnmount(() => {
   position: fixed;
   width: 285px;
   max-height: 420px;
-  background-color: #202020;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background-color: #ffffff;
+  border: 1px solid #e9ecef;
   border-radius: 8px;
-  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.55);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08), 0 1px 3px rgba(0, 0, 0, 0.04);
   z-index: 1000;
   display: flex;
   flex-direction: column;
   overflow: hidden;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-  color: #f3f4f6;
+  color: #111827;
   box-sizing: border-box;
 }
 
@@ -239,7 +239,7 @@ onBeforeUnmount(() => {
 }
 
 .slash-items-scroll-area::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.15);
+  background: rgba(0, 0, 0, 0.14);
   border-radius: 3px;
 }
 
@@ -251,8 +251,8 @@ onBeforeUnmount(() => {
 
 .slash-section-header {
   font-size: 11.5px;
-  font-weight: 500;
-  color: #9e9e9e;
+  font-weight: 600;
+  color: #868e96;
   padding: 6px 8px 4px 10px;
   user-select: none;
 }
@@ -270,16 +270,19 @@ onBeforeUnmount(() => {
 
 .slash-item:hover,
 .slash-item.is-selected {
-  background-color: rgba(255, 255, 255, 0.08);
+  background-color: #f1f3f5;
 }
 
 .slash-item-icon {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 22px;
-  height: 22px;
-  color: #d1d5db;
+  width: 26px;
+  height: 26px;
+  background-color: #f8f9fa;
+  border: 1px solid #dee2e6;
+  border-radius: 5px;
+  color: #37352f;
   flex-shrink: 0;
 }
 
@@ -293,22 +296,22 @@ onBeforeUnmount(() => {
 
 .item-title {
   font-size: 13.5px;
-  font-weight: 450;
-  color: #f3f4f6;
+  font-weight: 500;
+  color: #111827;
   line-height: 1.3;
 }
 
 .item-subtitle {
   font-size: 12px;
-  color: #9ca3af;
+  color: #868e96;
   white-space: nowrap;
 }
 
 .item-badge {
-  background-color: #1e3a5f;
-  color: #60a5fa;
+  background-color: #e7f5ff;
+  color: #1971c2;
   font-size: 10.5px;
-  font-weight: 500;
+  font-weight: 600;
   padding: 1px 6px;
   border-radius: 4px;
   margin-left: 6px;
@@ -318,7 +321,7 @@ onBeforeUnmount(() => {
 .item-shortcut {
   font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   font-size: 11.5px;
-  color: #6b7280;
+  color: #868e96;
   margin-left: auto;
   padding-left: 8px;
   flex-shrink: 0;
@@ -328,7 +331,7 @@ onBeforeUnmount(() => {
   padding: 18px 12px;
   text-align: center;
   font-size: 12.5px;
-  color: #9ca3af;
+  color: #868e96;
 }
 
 .slash-footer {
@@ -336,22 +339,22 @@ onBeforeUnmount(() => {
   align-items: center;
   justify-content: space-between;
   padding: 7px 12px;
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
-  background-color: #202020;
+  border-top: 1px solid #e9ecef;
+  background-color: #f8f9fa;
   user-select: none;
 }
 
 .slash-footer-label {
   font-size: 12px;
-  color: #9ca3af;
+  color: #868e96;
 }
 
 .slash-footer-kbd {
   font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   font-size: 10px;
-  color: #9ca3af;
-  background-color: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #495057;
+  background-color: #ffffff;
+  border: 1px solid #dee2e6;
   padding: 1px 5px;
   border-radius: 3px;
 }

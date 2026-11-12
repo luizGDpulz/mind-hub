@@ -6,10 +6,24 @@ export interface MindVersionEntry {
   highlights: string[];
 }
 
-export const CURRENT_MIND_VERSION = '0.2.0';
+export const CURRENT_MIND_VERSION = '0.3.0';
 export const MIND_REPO_URL = 'https://github.com/luizGDpulz/mind-hub';
 
 export const MIND_VERSION_HISTORY: MindVersionEntry[] = [
+  {
+    version: '0.3.0',
+    releaseDate: '2026-11-12',
+    milestoneTitle: 'M13: Shell, Gestão de Arquivos & Design System Global',
+    summary:
+      'Primitivos desacoplados sob mind-light-style, menu contextual Notion-grade para árvore e favoritos, movimentação anti-loop, configurações em abas e limpeza da barra lateral.',
+    highlights: [
+      'Primitivos MindModal, MindConfirmDialog e MindDropdown desacoplados sob mind-light-style',
+      'Menu contextual Notion-grade (MindTreeContextMenu) e seção Favoritos com ações (+) e (...)',
+      'Modal visual para mover páginas (MindMovePageModal) com filtro de anti-ciclo hierárquico',
+      'Painel de configurações em abas (MindSettingsModal) e captura rápida desacoplada',
+      'Operações profundas de duplicação, renomeação inline e importação movida para MindWorkspaceMenu',
+    ],
+  },
   {
     version: '0.2.0',
     releaseDate: '2026-11-12',

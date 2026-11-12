@@ -1,11 +1,11 @@
 import { describe, it, expect } from 'vitest';
 import { mount } from '@vue/test-utils';
-import { defineComponent, type Component } from 'vue';
+import { defineComponent, markRaw, type Component } from 'vue';
 import SlashMenu from './SlashMenu.vue';
 import type { SlashMenuItem } from '../types.js';
 
-const DummyIconT: Component = defineComponent({ template: '<div>T</div>' });
-const DummyIconM: Component = defineComponent({ template: '<div>M</div>' });
+const DummyIconT: Component = markRaw(defineComponent({ template: '<div>T</div>' }));
+const DummyIconM: Component = markRaw(defineComponent({ template: '<div>M</div>' }));
 
 describe('SlashMenu.vue', () => {
   const dummyItems: SlashMenuItem[] = [

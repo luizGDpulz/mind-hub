@@ -1,4 +1,4 @@
-import type { MindDoc, MindNode, MindPage, TiptapDoc, TiptapNode } from './types.js';
+import type { MindDoc, MindNode, MindPage, TiptapNode } from './types.js';
 
 const CALLOUT_ICONS: Record<string, string> = {
   NOTE: 'ℹ️',

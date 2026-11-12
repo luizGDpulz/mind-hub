@@ -9,7 +9,7 @@ import TableRow from '@tiptap/extension-table-row';
 import TableHeader from '@tiptap/extension-table-header';
 import TableCell from '@tiptap/extension-table-cell';
 import Underline from '@tiptap/extension-underline';
-import type { MindDoc, MindNode, TiptapDoc, TiptapNode } from '@mind-hub/shared';
+import type { TiptapDoc, TiptapNode } from '@mind-hub/shared';
 
 type Schema = ReturnType<typeof getSchema>;
 

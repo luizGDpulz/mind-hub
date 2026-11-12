@@ -278,8 +278,8 @@ onBeforeUnmount(() => {
   align-items: center;
   gap: 2px;
   z-index: 50;
-  padding-right: 18px;
-  margin-right: -18px;
+  padding-right: 6px;
+  margin-right: -6px;
   user-select: none;
 }
 

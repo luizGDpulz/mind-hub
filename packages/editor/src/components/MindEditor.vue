@@ -2,6 +2,7 @@
 import { computed, markRaw, onBeforeUnmount, ref, watch, type Component } from 'vue';
 import { useEditor, EditorContent, VueNodeViewRenderer } from '@tiptap/vue-3';
 import type { NodeViewProps } from '@tiptap/core';
+import type { Node as PmNode } from '@tiptap/pm/model';
 import StarterKit from '@tiptap/starter-kit';
 import TaskList from '@tiptap/extension-task-list';
 import TaskItem from '@tiptap/extension-task-item';
@@ -64,10 +65,12 @@ const gutterState = ref<{
   visible: boolean;
   top: number;
   nodePos: number;
+  nodeType: string;
 }>({
   visible: false,
   top: 0,
   nodePos: 0,
+  nodeType: 'paragraph',
 });
 
 const isGutterHovered = ref(false);
@@ -79,20 +82,6 @@ function handleGutterHover(hovered: boolean) {
 
 function handleGutterMenuToggle(isOpen: boolean) {
   isGutterMenuOpen.value = isOpen;
-}
-
-function handleCanvasMouseLeave(event: MouseEvent) {
-  const related = event.relatedTarget as HTMLElement | null;
-  if (
-    related &&
-    (related.closest('.mind-block-gutter-shell') ||
-      related.closest('.mind-editor-canvas-container'))
-  ) {
-    return;
-  }
-  if (!isGutterHovered.value && !isGutterMenuOpen.value) {
-    gutterState.value.visible = false;
-  }
 }
 
 // Slash Menu State
@@ -346,8 +335,11 @@ const editor = useEditor({
     }),
     GlobalDragHandle.configure({
       onPositionChange: (pos) => {
+        if (isGutterMenuOpen.value) {
+          return;
+        }
         if (!pos) {
-          if (!isGutterHovered.value && !isGutterMenuOpen.value) {
+          if (!isGutterHovered.value) {
             gutterState.value.visible = false;
           }
           return;
@@ -356,6 +348,7 @@ const editor = useEditor({
           visible: true,
           top: pos.top,
           nodePos: pos.nodePos,
+          nodeType: pos.nodeType,
         };
       },
     }),
@@ -446,6 +439,11 @@ watch(
   () => props.readOnly,
   (isReadOnly) => {
     editor.value?.setEditable(!isReadOnly);
+    if (isReadOnly) {
+      gutterState.value.visible = false;
+      isGutterHovered.value = false;
+      isGutterMenuOpen.value = false;
+    }
   }
 );
 
@@ -455,11 +453,21 @@ function handleAddBlockBelow(): void {
   const pos = gutterState.value.nodePos;
   const node = editor.value.state.doc.nodeAt(pos);
   const insertPos = node ? pos + node.nodeSize : pos + 1;
+  const isListItem = node?.type.name === 'listItem' || node?.type.name === 'taskItem';
+  const contentToInsert = isListItem
+    ? {
+        type: node.type.name,
+        attrs: node.type.name === 'taskItem' ? { checked: false } : undefined,
+        content: [{ type: 'paragraph' }],
+      }
+    : { type: 'paragraph' };
+  const cursorOffset = isListItem ? 2 : 1;
+
   editor.value
     .chain()
     .focus()
-    .insertContentAt(insertPos, { type: 'paragraph' })
-    .setTextSelection(insertPos + 1)
+    .insertContentAt(insertPos, contentToInsert)
+    .setTextSelection(insertPos + cursorOffset)
     .run();
 }
 
@@ -491,7 +499,8 @@ function handleGutterAction(action: 'moveUp' | 'moveDown' | 'duplicate' | 'delet
   } else if (action === 'moveDown') {
     const afterPos = pos + node.nodeSize;
     if (afterPos < state.doc.content.size) {
-      const nextNode = state.doc.nodeAt(afterPos);
+      const $after = state.doc.resolve(afterPos);
+      const nextNode = $after.nodeAfter;
       if (nextNode) {
         const tr = state.tr;
         tr.delete(pos, pos + node.nodeSize);
@@ -506,7 +515,25 @@ function handleGutterAction(action: 'moveUp' | 'moveDown' | 'duplicate' | 'delet
 function handleGutterTurnInto(type: string): void {
   if (!editor.value) return;
   const pos = gutterState.value.nodePos;
-  editor.value.chain().focus().setTextSelection(pos + 1).run();
+  const node = editor.value.state.doc.nodeAt(pos);
+
+  let textOffset = pos;
+  let cur: PmNode | null = node ?? null;
+  while (cur && !cur.isTextblock && cur.firstChild) {
+    cur = cur.firstChild;
+    textOffset += 1;
+  }
+  const cursorPos = cur?.isTextblock
+    ? Math.min(textOffset + 1, editor.value.state.doc.content.size)
+    : pos + 1;
+
+  editor.value.chain().focus().setTextSelection(cursorPos).run();
+
+  if (node?.type.name === 'listItem' && type !== 'bulletList') {
+    editor.value.chain().focus().liftListItem('listItem').run();
+  } else if (node?.type.name === 'taskItem' && type !== 'taskList') {
+    editor.value.chain().focus().liftListItem('taskItem').run();
+  }
 
   if (type === 'h1') editor.value.chain().focus().toggleHeading({ level: 1 }).run();
   else if (type === 'h2') editor.value.chain().focus().toggleHeading({ level: 2 }).run();
@@ -586,7 +613,6 @@ onBeforeUnmount(() => {
     <div
       class="mind-editor-canvas-container"
       :class="{ 'is-readonly': readOnly }"
-      @mouseleave="handleCanvasMouseLeave"
     >
       <!-- Block Gutter (+ and ⠿) on Left Margin -->
       <BlockGutter
@@ -595,6 +621,7 @@ onBeforeUnmount(() => {
         :visible="gutterState.visible"
         :top="gutterState.top"
         :node-pos="gutterState.nodePos"
+        :node-type="gutterState.nodeType"
         @add-block="handleAddBlockBelow"
         @action="handleGutterAction"
         @turn-into="handleGutterTurnInto"

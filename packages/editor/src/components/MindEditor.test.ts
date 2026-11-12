@@ -1,5 +1,5 @@
 import { nextTick } from 'vue';
-import { describe, it, expect, afterEach } from 'vitest';
+import { describe, it, expect, afterEach, vi } from 'vitest';
 import { mount } from '@vue/test-utils';
 import MindEditor from './MindEditor.vue';
 
@@ -168,6 +168,102 @@ describe('MindEditor.vue', () => {
     );
     await nextTick();
     expect(wrapper.find('[data-testid="block-gutter-shell"]').exists()).toBe(false);
+
+    wrapper.unmount();
+  });
+
+  it('applies block text & background color via gutter menu and supports expanded-left D&D indicator', async () => {
+    const host = document.createElement('div');
+    document.body.appendChild(host);
+
+    const wrapper = mount(MindEditor, {
+      attachTo: host,
+      props: {
+        modelValue: '<h1>Cabeçalho</h1><p>Bloco colorido</p>',
+        enableFrontmatterHeader: false,
+      },
+      global: {
+        stubs: {
+          BubbleFormattingMenu: true,
+        },
+      },
+    });
+
+    await nextTick();
+    await nextTick();
+
+    const canvas = wrapper.find('.mind-editor-canvas-container').element;
+    const proseMirror = wrapper.find('.ProseMirror').element;
+    const h1 = proseMirror.querySelector('h1')!;
+    const p = proseMirror.querySelector('p')!;
+
+    setRect(canvas, { top: 100, left: 200, width: 680, height: 200 });
+    setRect(proseMirror, { top: 100, left: 200, width: 680, height: 200 });
+    setRect(h1, { top: 100, left: 200, width: 680, height: 34 });
+    setRect(p, { top: 142, left: 200, width: 680, height: 24 });
+
+    // Hover <p> and open color submenu
+    window.dispatchEvent(
+      new MouseEvent('mousemove', { clientX: 156, clientY: 150, bubbles: true })
+    );
+    await nextTick();
+
+    await wrapper.find('[data-testid="block-gutter-handle-btn"]').trigger('click');
+    await wrapper.find('[data-testid="menu-trigger-color"]').trigger('mouseenter');
+    await nextTick();
+
+    await wrapper.find('[data-testid="text-color-blue"]').trigger('click');
+    await nextTick();
+    expect(wrapper.find('.ProseMirror p').attributes('data-block-color')).toBe('blue');
+
+    // Re-open menu and apply pastel background highlight
+    await wrapper.find('[data-testid="block-gutter-handle-btn"]').trigger('click');
+    await wrapper.find('[data-testid="menu-trigger-color"]').trigger('mouseenter');
+    await nextTick();
+    await wrapper.find('[data-testid="bg-color-yellow"]').trigger('click');
+    await nextTick();
+    expect(wrapper.find('.ProseMirror p').attributes('data-block-bg')).toBe('yellow');
+
+    // Simulate left-margin D&D of <p> above <h1>
+    const gripBtn = wrapper.find('[data-testid="block-gutter-handle-btn"]').element;
+    const mockTransfer = {
+      effectAllowed: 'none',
+      dropEffect: 'none',
+      clearData: vi.fn(),
+      setData: vi.fn(),
+      setDragImage: vi.fn(),
+    };
+
+    const dragStartEvent = new Event('dragstart', { bubbles: true, cancelable: true });
+    Object.defineProperty(dragStartEvent, 'dataTransfer', { value: mockTransfer });
+    gripBtn.dispatchEvent(dragStartEvent);
+
+    const dragOverEvent = new MouseEvent('dragover', {
+      clientX: 110,
+      clientY: 106,
+      bubbles: true,
+      cancelable: true,
+    });
+    Object.defineProperty(dragOverEvent, 'dataTransfer', { value: mockTransfer });
+    window.dispatchEvent(dragOverEvent);
+    await nextTick();
+
+    expect(wrapper.find('[data-testid="block-drop-indicator"]').exists()).toBe(true);
+
+    const dropEvent = new MouseEvent('drop', {
+      clientX: 110,
+      clientY: 106,
+      bubbles: true,
+      cancelable: true,
+    });
+    Object.defineProperty(dropEvent, 'dataTransfer', { value: mockTransfer });
+    window.dispatchEvent(dropEvent);
+    await nextTick();
+
+    expect(wrapper.find('[data-testid="block-drop-indicator"]').exists()).toBe(false);
+    const firstChild = wrapper.find('.ProseMirror').element.firstElementChild;
+    expect(firstChild?.tagName.toLowerCase()).toBe('p');
+    expect(firstChild?.textContent).toBe('Bloco colorido');
 
     wrapper.unmount();
   });

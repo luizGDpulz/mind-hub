@@ -33,7 +33,13 @@ import {
   CodeXml,
 } from 'lucide-vue-next';
 
-import type { MindEditorProps, MindEditorEmits, SlashMenuItem, PageReference } from '../types.js';
+import type {
+  MindEditorProps,
+  MindEditorEmits,
+  SlashMenuItem,
+  PageReference,
+  BlockColorUpdate,
+} from '../types.js';
 import FrontmatterHeader from './FrontmatterHeader.vue';
 import BlockGutter from './BlockGutter.vue';
 import SlashMenu from './SlashMenu.vue';
@@ -43,6 +49,7 @@ import MermaidBlockView from './MermaidBlockView.vue';
 import CalloutBlockView from './CalloutBlockView.vue';
 
 import { GlobalDragHandle } from '../extensions/drag-handle.js';
+import { BlockColor, applyBlockColorAtPos } from '../extensions/block-color.js';
 import { SlashCommand, executeSlashItem } from '../extensions/slash-command.js';
 import { PageMention } from '../extensions/page-mention.js';
 import { MermaidNode } from '../extensions/mermaid-node.js';
@@ -66,11 +73,23 @@ const gutterState = ref<{
   top: number;
   nodePos: number;
   nodeType: string;
+  textColor: string | null;
+  bgColor: string | null;
 }>({
   visible: false,
   top: 0,
   nodePos: 0,
   nodeType: 'paragraph',
+  textColor: null,
+  bgColor: null,
+});
+
+const dropIndicatorState = ref<{
+  visible: boolean;
+  top: number;
+}>({
+  visible: false,
+  top: 0,
 });
 
 const isGutterHovered = ref(false);
@@ -312,6 +331,7 @@ const editor = useEditor({
   extensions: [
     StarterKit.configure({
       heading: { levels: [1, 2, 3, 4] },
+      dropcursor: false,
     }),
     TaskList,
     TaskItem.configure({
@@ -349,7 +369,12 @@ const editor = useEditor({
           top: pos.top,
           nodePos: pos.nodePos,
           nodeType: pos.nodeType,
+          textColor: pos.textColor ?? null,
+          bgColor: pos.bgColor ?? null,
         };
+      },
+      onDropIndicatorChange: (indicator) => {
+        dropIndicatorState.value = indicator ?? { visible: false, top: 0 };
       },
     }),
     SlashCommand.configure({
@@ -391,6 +416,7 @@ const editor = useEditor({
     }),
     MermaidConfigured,
     CalloutConfigured,
+    BlockColor,
     MarkdownShortcuts,
   ],
   onUpdate: ({ editor: ed }) => {
@@ -512,6 +538,24 @@ function handleGutterAction(action: 'moveUp' | 'moveDown' | 'duplicate' | 'delet
   }
 }
 
+function handleGutterSetColor(update: BlockColorUpdate): void {
+  if (!editor.value) return;
+  const pos = gutterState.value.nodePos;
+  const applied = applyBlockColorAtPos(editor.value, pos, update);
+  if (!applied) return;
+
+  if (update.textColor !== undefined) {
+    gutterState.value.textColor =
+      update.textColor === 'default' || update.textColor === null ? null : update.textColor;
+  }
+  if (update.backgroundColor !== undefined) {
+    gutterState.value.bgColor =
+      update.backgroundColor === 'default' || update.backgroundColor === null
+        ? null
+        : update.backgroundColor;
+  }
+}
+
 function handleGutterTurnInto(type: string): void {
   if (!editor.value) return;
   const pos = gutterState.value.nodePos;
@@ -529,19 +573,31 @@ function handleGutterTurnInto(type: string): void {
 
   editor.value.chain().focus().setTextSelection(cursorPos).run();
 
-  if (node?.type.name === 'listItem' && type !== 'bulletList') {
+  if (node?.type.name === 'listItem' && type !== 'bulletList' && type !== 'orderedList') {
     editor.value.chain().focus().liftListItem('listItem').run();
   } else if (node?.type.name === 'taskItem' && type !== 'taskList') {
     editor.value.chain().focus().liftListItem('taskItem').run();
+  } else if (node?.type.name === 'blockquote' && type !== 'blockquote') {
+    editor.value.chain().focus().lift('blockquote').run();
+  } else if (node?.type.name === 'callout' && type !== 'callout') {
+    editor.value.chain().focus().unsetCallout().run();
   }
 
-  if (type === 'h1') editor.value.chain().focus().toggleHeading({ level: 1 }).run();
-  else if (type === 'h2') editor.value.chain().focus().toggleHeading({ level: 2 }).run();
-  else if (type === 'h3') editor.value.chain().focus().toggleHeading({ level: 3 }).run();
-  else if (type === 'h4') editor.value.chain().focus().toggleHeading({ level: 4 }).run();
-  else if (type === 'bulletList') editor.value.chain().focus().toggleBulletList().run();
-  else if (type === 'taskList') editor.value.chain().focus().toggleTaskList().run();
-  else if (type === 'callout') editor.value.chain().focus().setCallout().run();
+  if (type === 'h1') editor.value.chain().focus().setHeading({ level: 1 }).run();
+  else if (type === 'h2') editor.value.chain().focus().setHeading({ level: 2 }).run();
+  else if (type === 'h3') editor.value.chain().focus().setHeading({ level: 3 }).run();
+  else if (type === 'h4') editor.value.chain().focus().setHeading({ level: 4 }).run();
+  else if (type === 'bulletList') {
+    if (!editor.value.isActive('bulletList')) editor.value.chain().focus().toggleBulletList().run();
+  } else if (type === 'orderedList') {
+    if (!editor.value.isActive('orderedList')) editor.value.chain().focus().toggleOrderedList().run();
+  } else if (type === 'taskList') {
+    if (!editor.value.isActive('taskList')) editor.value.chain().focus().toggleTaskList().run();
+  } else if (type === 'blockquote') {
+    if (!editor.value.isActive('blockquote')) editor.value.chain().focus().toggleBlockquote().run();
+  } else if (type === 'codeBlock') {
+    if (!editor.value.isActive('codeBlock')) editor.value.chain().focus().toggleCodeBlock().run();
+  } else if (type === 'callout') editor.value.chain().focus().setCallout().run();
   else if (type === 'mermaid') editor.value.chain().focus().insertContent({ type: 'mermaid' }).run();
   else editor.value.chain().focus().setParagraph().run();
 }
@@ -617,17 +673,28 @@ onBeforeUnmount(() => {
       <!-- Block Gutter (+ and ⠿) on Left Margin -->
       <BlockGutter
         v-if="editor && !readOnly"
-        :editor="editor"
         :visible="gutterState.visible"
         :top="gutterState.top"
-        :node-pos="gutterState.nodePos"
         :node-type="gutterState.nodeType"
+        :node-text-color="gutterState.textColor"
+        :node-bg-color="gutterState.bgColor"
         @add-block="handleAddBlockBelow"
         @action="handleGutterAction"
         @turn-into="handleGutterTurnInto"
+        @set-color="handleGutterSetColor"
         @hover="handleGutterHover"
         @menu-toggle="handleGutterMenuToggle"
       />
+
+      <!-- Notion-like Horizontal Drop Indicator Bar (expanded left gutter reach) -->
+      <div
+        v-if="dropIndicatorState.visible"
+        class="mind-drop-indicator"
+        data-testid="block-drop-indicator"
+        :style="{ top: `${dropIndicatorState.top}px` }"
+      >
+        <span class="mind-drop-indicator-dot" />
+      </div>
 
       <!-- Bubble Formatting Menu Inline on Text Selection -->
       <BubbleFormattingMenu
@@ -732,7 +799,7 @@ onBeforeUnmount(() => {
 }
 
 :deep(.slash-ghost-hint) {
-  color: #787774;
+  color: #adb5bd;
   pointer-events: none;
   user-select: none;
   margin-left: 2px;
@@ -821,4 +888,74 @@ onBeforeUnmount(() => {
   pointer-events: none;
   height: 0;
 }
+
+/* Ergonomic Left-Expanded Drop Indicator */
+.mind-drop-indicator {
+  position: absolute;
+  left: -28px;
+  right: 0;
+  height: 3px;
+  background-color: #1971c2;
+  border-radius: 2px;
+  pointer-events: none;
+  z-index: 40;
+  transform: translateY(-50%);
+  box-shadow: 0 0 0 1px rgba(25, 113, 194, 0.14);
+}
+
+.mind-drop-indicator-dot {
+  position: absolute;
+  left: -4px;
+  top: 50%;
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background-color: #ffffff;
+  border: 2px solid #1971c2;
+  transform: translateY(-50%);
+  box-sizing: border-box;
+}
+
+:deep(.ProseMirror.is-dragging-block .ProseMirror-dropcursor) {
+  display: none !important;
+}
+
+/* Mind Light Style Block Colors (Text + Full-Row Pastel Background) */
+:deep(.ProseMirror [data-block-bg]) {
+  border-radius: 5px;
+  padding: 4px 8px;
+  margin-left: -8px;
+  margin-right: -8px;
+  transition: background-color 0.12s ease;
+}
+
+:deep(.ProseMirror blockquote[data-block-bg]) {
+  padding: 6px 14px;
+}
+
+:deep(.ProseMirror pre[data-block-bg]) {
+  padding: 12px 14px;
+  margin-left: 0;
+  margin-right: 0;
+}
+
+:deep(.ProseMirror [data-block-color="gray"]) { color: #6b7280; }
+:deep(.ProseMirror [data-block-color="brown"]) { color: #8d5b4c; }
+:deep(.ProseMirror [data-block-color="orange"]) { color: #d9480f; }
+:deep(.ProseMirror [data-block-color="yellow"]) { color: #b07200; }
+:deep(.ProseMirror [data-block-color="green"]) { color: #2b8a3e; }
+:deep(.ProseMirror [data-block-color="blue"]) { color: #1971c2; }
+:deep(.ProseMirror [data-block-color="purple"]) { color: #7048e8; }
+:deep(.ProseMirror [data-block-color="pink"]) { color: #c2255c; }
+:deep(.ProseMirror [data-block-color="red"]) { color: #c92a2a; }
+
+:deep(.ProseMirror [data-block-bg="gray"]) { background-color: #f1f3f5; }
+:deep(.ProseMirror [data-block-bg="brown"]) { background-color: #f4eeee; }
+:deep(.ProseMirror [data-block-bg="orange"]) { background-color: #fff4e6; }
+:deep(.ProseMirror [data-block-bg="yellow"]) { background-color: #fff9db; }
+:deep(.ProseMirror [data-block-bg="green"]) { background-color: #ebfbee; }
+:deep(.ProseMirror [data-block-bg="blue"]) { background-color: #e7f5ff; }
+:deep(.ProseMirror [data-block-bg="purple"]) { background-color: #f3f0ff; }
+:deep(.ProseMirror [data-block-bg="pink"]) { background-color: #fff0f6; }
+:deep(.ProseMirror [data-block-bg="red"]) { background-color: #fff5f5; }
 </style>

@@ -12,7 +12,7 @@ export const MIND_REPO_URL = 'https://github.com/luizGDpulz/mind-hub';
 export const MIND_VERSION_HISTORY: MindVersionEntry[] = [
   {
     version: '0.2.0',
-    releaseDate: '2026-11-11',
+    releaseDate: '2026-11-12',
     milestoneTitle: 'M9: Notion-like UI, Sidebar Evolution & Trash Purge',
     summary:
       'Novo header Notion-like com workspace switcher, menu grid de utilitários, versionamento atômico, exclusão definitiva na lixeira e editor Tiptap com reordenação de blocos por drag-and-drop.',
@@ -24,6 +24,7 @@ export const MIND_VERSION_HISTORY: MindVersionEntry[] = [
       'Exclusão definitiva individual de itens na lixeira e opção de esvaziamento completo.',
       'Reordenação de blocos por drag-and-drop e atalhos de teclado (Alt+Seta Acima / Alt+Seta Abaixo).',
       'Menu flutuante no cursor (Bubble Menu) com tipografia limpa e sem poluição visual.',
+      'Calibragem do gutter para telas menores e fechamento automático de menus no clique fora.',
     ],
   },
   {

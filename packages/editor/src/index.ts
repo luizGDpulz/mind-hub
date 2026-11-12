@@ -5,6 +5,7 @@ export { default as SlashMenu } from './components/SlashMenu.vue';
 export { default as PageMentionPopover } from './components/PageMentionPopover.vue';
 export { default as MermaidBlockView } from './components/MermaidBlockView.vue';
 export { default as CalloutBlockView } from './components/CalloutBlockView.vue';
+export { default as BubbleFormattingMenu } from './components/BubbleFormattingMenu.vue';
 export {
   GlobalDragHandle,
   GlobalDragHandleKey,
@@ -38,5 +39,9 @@ export {
   parseMarkdownCallout,
   type CalloutNodeOptions,
 } from './extensions/callout-node.js';
+export {
+  MarkdownShortcuts,
+  TASK_EMPTY_BRACKETS_REGEX,
+} from './extensions/markdown-shortcuts.js';
 
 

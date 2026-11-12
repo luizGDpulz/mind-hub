@@ -23,6 +23,13 @@ export interface PageReference {
 
 export type SlashMenuCategory = 'basic' | 'media' | 'highlight' | 'advanced';
 
+export type CalloutType = 'note' | 'tip' | 'important' | 'warning' | 'caution';
+
+export interface CalloutAttributes {
+  type: CalloutType;
+  icon?: string | null;
+}
+
 export interface SlashMenuItem {
   id: string;
   title: string;

@@ -12,6 +12,29 @@ O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.
 
 ---
 
+## [0.3.0] - 2026-11-12 — Milestone M13: Shell, Gestão de Arquivos & Design System Global
+
+### 🚀 Adicionado
+- Primitivos UI desacoplados `MindModal`, `MindConfirmDialog` e `MindDropdown` sob `mind-light-style`, com suporte a submenus flutuantes, atalhos de teclado e posicionamento adaptativo (#59, #60).
+- Menu contextual da árvore de páginas (`MindTreeContextMenu`) no estilo Notion, com suporte a botão direito e botão `...` (#61).
+- Modal visual para mover páginas entre pastas (`MindMovePageModal`) com prevenção anti-loop hierárquico (#62).
+- Seção retrátil de `Favoritos` com controles de expandir/recolher tudo e componente atômico `MindFavoriteItem` com ações de hover (`+` nova subpágina e `...` menu contextual) (#63, #71).
+- Painel global de configurações em abas (`MindSettingsModal`) com Sincronização do Vault, Atalhos de Teclado e Gestão de Armazenamento, além de modal de captura rápida desacoplado (#65, #66, #67).
+- Operações profundas no store para duplicação recursiva de subárvore e renomeação inline (#64).
+- Suíte de testes unitários Vitest para gestão de arquivos e shell global (`shell-and-file-management.test.ts`) (#68).
+
+### 🔄 Modificado
+- Ação `Importar Second Brain` movida para dentro de `MindWorkspaceMenu` (menu do usuário) (#70).
+- Menu contextual da seção de favoritos exibe ícone `StarOff` para remover dos favoritos (#71).
+
+### 🐛 Corrigido
+- Removida a estrela e indicador redundante de sincronia do cabeçalho superior, concentrando favoritos na sidebar e menu contextual (#63, #67).
+
+### 🗑️ Removido
+- Removido atalho duplicado de `Lixeira` das opções rápidas superiores da sidebar (#70).
+
+---
+
 ## [0.2.0] - 2026-11-12
 
 ### 🚀 Adicionado
@@ -56,6 +79,7 @@ O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.
   - Servidor Model Context Protocol nativo com ferramentas para notas e banco de dados (#15).
   - Chat lateral com assistente BYOK (OpenAI, Anthropic, Gemini, Ollama) (#15, #16).
 
-[Não lançado]: https://github.com/luizGDpulz/mind-hub/compare/v0.2.0...HEAD
+[Não lançado]: https://github.com/luizGDpulz/mind-hub/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/luizGDpulz/mind-hub/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/luizGDpulz/mind-hub/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/luizGDpulz/mind-hub/releases/tag/v0.1.0

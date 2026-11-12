@@ -384,6 +384,94 @@ export const useMindStore = defineStore('mindHub', () => {
     }
   }
 
+  function isDescendantOf(pageId: string, potentialAncestorId: string): boolean {
+    if (pageId === potentialAncestorId) return true;
+    let curr = pages.value.find((p) => p.id === pageId);
+    while (curr && curr.parentId) {
+      if (curr.parentId === potentialAncestorId) return true;
+      curr = pages.value.find((p) => p.id === curr?.parentId);
+    }
+    return false;
+  }
+
+  async function duplicatePage(
+    id: string,
+    options: { withChildren?: boolean } = { withChildren: true },
+  ): Promise<MindPage | null> {
+    const target = pages.value.find((p) => p.id === id);
+    if (!target) return null;
+
+    const newTitle = `${target.title} (Cópia)`;
+    const newSlug = `${target.slug}-copia-${Math.random().toString(36).slice(2, 6)}`;
+    const newId = `page-${Math.random().toString(36).slice(2, 10)}`;
+
+    const duplicated = await createPage({
+      id: newId,
+      title: newTitle,
+      slug: newSlug,
+      icon: target.icon,
+      parentId: target.parentId,
+      tags: [...target.tags],
+      contentMarkdown: target.contentMarkdown,
+      contentJson: JSON.parse(JSON.stringify(target.contentJson)),
+      isFavorite: false,
+    });
+
+    if (options.withChildren) {
+      const children = pages.value.filter((p) => p.parentId === id && p.deletedAt === null);
+      for (const child of children) {
+        await duplicateChildRecursively(child.id, duplicated.id);
+      }
+    }
+
+    return duplicated;
+  }
+
+  async function duplicateChildRecursively(childId: string, newParentId: string): Promise<void> {
+    const child = pages.value.find((p) => p.id === childId);
+    if (!child) return;
+
+    const newChildId = `page-${Math.random().toString(36).slice(2, 10)}`;
+    const newChild = await createPage({
+      id: newChildId,
+      title: child.title,
+      slug: `${child.slug}-${Math.random().toString(36).slice(2, 6)}`,
+      icon: child.icon,
+      parentId: newParentId,
+      tags: [...child.tags],
+      contentMarkdown: child.contentMarkdown,
+      contentJson: JSON.parse(JSON.stringify(child.contentJson)),
+      isFavorite: false,
+    });
+
+    const grandChildren = pages.value.filter((p) => p.parentId === childId && p.deletedAt === null);
+    for (const gc of grandChildren) {
+      await duplicateChildRecursively(gc.id, newChild.id);
+    }
+  }
+
+  async function renamePage(id: string, newTitle: string): Promise<void> {
+    const cleaned = newTitle.trim();
+    if (!cleaned) return;
+    await updatePageMeta(id, { title: cleaned });
+  }
+
+  async function toggleFavorite(id: string): Promise<void> {
+    const target = pages.value.find((p) => p.id === id);
+    if (!target) return;
+    await updatePageMeta(id, { isFavorite: !target.isFavorite });
+  }
+
+  async function movePage(id: string, newParentId: string | null): Promise<boolean> {
+    if (newParentId === id) return false;
+    if (newParentId && isDescendantOf(newParentId, id)) {
+      // Loop protection: cannot move a parent inside its own child!
+      return false;
+    }
+    await updatePageMeta(id, { parentId: newParentId });
+    return true;
+  }
+
   async function softDeletePage(id: string): Promise<void> {
     const target = pages.value.find((p) => p.id === id && p.deletedAt === null);
     if (!target) return;
@@ -858,6 +946,11 @@ export const useMindStore = defineStore('mindHub', () => {
     updateActivePageContent,
     updateActivePageMarkdown,
     updatePageMeta,
+    renamePage,
+    toggleFavorite,
+    duplicatePage,
+    movePage,
+    isDescendantOf,
     softDeletePage,
     restorePage,
     permanentlyDeletePage,

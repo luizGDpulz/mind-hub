@@ -89,17 +89,25 @@ describe('Gatekeeper UI — Validação Rigorosa mind-light-style (Veto ao Azul 
   });
 
   it('verifica presença dos componentes obrigatórios: Left Gutter Handles (+ / ⠿), Menus / e @, Database, Diagramas e Login Clean', () => {
-    const editorVue = fs.readFileSync(
-      path.join(currentDir, 'components', 'MindBlockEditor.vue'),
-      'utf-8',
-    );
-    expect(editorVue).toContain('data-testid="block-gutter-add-btn"');
-    expect(editorVue).toContain('data-testid="block-gutter-handle-btn"');
-    expect(editorVue).toContain('data-testid="block-move-up-btn"');
-    expect(editorVue).toContain('data-testid="block-move-down-btn"');
-    expect(editorVue).toContain('data-testid="slash-command-menu"');
-    expect(editorVue).toContain('data-testid="mention-menu-popover"');
-    expect(editorVue).not.toContain('editor-toolbar');
+    const appVue = fs.readFileSync(path.join(currentDir, 'App.vue'), 'utf-8');
+    expect(appVue).toContain("from '@mind-hub/editor'");
+    expect(appVue).toContain('<MindEditor');
+
+    const editorDir = path.resolve(currentDir, '../../../packages/editor/src/components');
+    const gutterVue = fs.readFileSync(path.join(editorDir, 'BlockGutter.vue'), 'utf-8');
+    expect(gutterVue).toContain('data-testid="block-gutter-add-btn"');
+    expect(gutterVue).toContain('data-testid="block-gutter-handle-btn"');
+    expect(gutterVue).toContain('data-testid="action-move-up"');
+    expect(gutterVue).toContain('data-testid="action-move-down"');
+
+    const slashVue = fs.readFileSync(path.join(editorDir, 'SlashMenu.vue'), 'utf-8');
+    expect(slashVue).toContain('data-testid="slash-command-menu"');
+
+    const mentionVue = fs.readFileSync(path.join(editorDir, 'PageMentionPopover.vue'), 'utf-8');
+    expect(mentionVue).toContain('data-testid="mention-menu-popover"');
+
+    const mindEditorVue = fs.readFileSync(path.join(editorDir, 'MindEditor.vue'), 'utf-8');
+    expect(mindEditorVue).not.toContain('editor-toolbar');
 
     const dbVue = fs.readFileSync(
       path.join(currentDir, 'components', 'DatabaseViewBlock.vue'),

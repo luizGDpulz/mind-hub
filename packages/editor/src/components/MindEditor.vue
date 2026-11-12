@@ -25,6 +25,8 @@ import {
   Workflow,
   Table as TableIcon,
   Minus,
+  LayoutGrid,
+  FilePlus,
 } from 'lucide-vue-next';
 
 import type { MindEditorProps, MindEditorEmits, SlashMenuItem, PageReference } from '../types.js';
@@ -203,7 +205,30 @@ const defaultSlashItems: SlashMenuItem[] = [
     keywords: ['divisor', 'linha', 'hr', 'separador'],
     action: (editor) => editor.chain().focus().setHorizontalRule().run(),
   },
+  {
+    id: 'database',
+    title: 'Banco de Dados',
+    description: 'Inserir visualização de tarefas em tabela e kanban',
+    category: 'advanced',
+    icon: markRaw(LayoutGrid),
+    keywords: ['banco', 'database', 'tarefas', 'kanban', 'tasks'],
+    action: () => emit('insertDatabaseBlock'),
+  },
+  {
+    id: 'subpage',
+    title: 'Subpágina',
+    description: 'Criar uma nova subpágina aninhada',
+    category: 'basic',
+    icon: markRaw(FilePlus),
+    keywords: ['subpagina', 'subpage', 'pagina', 'nota'],
+    action: () => emit('createSubpage'),
+  },
 ];
+
+const activeSlashItems = computed(() => [
+  ...defaultSlashItems,
+  ...(props.customSlashItems ?? []),
+]);
 
 const MermaidConfigured = MermaidNode.extend({
   addNodeView() {
@@ -258,7 +283,7 @@ const editor = useEditor({
       },
     }),
     SlashCommand.configure({
-      items: defaultSlashItems,
+      items: [...defaultSlashItems, ...(props.customSlashItems ?? [])],
       onOpen: (data) => {
         slashMenuState.value = {
           visible: true,
@@ -300,6 +325,7 @@ const editor = useEditor({
   ],
   onUpdate: ({ editor: ed }) => {
     emit('update:modelValue', ed.getHTML());
+    emit('update:json', ed.getJSON());
   },
 });
 
@@ -308,9 +334,13 @@ watch(
   () => props.modelValue,
   (val) => {
     if (!editor.value) return;
-    const current = editor.value.getHTML();
-    if (typeof val === 'string' && val !== current) {
+    if (typeof val === 'object' && val !== null) {
       editor.value.commands.setContent(val, false);
+    } else if (typeof val === 'string') {
+      const current = editor.value.getHTML();
+      if (val !== current) {
+        editor.value.commands.setContent(val, false);
+      }
     }
   }
 );
@@ -474,7 +504,7 @@ onBeforeUnmount(() => {
         :visible="slashMenuState.visible && !readOnly"
         :query="slashMenuState.query"
         :coords="slashMenuState.coords"
-        :items="defaultSlashItems"
+        :items="activeSlashItems"
         @select="handleSlashSelect"
         @close="closeSlashMenu"
       />

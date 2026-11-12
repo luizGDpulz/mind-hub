@@ -19,7 +19,7 @@
         Nenhuma página encontrada
       </div>
 
-      <div v-else class="suggest-items-list" data-testid="suggest-items-list">
+      <div v-else class="suggest-items-list" data-testid="mention-menu-popover">
         <div
           v-for="(page, idx) in filteredPagesList"
           :key="page.id"

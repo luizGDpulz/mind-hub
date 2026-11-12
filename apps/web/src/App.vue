@@ -486,10 +486,12 @@
             "
           />
 
-          <!-- Frontmatter Properties Header (collapsible, visual & raw YAML modes) -->
-          <FrontmatterHeader
+          <!-- MindEditor Notion-Like: Plug & Play Engine (@mind-hub/editor) -->
+          <MindEditor
             v-if="store.activePage"
-            :model-value="{
+            :key="store.activePage.id"
+            :model-value="store.activePage.contentJson || store.activePage.contentMarkdown"
+            :frontmatter="{
               title: store.activePage.title,
               tags: store.activePage.tags ?? [],
               status: 'ativo',
@@ -497,28 +499,25 @@
               updated: store.activePage.updatedAt,
             }"
             :read-only="store.editorReadMode"
-            @update:model-value="
+            :pages="mentionPageReferences"
+            @update:model-value="store.updateActivePageMarkdown"
+            @update:json="(doc) => store.updateActivePageContent(doc as any)"
+            @update:frontmatter="
               (meta) =>
                 store.activePage &&
                 store.updatePageMeta(store.activePage.id, {
                   tags: meta.tags,
                 })
             "
-          />
-
-          <!-- MindBlockEditor with Left Gutter (+ / ⠿), Slash (/) & Mention (@) -->
-          <MindBlockEditor
-            :key="store.activePage.id"
-            :model-value="store.activePage.contentJson"
-            :markdown-value="store.activePage.contentMarkdown"
-            :page-title="store.activePage.title"
-            :read-only-mode="store.editorReadMode"
-            :mention-pages="store.activePages"
-            @update:model-value="store.updateActivePageContent"
-            @update:markdown-value="store.updateActivePageMarkdown"
+            @select-page="
+              (pageId) => {
+                store.activeSurface = 'editor';
+                store.selectPage(pageId);
+              }
+            "
+            @create-subpage="handleAddSubpage"
             @insert-database-block="store.enableDatabaseBlockForActivePage()"
             @insert-diagram-block="(kind) => store.enableDiagramBlockForActivePage(kind)"
-            @create-subpage="handleAddSubpage"
           />
 
           <!-- Embedded Database Block: Table & Kanban Board (only when inserted on this page) -->
@@ -836,8 +835,7 @@ import {
 import type { RawMarkdownFileEntry } from '@mind-hub/shared';
 import { useMindStore } from './stores/mind-store.js';
 import PageTreeItem from './components/PageTreeItem.vue';
-import MindBlockEditor from './components/MindBlockEditor.vue';
-import { FrontmatterHeader } from '@mind-hub/editor';
+import { MindEditor, type PageReference } from '@mind-hub/editor';
 import DatabaseViewBlock from './components/DatabaseViewBlock.vue';
 import DiagramEmbedsBlock from './components/DiagramEmbedsBlock.vue';
 import CleanLoginView from './components/CleanLoginView.vue';
@@ -867,6 +865,17 @@ const showOverflowMenu = ref(false);
 const quickInsightText = ref('');
 const aiPromptInput = ref('');
 const replyBuffers = reactive<Record<string, string>>({});
+
+const mentionPageReferences = computed<PageReference[]>(() =>
+  store.activePages.map((p) => ({
+    id: p.id,
+    title: p.title,
+    slug: p.slug,
+    icon: p.icon || '📄',
+    summary: p.tags?.join(', '),
+    updatedAt: p.updatedAt,
+  })),
+);
 
 const actionMenuItems = computed<ActionMenuItem[]>(() => {
   const current = store.activePage;

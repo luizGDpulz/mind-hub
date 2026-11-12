@@ -4,6 +4,7 @@
     ref="menuRef"
     class="mind-slash-menu-shell"
     data-testid="slash-menu-shell"
+    data-component-testid="slash-command-menu"
     :style="{ top: `${top}px`, left: `${left}px` }"
     role="menu"
     aria-label="Slash commands"
@@ -27,7 +28,7 @@
       Nenhum bloco encontrado
     </div>
 
-    <div v-else class="slash-items-list" data-testid="slash-items-list">
+    <div v-else class="slash-items-list" data-testid="slash-command-menu">
       <div
         v-for="(item, idx) in filteredItems"
         :key="item.id"

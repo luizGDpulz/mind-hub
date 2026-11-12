@@ -47,11 +47,16 @@ export interface MindEditorProps {
   placeholder?: string;
   pages?: PageReference[];
   enableFrontmatterHeader?: boolean;
+  customSlashItems?: SlashMenuItem[];
 }
 
 export interface MindEditorEmits {
   (e: 'update:modelValue', value: string): void;
+  (e: 'update:json', value: JSONContent): void;
   (e: 'update:frontmatter', value: EditorFrontmatter): void;
   (e: 'selectPage', pageId: string): void;
+  (e: 'createSubpage'): void;
+  (e: 'insertDatabaseBlock'): void;
+  (e: 'insertDiagramBlock', kind: 'mermaid' | 'excalidraw' | 'drawio'): void;
   (e: 'save'): void;
 }

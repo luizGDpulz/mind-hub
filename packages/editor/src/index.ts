@@ -6,6 +6,7 @@ export { default as PageMentionPopover } from './components/PageMentionPopover.v
 export { default as MermaidBlockView } from './components/MermaidBlockView.vue';
 export { default as CalloutBlockView } from './components/CalloutBlockView.vue';
 export { default as BubbleFormattingMenu } from './components/BubbleFormattingMenu.vue';
+export { default as MindEditor } from './components/MindEditor.vue';
 export {
   GlobalDragHandle,
   GlobalDragHandleKey,

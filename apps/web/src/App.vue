@@ -486,6 +486,26 @@
             "
           />
 
+          <!-- Frontmatter Properties Header (collapsible, visual & raw YAML modes) -->
+          <FrontmatterHeader
+            v-if="store.activePage"
+            :model-value="{
+              title: store.activePage.title,
+              tags: store.activePage.tags ?? [],
+              status: 'ativo',
+              created: store.activePage.createdAt,
+              updated: store.activePage.updatedAt,
+            }"
+            :read-only="store.editorReadMode"
+            @update:model-value="
+              (meta) =>
+                store.activePage &&
+                store.updatePageMeta(store.activePage.id, {
+                  tags: meta.tags,
+                })
+            "
+          />
+
           <!-- MindBlockEditor with Left Gutter (+ / ⠿), Slash (/) & Mention (@) -->
           <MindBlockEditor
             :key="store.activePage.id"
@@ -817,6 +837,7 @@ import type { RawMarkdownFileEntry } from '@mind-hub/shared';
 import { useMindStore } from './stores/mind-store.js';
 import PageTreeItem from './components/PageTreeItem.vue';
 import MindBlockEditor from './components/MindBlockEditor.vue';
+import { FrontmatterHeader } from '@mind-hub/editor';
 import DatabaseViewBlock from './components/DatabaseViewBlock.vue';
 import DiagramEmbedsBlock from './components/DiagramEmbedsBlock.vue';
 import CleanLoginView from './components/CleanLoginView.vue';

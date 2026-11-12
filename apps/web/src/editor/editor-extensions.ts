@@ -9,6 +9,12 @@ import TableRow from '@tiptap/extension-table-row';
 import TableHeader from '@tiptap/extension-table-header';
 import TableCell from '@tiptap/extension-table-cell';
 import Underline from '@tiptap/extension-underline';
+import {
+  CalloutNode,
+  MermaidNode,
+  PageMention,
+  MarkdownShortcuts,
+} from '@mind-hub/editor';
 import type { TiptapDoc, TiptapNode } from '@mind-hub/shared';
 
 type Schema = ReturnType<typeof getSchema>;
@@ -49,6 +55,10 @@ export function createEditorExtensions(): AnyExtension[] {
     TableHeader,
     TableCell,
     Underline,
+    CalloutNode,
+    MermaidNode,
+    PageMention,
+    MarkdownShortcuts,
   ];
 }
 

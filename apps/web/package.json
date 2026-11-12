@@ -11,6 +11,7 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
+    "@mind-hub/editor": "workspace:*",
     "@mind-hub/shared": "workspace:*",
     "@quasar/extras": "^1.18.0",
     "@tiptap/extension-link": "^2.27.3",

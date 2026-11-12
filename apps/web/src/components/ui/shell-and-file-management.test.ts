@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import { mount } from '@vue/test-utils';
-import { nextTick } from 'vue';
 import PageTreeItem from '../PageTreeItem.vue';
 import MindMovePageModal from './MindMovePageModal.vue';
 import MindSettingsModal from './MindSettingsModal.vue';
@@ -103,7 +102,7 @@ describe('MindMovePageModal — Mover Páginas com Prevenção de Ciclos', () =>
       parentId: null,
       sortOrder: 1,
       contentMarkdown: '',
-      contentJson: {} as any,
+      contentJson: { type: 'doc', content: [] },
       isFavorite: false,
       isInbox: false,
       tags: [],
@@ -119,7 +118,7 @@ describe('MindMovePageModal — Mover Páginas com Prevenção de Ciclos', () =>
       parentId: 'root-1',
       sortOrder: 2,
       contentMarkdown: '',
-      contentJson: {} as any,
+      contentJson: { type: 'doc', content: [] },
       isFavorite: false,
       isInbox: false,
       tags: [],
@@ -135,7 +134,7 @@ describe('MindMovePageModal — Mover Páginas com Prevenção de Ciclos', () =>
       parentId: 'child-1',
       sortOrder: 3,
       contentMarkdown: '',
-      contentJson: {} as any,
+      contentJson: { type: 'doc', content: [] },
       isFavorite: false,
       isInbox: false,
       tags: [],
@@ -151,7 +150,7 @@ describe('MindMovePageModal — Mover Páginas com Prevenção de Ciclos', () =>
       parentId: null,
       sortOrder: 4,
       contentMarkdown: '',
-      contentJson: {} as any,
+      contentJson: { type: 'doc', content: [] },
       isFavorite: false,
       isInbox: false,
       tags: [],

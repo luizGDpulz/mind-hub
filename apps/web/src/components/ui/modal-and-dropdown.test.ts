@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import { mount } from '@vue/test-utils';
-import { nextTick } from 'vue';
 import MindModal from './MindModal.vue';
 import MindConfirmDialog from './MindConfirmDialog.vue';
 import MindDropdown from './MindDropdown.vue';

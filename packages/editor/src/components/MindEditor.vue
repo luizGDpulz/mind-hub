@@ -314,6 +314,9 @@ const CalloutConfigured = CalloutNode.extend({
   },
 });
 
+// Internal update tracker to prevent cursor jumping to start on keystrokes
+let isInternalUpdate = false;
+
 const editor = useEditor({
   editable: !props.readOnly,
   content: props.modelValue,
@@ -398,8 +401,18 @@ const editor = useEditor({
     MarkdownShortcuts,
   ],
   onUpdate: ({ editor: ed }) => {
+    isInternalUpdate = true;
     emit('update:modelValue', ed.getHTML());
     emit('update:json', ed.getJSON());
+    if (typeof window !== 'undefined' && window.requestAnimationFrame) {
+      window.requestAnimationFrame(() => {
+        isInternalUpdate = false;
+      });
+    } else {
+      setTimeout(() => {
+        isInternalUpdate = false;
+      }, 0);
+    }
   },
 });
 
@@ -408,7 +421,16 @@ watch(
   () => props.modelValue,
   (val) => {
     if (!editor.value) return;
+
+    // Never reset content or cursor position while user is actively typing or editing!
+    if (isInternalUpdate) return;
+    if (editor.value.isFocused) return;
+
     if (typeof val === 'object' && val !== null) {
+      const currentJson = editor.value.getJSON();
+      if (JSON.stringify(val) === JSON.stringify(currentJson)) {
+        return;
+      }
       editor.value.commands.setContent(val, false);
     } else if (typeof val === 'string') {
       const current = editor.value.getHTML();

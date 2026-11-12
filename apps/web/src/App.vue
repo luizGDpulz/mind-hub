@@ -500,7 +500,6 @@
             }"
             :read-only="store.editorReadMode"
             :pages="mentionPageReferences"
-            @update:model-value="store.updateActivePageMarkdown"
             @update:json="(doc) => store.updateActivePageContent(doc as any)"
             @update:frontmatter="
               (meta) =>

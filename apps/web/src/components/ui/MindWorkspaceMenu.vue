@@ -37,6 +37,16 @@
         <button
           type="button"
           class="workspace-action-item"
+          data-testid="workspace-import-btn"
+          @click="handleAction('import')"
+        >
+          <Package :size="15" class="action-icon" />
+          <span>Importar Second Brain</span>
+        </button>
+
+        <button
+          type="button"
+          class="workspace-action-item"
           data-testid="workspace-versions-btn"
           @click="handleAction('versions')"
         >
@@ -136,6 +146,7 @@
 import { computed } from 'vue';
 import {
   Settings,
+  Package,
   History,
   ExternalLink,
   UserPlus,
@@ -168,6 +179,7 @@ const props = withDefaults(
 const emit = defineEmits<{
   (e: 'update:modelValue', value: boolean): void;
   (e: 'open-settings'): void;
+  (e: 'open-import'): void;
   (e: 'open-versions'): void;
   (e: 'logout'): void;
 }>();
@@ -185,10 +197,12 @@ const popoverStyle = computed(() => {
   };
 });
 
-function handleAction(action: 'settings' | 'versions' | 'repo' | 'new-workspace' | 'logout'): void {
+function handleAction(action: 'settings' | 'import' | 'versions' | 'repo' | 'new-workspace' | 'logout'): void {
   emit('update:modelValue', false);
   if (action === 'settings') {
     emit('open-settings');
+  } else if (action === 'import') {
+    emit('open-import');
   } else if (action === 'versions') {
     emit('open-versions');
   } else if (action === 'repo') {

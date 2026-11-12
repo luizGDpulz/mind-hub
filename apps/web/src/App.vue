@@ -177,25 +177,6 @@
           <component :is="Settings" :size="15" class="nav-item-lucide" />
           <span>Configurações</span>
         </div>
-        <div
-          class="sidebar-nav-item"
-          data-testid="sidebar-trash-btn"
-          @click="isTrashModalOpen = true"
-        >
-          <component :is="Trash2" :size="15" class="nav-item-lucide" />
-          <span class="ellipsis col">Lixeira</span>
-          <span v-if="store.deletedPages.length > 0" class="sidebar-trash-badge">
-            {{ store.deletedPages.length }}
-          </span>
-        </div>
-        <div
-          class="sidebar-nav-item"
-          data-testid="sidebar-bulk-import-btn"
-          @click="store.isImportModalOpen = true"
-        >
-          <component :is="Package" :size="15" class="nav-item-lucide" />
-          <span>Importar Second Brain</span>
-        </div>
       </nav>
 
       <!-- Favorites Section (Issue #63) -->
@@ -683,6 +664,7 @@
       :bottom="56"
       :left="10"
       @open-settings="store.isMcpModalOpen = true"
+      @open-import="store.isImportModalOpen = true"
       @open-versions="isHelpVersionsMenuOpen = true"
       @logout="store.activeSurface = 'login'"
     />
@@ -837,7 +819,6 @@ import {
   Menu,
   MessageSquare,
   MoreHorizontal,
-  Package,
   PanelLeftClose,
   Plus,
   Search as SearchIcon,
@@ -1703,16 +1684,6 @@ function splitSnippetSegments(
   font-size: 10.5px;
   color: var(--mind-text-muted);
   line-height: 1.2;
-}
-
-.sidebar-trash-badge {
-  font-size: 11px;
-  font-weight: 600;
-  padding: 1px 6px;
-  background: var(--mind-bg-surface-subtle);
-  border: 1px solid var(--mind-border-subtle);
-  border-radius: 999px;
-  color: var(--mind-text-muted);
 }
 
 /* Drag Resizer on right edge of sidebar */

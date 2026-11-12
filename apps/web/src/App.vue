@@ -16,7 +16,7 @@
           <component :is="Menu" :size="16" />
         </button>
 
-        <!-- Center Page Breadcrumb (Starts cleanly without 'Mind Hub' text) -->
+        <!-- Center Page Breadcrumb with Favorite Toggle and Sync Indicator (Issue #67) -->
         <div
           v-if="store.activePage"
           class="topbar-breadcrumb gt-xs"
@@ -42,6 +42,27 @@
               <span>{{ crumb.title }}</span>
             </button>
           </template>
+
+          <!-- Topbar Favorite Star Toggle (Issue #67) -->
+          <button
+            type="button"
+            class="topbar-star-btn"
+            :class="{ 'is-favorite': store.activePage.isFavorite }"
+            :title="store.activePage.isFavorite ? 'Remover dos favoritos' : 'Adicionar aos favoritos'"
+            data-testid="topbar-favorite-star-btn"
+            @click.stop="store.toggleFavorite(store.activePage.id)"
+          >
+            <component :is="Star" :size="14" :fill="store.activePage.isFavorite ? '#e67700' : 'none'" />
+          </button>
+
+          <!-- Subtle Sync Indicator (Zero telemetry pollution, Issue #67) -->
+          <div
+            class="topbar-sync-indicator"
+            title="Vault sincronizado com o servidor"
+            data-testid="topbar-sync-indicator"
+          >
+            <span class="sync-dot" />
+          </div>
         </div>
 
         <q-space />
@@ -198,10 +219,54 @@
         </div>
       </nav>
 
-      <!-- Pages Section Header -->
+      <!-- Favorites Section (Issue #63) -->
+      <div v-if="store.favoritePages.length > 0" class="sidebar-section-container" data-testid="sidebar-favorites-section">
+        <div class="pages-section-header" @click="isFavoritesCollapsed = !isFavoritesCollapsed">
+          <span class="sidebar-section-label">Favoritos ({{ store.favoritePages.length }})</span>
+          <div class="pages-section-actions">
+            <button
+              type="button"
+              class="sidebar-mini-btn"
+              :title="isFavoritesCollapsed ? 'Expandir favoritos' : 'Recolher favoritos'"
+              data-testid="toggle-favorites-collapse-btn"
+              @click.stop="isFavoritesCollapsed = !isFavoritesCollapsed"
+            >
+              <component :is="isFavoritesCollapsed ? ChevronRight : ChevronDown" :size="12" />
+            </button>
+          </div>
+        </div>
+
+        <div v-if="!isFavoritesCollapsed" class="favorites-list" data-testid="sidebar-favorites-list">
+          <div
+            v-for="fav in store.favoritePages"
+            :key="fav.id"
+            class="sidebar-fav-item"
+            :class="{ 'is-active': store.activePageId === fav.id }"
+            data-testid="sidebar-fav-item"
+            @click="
+              store.activeSurface = 'editor';
+              store.selectPage(fav.id);
+            "
+          >
+            <span class="fav-icon">{{ fav.icon || '📄' }}</span>
+            <span class="fav-title">{{ fav.title }}</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Pages Section Header with Expand/Collapse All and Active Counter (Issue #63) -->
       <div class="pages-section-header">
-        <span class="sidebar-section-label">Pages</span>
+        <span class="sidebar-section-label">Pages ({{ store.activePages.length }})</span>
         <div class="pages-section-actions">
+          <button
+            type="button"
+            class="sidebar-mini-btn"
+            :title="treeForceExpanded ? 'Recolher todas as pastas' : 'Expandir todas as pastas'"
+            data-testid="toggle-tree-expand-all-btn"
+            @click="toggleTreeExpandAll"
+          >
+            <component :is="treeForceExpanded ? ChevronsDownUp : ChevronsUpDown" :size="13" />
+          </button>
           <button
             type="button"
             class="sidebar-mini-btn"
@@ -215,13 +280,15 @@
         </div>
       </div>
 
-      <!-- Hierarchical Page Tree (Scrollable body) -->
+      <!-- Hierarchical Page Tree (Scrollable body) with Context Menu & Inline Rename -->
       <div class="col scroll sidebar-tree-container">
         <PageTreeItem
           v-for="node in store.pageTree"
           :key="node.id"
           :node="node"
           :active-page-id="store.activePageId"
+          :renaming-id="renamingPageId"
+          :force-expanded="treeForceExpanded"
           :depth="0"
           @select="
             (id) => {
@@ -230,12 +297,9 @@
             }
           "
           @create-child="handleCreateChildPage"
-          @more-options="
-            (id) => {
-              store.selectPage(id);
-              showOverflowMenu = true;
-            }
-          "
+          @contextmenu="handleTreeContextMenu"
+          @more-options="(id, ev) => ev && handleTreeContextMenu(ev, store.pages.find((p) => p.id === id) || node)"
+          @rename-save="handleRenameSave"
         />
       </div>
 
@@ -564,37 +628,46 @@
       </q-page>
     </q-page-container>
 
-    <!-- Quick Insight Modal -->
-    <q-dialog v-model="store.isQuickInsightOpen">
-      <div class="mind-search-modal" style="width: 460px; max-width: 92vw; padding: 20px">
-        <div class="modal-clean-title">Quick capture to Inbox</div>
-        <input
-          v-model="quickInsightText"
-          type="text"
-          placeholder="Write a quick note or task..."
-          class="clean-modal-input q-my-md"
-          data-testid="quick-insight-input"
-          @keyup.enter="handleSaveQuickInsight"
-        />
-        <div class="modal-actions-end">
-          <button
-            type="button"
-            class="topbar-text-btn"
-            @click="store.isQuickInsightOpen = false"
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            class="primary-blue-btn"
-            data-testid="quick-insight-submit"
-            @click="handleSaveQuickInsight"
-          >
-            Save to Inbox
-          </button>
-        </div>
-      </div>
-    </q-dialog>
+    <!-- Quick Insight / Capture Modal (Issue #67) -->
+    <MindQuickCaptureModal
+      v-model="store.isQuickInsightOpen"
+      @submit="handleSaveQuickInsight"
+    />
+
+    <!-- Tree Node Context Menu (Issue #61) -->
+    <MindTreeContextMenu
+      v-if="treeContextMenuTarget"
+      v-model="isTreeContextMenuOpen"
+      :page="treeContextMenuTarget"
+      :x="treeContextMenuCoords.x"
+      :y="treeContextMenuCoords.y"
+      @action="handleTreeContextMenuAction"
+      @close="isTreeContextMenuOpen = false"
+    />
+
+    <!-- Move Page Modal (Issue #62) -->
+    <MindMovePageModal
+      v-if="pageIdToMove"
+      v-model="isMovePageModalOpen"
+      :page-id="pageIdToMove"
+      :pages="store.pages"
+      @move="handleConfirmMovePage"
+      @close="isMovePageModalOpen = false"
+    />
+
+    <!-- Space Settings Global Modal in Tabs (Issue #65, #66) -->
+    <MindSettingsModal
+      v-model="store.isMcpModalOpen"
+      :workspace-name="'Mind de Luiz Gustavo Dias Pulz'"
+      :backend-connected="store.backendConnected"
+      :active-pages-count="store.activePages.length"
+      :deleted-pages-count="store.deletedPages.length"
+      :database-tasks-count="store.databaseRows.length"
+      @sync-server-vault="handleSyncServerVault"
+      @export-markdown="triggerGitExport"
+      @empty-trash="store.emptyTrash"
+      @close="store.isMcpModalOpen = false"
+    />
 
     <!-- 2-Column Split Search Modal with Instant Preview (Issue #32) -->
     <MindSearchModal
@@ -677,27 +750,7 @@
       @select="(icon) => store.activePage && store.updatePageMeta(store.activePage.id, { icon })"
     />
 
-    <!-- Space Settings & Git Markdown Export Modal -->
-    <q-dialog v-model="store.isMcpModalOpen">
-      <div class="mind-search-modal" style="width: 560px; max-width: 95vw; padding: 20px">
-        <div class="modal-clean-title q-mb-xs">Space Settings, Native MCP &amp; Git Export</div>
-        <div class="comment-body-text q-mb-md">
-          JSON-RPC 2.0 endpoint available at <code>POST /mcp</code> (search_pages, get_page, create_page, update_page, list_database_tasks, create_database_task, add_page_comment, import_markdown_vault).
-        </div>
-        <div v-if="store.lastSyncSnapshot" class="q-mb-md">
-          <pre class="exported-md-preview">{{ store.lastSyncSnapshot.files[0]?.markdown }}</pre>
-        </div>
-        <div class="modal-actions-end">
-          <button
-            type="button"
-            class="topbar-text-btn"
-            @click="store.isMcpModalOpen = false"
-          >
-            Close
-          </button>
-        </div>
-      </div>
-    </q-dialog>
+
 
     <!-- Bulk Second Brain / Markdown Importer Modal (M8) -->
     <q-dialog v-model="store.isImportModalOpen">
@@ -789,6 +842,9 @@ import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue';
 import { Dark } from 'quasar';
 import {
   ChevronDown,
+  ChevronRight,
+  ChevronsDownUp,
+  ChevronsUpDown,
   Copy,
   CopyPlus,
   Download,
@@ -810,6 +866,7 @@ import {
   Share2,
   Sparkles,
   SquarePen,
+  Star,
   Trash2,
   UserCheck,
 } from 'lucide-vue-next';
@@ -831,7 +888,11 @@ import MindWorkspaceMenu from './components/ui/MindWorkspaceMenu.vue';
 import MindSidebarAppsMenu from './components/ui/MindSidebarAppsMenu.vue';
 import MindHelpVersionsMenu from './components/ui/MindHelpVersionsMenu.vue';
 import MindVersionHistoryModal from './components/ui/MindVersionHistoryModal.vue';
-import type { ActionMenuItem, ActionMenuPageMeta } from './components/ui/types.js';
+import MindTreeContextMenu from './components/ui/MindTreeContextMenu.vue';
+import MindMovePageModal from './components/ui/MindMovePageModal.vue';
+import MindSettingsModal from './components/ui/MindSettingsModal.vue';
+import MindQuickCaptureModal from './components/ui/MindQuickCaptureModal.vue';
+import type { ActionMenuItem, ActionMenuPageMeta, TreeContextMenuActionId } from './components/ui/types.js';
 
 const store = useMindStore();
 const leftDrawerOpen = ref(true);
@@ -845,6 +906,77 @@ const isResizingSidebar = ref(false);
 const showOverflowMenu = ref(false);
 const quickInsightText = ref('');
 const aiPromptInput = ref('');
+const replyBuffers = reactive<Record<string, string>>({});
+
+const isFavoritesCollapsed = ref(false);
+const treeForceExpanded = ref<boolean | null>(null);
+const renamingPageId = ref<string>('');
+const isTreeContextMenuOpen = ref(false);
+const treeContextMenuTarget = ref<{ id: string; title: string; icon?: string; isFavorite?: boolean } | null>(null);
+const treeContextMenuCoords = reactive({ x: 0, y: 0 });
+
+const isMovePageModalOpen = ref(false);
+const pageIdToMove = ref<string>('');
+
+function toggleTreeExpandAll(): void {
+  treeForceExpanded.value = treeForceExpanded.value === true ? false : true;
+}
+
+function handleTreeContextMenu(event: MouseEvent, node: any): void {
+  treeContextMenuTarget.value = {
+    id: node.id,
+    title: node.title,
+    icon: node.icon,
+    isFavorite: Boolean(node.isFavorite),
+  };
+  treeContextMenuCoords.x = event.clientX;
+  treeContextMenuCoords.y = event.clientY;
+  isTreeContextMenuOpen.value = true;
+}
+
+function handleRenameSave(id: string, newTitle: string): void {
+  if (id && newTitle) {
+    void store.renamePage(id, newTitle);
+  }
+  renamingPageId.value = '';
+}
+
+async function handleTreeContextMenuAction(actionId: TreeContextMenuActionId, pageId: string): Promise<void> {
+  switch (actionId) {
+    case 'rename':
+      renamingPageId.value = pageId;
+      break;
+    case 'duplicate':
+      await store.duplicatePage(pageId);
+      break;
+    case 'create-subpage':
+      await handleCreateChildPage(pageId);
+      break;
+    case 'move':
+      pageIdToMove.value = pageId;
+      isMovePageModalOpen.value = true;
+      break;
+    case 'toggle-favorite':
+      await store.toggleFavorite(pageId);
+      break;
+    case 'copy-link': {
+      const page = store.pages.find((p) => p.id === pageId);
+      if (page) {
+        const url = `${window.location.origin}/#${page.slug}`;
+        await navigator.clipboard.writeText(url);
+      }
+      break;
+    }
+    case 'delete':
+      await store.softDeletePage(pageId);
+      break;
+  }
+}
+
+async function handleConfirmMovePage(pageId: string, targetParentId: string | null): Promise<void> {
+  await store.movePage(pageId, targetParentId);
+  isMovePageModalOpen.value = false;
+}
 const replyBuffers = reactive<Record<string, string>>({});
 
 const actionMenuItems = computed<ActionMenuItem[]>(() => {
@@ -1123,10 +1255,10 @@ function handleCreateChildPage(parentId: string): void {
   });
 }
 
-function handleSaveQuickInsight(): void {
-  const text = quickInsightText.value.trim();
-  if (!text) return;
-  void store.submitQuickInsight(text, ['quick-note']).then((inbox) => {
+function handleSaveQuickInsight(text?: string, tags?: string[]): void {
+  const content = typeof text === 'string' ? text.trim() : quickInsightText.value.trim();
+  if (!content) return;
+  void store.submitQuickInsight(content, tags || ['quick-note']).then((inbox) => {
     quickInsightText.value = '';
     store.isQuickInsightOpen = false;
     store.selectPage(inbox.id);
@@ -1235,6 +1367,95 @@ function splitSnippetSegments(
 
 .topbar-breadcrumb.no-sidebar-offset {
   margin-left: 6px;
+}
+
+/* Topbar Star & Sync Indicator (Issue #67) */
+.topbar-star-btn {
+  border: none;
+  background: transparent;
+  padding: 4px;
+  margin-left: 4px;
+  border-radius: 4px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--mind-text-muted);
+  transition: all 0.12s ease;
+}
+
+.topbar-star-btn:hover {
+  background: var(--mind-bg-hover);
+  color: #e67700;
+}
+
+.topbar-star-btn.is-favorite {
+  color: #e67700;
+}
+
+.topbar-sync-indicator {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 6px;
+  margin-left: 2px;
+  cursor: default;
+}
+
+.sync-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background-color: #2b8a3e;
+  box-shadow: 0 0 0 2px #ebfbee;
+}
+
+/* Favorites Section (Issue #63) */
+.sidebar-section-container {
+  display: flex;
+  flex-direction: column;
+}
+
+.favorites-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 2px 8px 6px 8px;
+}
+
+.sidebar-fav-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 13px;
+  color: var(--mind-text-secondary);
+  cursor: pointer;
+  transition: background-color 0.1s ease;
+}
+
+.sidebar-fav-item:hover {
+  background: var(--mind-bg-hover);
+  color: var(--mind-text-primary);
+}
+
+.sidebar-fav-item.is-active {
+  background: var(--mind-bg-active);
+  color: var(--mind-text-primary);
+  font-weight: 500;
+}
+
+.fav-icon {
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+.fav-title {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
 }
 
 .crumb-sep {

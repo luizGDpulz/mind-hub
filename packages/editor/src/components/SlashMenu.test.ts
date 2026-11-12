@@ -1,8 +1,11 @@
 import { describe, it, expect } from 'vitest';
 import { mount } from '@vue/test-utils';
-import { markRaw } from 'vue';
+import { defineComponent, type Component } from 'vue';
 import SlashMenu from './SlashMenu.vue';
 import type { SlashMenuItem } from '../types.js';
+
+const DummyIconT: Component = defineComponent({ template: '<div>T</div>' });
+const DummyIconM: Component = defineComponent({ template: '<div>M</div>' });
 
 describe('SlashMenu.vue', () => {
   const dummyItems: SlashMenuItem[] = [
@@ -11,7 +14,7 @@ describe('SlashMenu.vue', () => {
       title: 'Texto',
       description: 'Parágrafo de texto puro',
       category: 'basic',
-      icon: markRaw({ template: '<div>T</div>' }) as any,
+      icon: DummyIconT,
       keywords: ['paragraph'],
       action: () => {},
     },
@@ -20,7 +23,7 @@ describe('SlashMenu.vue', () => {
       title: 'Diagrama Mermaid',
       description: 'Diagrama interativo SVG',
       category: 'media',
-      icon: markRaw({ template: '<div>M</div>' }) as any,
+      icon: DummyIconM,
       keywords: ['flowchart'],
       action: () => {},
     },

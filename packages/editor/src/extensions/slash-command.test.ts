@@ -1,6 +1,9 @@
 import { describe, it, expect } from 'vitest';
+import { defineComponent, type Component } from 'vue';
 import { SlashCommand, filterSlashItems } from './slash-command.js';
 import type { SlashMenuItem } from '../types.js';
+
+const DummyIcon: Component = defineComponent({ template: '<div>icon</div>' });
 
 describe('SlashCommand Extension & Filter', () => {
   const dummyItems: SlashMenuItem[] = [
@@ -9,7 +12,7 @@ describe('SlashCommand Extension & Filter', () => {
       title: 'Título 1',
       description: 'Cabeçalho de nível 1',
       category: 'basic',
-      icon: {} as any,
+      icon: DummyIcon,
       keywords: ['heading', 'header', 'h1'],
       action: () => {},
     },
@@ -18,7 +21,7 @@ describe('SlashCommand Extension & Filter', () => {
       title: 'Diagrama Mermaid',
       description: 'Inserir fluxograma ou diagrama SVG',
       category: 'media',
-      icon: {} as any,
+      icon: DummyIcon,
       keywords: ['flowchart', 'graph', 'sequence'],
       action: () => {},
     },
@@ -27,7 +30,7 @@ describe('SlashCommand Extension & Filter', () => {
       title: 'Callout',
       description: 'Caixa de destaque com ícone',
       category: 'highlight',
-      icon: {} as any,
+      icon: DummyIcon,
       keywords: ['aviso', 'dica', 'alert'],
       action: () => {},
     },

@@ -21,7 +21,7 @@ export interface PageReference {
   updatedAt?: string;
 }
 
-export type SlashMenuCategory = 'basic' | 'media' | 'highlight' | 'advanced';
+export type SlashMenuCategory = 'suggestions' | 'basic' | 'media' | 'highlight' | 'advanced';
 
 export type CalloutType = 'note' | 'tip' | 'important' | 'warning' | 'caution';
 
@@ -33,7 +33,10 @@ export interface CalloutAttributes {
 export interface SlashMenuItem {
   id: string;
   title: string;
-  description: string;
+  description?: string;
+  subtitle?: string;
+  badge?: string;
+  shortcut?: string;
   category: SlashMenuCategory;
   icon: Component;
   keywords?: string[];
@@ -58,5 +61,6 @@ export interface MindEditorEmits {
   (e: 'createSubpage'): void;
   (e: 'insertDatabaseBlock'): void;
   (e: 'insertDiagramBlock', kind: 'mermaid' | 'excalidraw' | 'drawio'): void;
+  (e: 'generateAiNotes'): void;
   (e: 'save'): void;
 }

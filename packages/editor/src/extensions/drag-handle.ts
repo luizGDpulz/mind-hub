@@ -32,7 +32,17 @@ export function findBlockDOMAtCoords(
   extraSelectors: string[] = []
 ): Element | null {
   const allSelectors = [...DEFAULT_BLOCK_SELECTORS, ...extraSelectors].join(', ');
-  const elements = document.elementsFromPoint(coords.x, coords.y);
+
+  // If the cursor is in the left margin / gutter zone (within 120px to the left of the editor),
+  // sample horizontally inside the editor (+ 24px) at the same vertical coordinate (coords.y)
+  // so the block remains detected even while moving towards and hovering the handle buttons!
+  const viewRect = view.dom.getBoundingClientRect();
+  const sampleX =
+    coords.x < viewRect.left + 10 && coords.x >= viewRect.left - 120
+      ? viewRect.left + 24
+      : coords.x;
+
+  const elements = document.elementsFromPoint(sampleX, coords.y);
 
   for (const elem of elements) {
     if (elem.closest('.ProseMirror') !== view.dom) continue;
@@ -140,7 +150,29 @@ export const GlobalDragHandle = Extension.create<DragHandleOptions>({
 
               return false;
             },
-            mouseleave: () => {
+            mouseleave: (view, event) => {
+              const mouseEvent = event as MouseEvent;
+              const viewRect = view.dom.getBoundingClientRect();
+
+              // If moving into the left margin zone where the gutter lives, preserve it!
+              if (
+                mouseEvent.clientX >= viewRect.left - 120 &&
+                mouseEvent.clientX <= viewRect.left + 20 &&
+                mouseEvent.clientY >= viewRect.top &&
+                mouseEvent.clientY <= viewRect.bottom
+              ) {
+                return false;
+              }
+
+              const related = mouseEvent.relatedTarget as HTMLElement | null;
+              if (
+                related &&
+                (view.dom.contains(related) ||
+                  related.closest('.mind-block-gutter-shell') ||
+                  related.closest('.mind-editor-canvas-container'))
+              ) {
+                return false;
+              }
               if (this.options.onPositionChange) {
                 this.options.onPositionChange(null);
               }

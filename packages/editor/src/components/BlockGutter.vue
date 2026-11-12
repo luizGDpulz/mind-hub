@@ -3,7 +3,9 @@
     v-if="visible"
     class="mind-block-gutter-shell"
     data-testid="block-gutter-shell"
-    :style="{ top: `${top}px`, left: `${left}px` }"
+    :style="{ top: `${top}px` }"
+    @mouseenter="handleShellMouseEnter"
+    @mouseleave="handleShellMouseLeave"
   >
     <!-- Add Block Below Button (+) -->
     <button
@@ -30,7 +32,7 @@
         title="Arraste para mover / Clique para menu"
         aria-label="Drag block or open menu"
         data-testid="block-gutter-handle-btn"
-        @click="showMenu = !showMenu"
+        @click="toggleMenu"
         @dragstart="emit('dragStart')"
         @dragend="emit('dragEnd')"
       >
@@ -218,18 +220,35 @@ const emit = defineEmits<{
   (e: 'dragEnd'): void;
   (e: 'action', action: 'moveUp' | 'moveDown' | 'duplicate' | 'delete'): void;
   (e: 'turnInto', type: string): void;
+  (e: 'hover', isHovered: boolean): void;
+  (e: 'menuToggle', isOpen: boolean): void;
 }>();
 
 const isGripHovered = ref(false);
 const showMenu = ref(false);
 
+function handleShellMouseEnter() {
+  emit('hover', true);
+}
+
+function handleShellMouseLeave() {
+  emit('hover', false);
+}
+
+function toggleMenu() {
+  showMenu.value = !showMenu.value;
+  emit('menuToggle', showMenu.value);
+}
+
 function handleAction(action: 'moveUp' | 'moveDown' | 'duplicate' | 'delete') {
   showMenu.value = false;
+  emit('menuToggle', false);
   emit('action', action);
 }
 
 function handleTurnInto(type: string) {
   showMenu.value = false;
+  emit('menuToggle', false);
   emit('turnInto', type);
 }
 </script>
@@ -237,12 +256,13 @@ function handleTurnInto(type: string) {
 <style scoped>
 .mind-block-gutter-shell {
   position: absolute;
+  left: -48px;
   display: flex;
   align-items: center;
   gap: 2px;
   z-index: 50;
-  transform: translateX(-100%);
-  padding-right: 6px;
+  padding-right: 18px;
+  margin-right: -18px;
   user-select: none;
 }
 

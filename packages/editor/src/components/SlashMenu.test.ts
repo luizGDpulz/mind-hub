@@ -52,18 +52,20 @@ describe('SlashMenu.vue', () => {
   it('navigates with keyboard and emits select on Enter', async () => {
     const wrapper = mount(SlashMenu, {
       props: { visible: true, items: dummyItems, query: '' },
+      attachTo: document.body,
     });
 
-    const input = wrapper.find('[data-testid="slash-search-input"]');
     // Arrow down selects second item
-    await input.trigger('keydown', { key: 'ArrowDown' });
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
     await wrapper.vm.$nextTick();
 
     expect(wrapper.findAll('[data-testid="slash-item"]')[1]!.classes()).toContain('is-selected');
 
     // Enter executes the selected item
-    await input.trigger('keydown', { key: 'Enter' });
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
     expect(wrapper.emitted('select')).toBeTruthy();
     expect(wrapper.emitted('select')![0]![0]).toEqual(dummyItems[1]);
+
+    wrapper.unmount();
   });
 });

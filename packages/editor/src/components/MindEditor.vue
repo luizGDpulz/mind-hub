@@ -17,6 +17,7 @@ import {
   Heading1,
   Heading2,
   Heading3,
+  Heading4,
   List,
   ListTodo,
   Quote,
@@ -27,6 +28,8 @@ import {
   Minus,
   LayoutGrid,
   FilePlus,
+  Sparkles,
+  CodeXml,
 } from 'lucide-vue-next';
 
 import type { MindEditorProps, MindEditorEmits, SlashMenuItem, PageReference } from '../types.js';
@@ -67,6 +70,31 @@ const gutterState = ref<{
   nodePos: 0,
 });
 
+const isGutterHovered = ref(false);
+const isGutterMenuOpen = ref(false);
+
+function handleGutterHover(hovered: boolean) {
+  isGutterHovered.value = hovered;
+}
+
+function handleGutterMenuToggle(isOpen: boolean) {
+  isGutterMenuOpen.value = isOpen;
+}
+
+function handleCanvasMouseLeave(event: MouseEvent) {
+  const related = event.relatedTarget as HTMLElement | null;
+  if (
+    related &&
+    (related.closest('.mind-block-gutter-shell') ||
+      related.closest('.mind-editor-canvas-container'))
+  ) {
+    return;
+  }
+  if (!isGutterHovered.value && !isGutterMenuOpen.value) {
+    gutterState.value.visible = false;
+  }
+}
+
 // Slash Menu State
 const slashMenuState = ref<{
   visible: boolean;
@@ -93,8 +121,32 @@ const pageMentionState = ref<{
   range: { from: 0, to: 0 },
 });
 
-// Default Slash Menu Items
+// Default Slash Menu Items matching Docmost & Notion design
 const defaultSlashItems: SlashMenuItem[] = [
+  // Sugestões
+  {
+    id: 'ai-notes',
+    title: 'Anotações IA',
+    description: 'Gerar notas inteligentes ou transcrição',
+    category: 'suggestions',
+    icon: markRaw(Sparkles),
+    keywords: ['ia', 'ai', 'anotacoes', 'resumo', 'smart'],
+    action: () => emit('generateAiNotes'),
+  },
+  {
+    id: 'html-embed',
+    title: 'HTML',
+    subtitle: 'Integrações',
+    badge: 'Novo',
+    description: 'Inserir widget HTML ou integração externa',
+    category: 'suggestions',
+    icon: markRaw(CodeXml),
+    keywords: ['html', 'embed', 'integracao', 'iframe', 'widget'],
+    action: (editor) =>
+      editor.chain().focus().insertContent({ type: 'codeBlock', attrs: { language: 'html' } }).run(),
+  },
+
+  // Blocos básicos
   {
     id: 'paragraph',
     title: 'Texto',
@@ -107,6 +159,7 @@ const defaultSlashItems: SlashMenuItem[] = [
   {
     id: 'h1',
     title: 'Título 1',
+    shortcut: '#',
     description: 'Título de seção principal',
     category: 'basic',
     icon: markRaw(Heading1),
@@ -116,6 +169,7 @@ const defaultSlashItems: SlashMenuItem[] = [
   {
     id: 'h2',
     title: 'Título 2',
+    shortcut: '##',
     description: 'Subtítulo de seção',
     category: 'basic',
     icon: markRaw(Heading2),
@@ -125,6 +179,7 @@ const defaultSlashItems: SlashMenuItem[] = [
   {
     id: 'h3',
     title: 'Título 3',
+    shortcut: '###',
     description: 'Subtítulo menor',
     category: 'basic',
     icon: markRaw(Heading3),
@@ -132,8 +187,19 @@ const defaultSlashItems: SlashMenuItem[] = [
     action: (editor) => editor.chain().focus().toggleHeading({ level: 3 }).run(),
   },
   {
+    id: 'h4',
+    title: 'Título 4',
+    shortcut: '####',
+    description: 'Subtítulo nível 4',
+    category: 'basic',
+    icon: markRaw(Heading4),
+    keywords: ['h4', 'heading'],
+    action: (editor) => editor.chain().focus().toggleHeading({ level: 4 }).run(),
+  },
+  {
     id: 'bullet-list',
     title: 'Lista com marcadores',
+    shortcut: '-',
     description: 'Lista com bullets simples',
     category: 'basic',
     icon: markRaw(List),
@@ -143,6 +209,7 @@ const defaultSlashItems: SlashMenuItem[] = [
   {
     id: 'task-list',
     title: 'Lista de tarefas',
+    shortcut: '[]',
     description: 'Checklist interativo com caixas de seleção',
     category: 'basic',
     icon: markRaw(ListTodo),
@@ -152,12 +219,25 @@ const defaultSlashItems: SlashMenuItem[] = [
   {
     id: 'blockquote',
     title: 'Citação',
+    shortcut: '>',
     description: 'Destacar uma citação em bloco',
     category: 'basic',
     icon: markRaw(Quote),
     keywords: ['citacao', 'quote'],
     action: (editor) => editor.chain().focus().toggleBlockquote().run(),
   },
+  {
+    id: 'divider',
+    title: 'Divisor',
+    shortcut: '---',
+    description: 'Linha horizontal divisória',
+    category: 'basic',
+    icon: markRaw(Minus),
+    keywords: ['divisor', 'linha', 'hr', 'separador'],
+    action: (editor) => editor.chain().focus().setHorizontalRule().run(),
+  },
+
+  // Mídia e Avançado
   {
     id: 'callout',
     title: 'Destaque / Callout',
@@ -166,15 +246,6 @@ const defaultSlashItems: SlashMenuItem[] = [
     icon: markRaw(AlertCircle),
     keywords: ['callout', 'nota', 'dica', 'alerta', 'aviso'],
     action: (editor) => editor.chain().focus().setCallout().run(),
-  },
-  {
-    id: 'code-block',
-    title: 'Bloco de código',
-    description: 'Trecho de código com formatação monoespaçada',
-    category: 'advanced',
-    icon: markRaw(Code),
-    keywords: ['codigo', 'code', 'snippet'],
-    action: (editor) => editor.chain().focus().toggleCodeBlock().run(),
   },
   {
     id: 'mermaid',
@@ -187,6 +258,16 @@ const defaultSlashItems: SlashMenuItem[] = [
       editor.chain().focus().insertContent({ type: 'mermaid' }).run(),
   },
   {
+    id: 'code-block',
+    title: 'Bloco de código',
+    shortcut: '```',
+    description: 'Trecho de código com formatação monoespaçada',
+    category: 'advanced',
+    icon: markRaw(Code),
+    keywords: ['codigo', 'code', 'snippet'],
+    action: (editor) => editor.chain().focus().toggleCodeBlock().run(),
+  },
+  {
     id: 'table',
     title: 'Tabela',
     description: 'Tabela simples com linhas e colunas',
@@ -195,15 +276,6 @@ const defaultSlashItems: SlashMenuItem[] = [
     keywords: ['tabela', 'table', 'grid'],
     action: (editor) =>
       editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run(),
-  },
-  {
-    id: 'divider',
-    title: 'Divisor',
-    description: 'Linha horizontal divisória',
-    category: 'basic',
-    icon: markRaw(Minus),
-    keywords: ['divisor', 'linha', 'hr', 'separador'],
-    action: (editor) => editor.chain().focus().setHorizontalRule().run(),
   },
   {
     id: 'database',
@@ -218,7 +290,7 @@ const defaultSlashItems: SlashMenuItem[] = [
     id: 'subpage',
     title: 'Subpágina',
     description: 'Criar uma nova subpágina aninhada',
-    category: 'basic',
+    category: 'advanced',
     icon: markRaw(FilePlus),
     keywords: ['subpagina', 'subpage', 'pagina', 'nota'],
     action: () => emit('createSubpage'),
@@ -247,7 +319,7 @@ const editor = useEditor({
   content: props.modelValue,
   extensions: [
     StarterKit.configure({
-      heading: { levels: [1, 2, 3] },
+      heading: { levels: [1, 2, 3, 4] },
     }),
     TaskList,
     TaskItem.configure({
@@ -272,7 +344,9 @@ const editor = useEditor({
     GlobalDragHandle.configure({
       onPositionChange: (pos) => {
         if (!pos) {
-          gutterState.value.visible = false;
+          if (!isGutterHovered.value && !isGutterMenuOpen.value) {
+            gutterState.value.visible = false;
+          }
           return;
         }
         gutterState.value = {
@@ -406,6 +480,7 @@ function handleGutterTurnInto(type: string): void {
   if (type === 'h1') editor.value.chain().focus().toggleHeading({ level: 1 }).run();
   else if (type === 'h2') editor.value.chain().focus().toggleHeading({ level: 2 }).run();
   else if (type === 'h3') editor.value.chain().focus().toggleHeading({ level: 3 }).run();
+  else if (type === 'h4') editor.value.chain().focus().toggleHeading({ level: 4 }).run();
   else if (type === 'bulletList') editor.value.chain().focus().toggleBulletList().run();
   else if (type === 'taskList') editor.value.chain().focus().toggleTaskList().run();
   else if (type === 'callout') editor.value.chain().focus().setCallout().run();
@@ -480,6 +555,7 @@ onBeforeUnmount(() => {
     <div
       class="mind-editor-canvas-container"
       :class="{ 'is-readonly': readOnly }"
+      @mouseleave="handleCanvasMouseLeave"
     >
       <!-- Block Gutter (+ and ⠿) on Left Margin -->
       <BlockGutter
@@ -491,6 +567,8 @@ onBeforeUnmount(() => {
         @add-block="handleAddBlockBelow"
         @action="handleGutterAction"
         @turn-into="handleGutterTurnInto"
+        @hover="handleGutterHover"
+        @menu-toggle="handleGutterMenuToggle"
       />
 
       <!-- Bubble Formatting Menu Inline on Text Selection -->
@@ -502,8 +580,9 @@ onBeforeUnmount(() => {
       <!-- Slash Command Menu Popover -->
       <SlashMenu
         :visible="slashMenuState.visible && !readOnly"
+        :top="slashMenuState.coords.top"
+        :left="slashMenuState.coords.left"
         :query="slashMenuState.query"
-        :coords="slashMenuState.coords"
         :items="activeSlashItems"
         @select="handleSlashSelect"
         @close="closeSlashMenu"
@@ -585,6 +664,22 @@ onBeforeUnmount(() => {
   font-weight: 600;
   color: #111827;
   margin: 16px 0 4px 0;
+}
+
+:deep(.ProseMirror h4) {
+  font-size: 16px;
+  font-weight: 600;
+  color: #111827;
+  margin: 14px 0 4px 0;
+}
+
+:deep(.slash-ghost-hint) {
+  color: #787774;
+  pointer-events: none;
+  user-select: none;
+  margin-left: 2px;
+  font-style: normal;
+  font-weight: 400;
 }
 
 :deep(.ProseMirror blockquote) {

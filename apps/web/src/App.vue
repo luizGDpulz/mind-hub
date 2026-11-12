@@ -977,7 +977,6 @@ async function handleConfirmMovePage(pageId: string, targetParentId: string | nu
   await store.movePage(pageId, targetParentId);
   isMovePageModalOpen.value = false;
 }
-const replyBuffers = reactive<Record<string, string>>({});
 
 const actionMenuItems = computed<ActionMenuItem[]>(() => {
   const current = store.activePage;

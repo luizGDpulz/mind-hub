@@ -23,9 +23,9 @@ describe('PageTreeItem — Árvore de Arquivos com Context Menu e Renomeação I
         icon: '📄',
         parentId: 'page-1',
         children: [],
-      },
+      } as unknown as PageTreeNode,
     ],
-  };
+  } as unknown as PageTreeNode;
 
   it('emite select ao clicar na linha da página', async () => {
     const wrapper = mount(PageTreeItem, {
@@ -159,7 +159,7 @@ describe('MindMovePageModal — Mover Páginas com Prevenção de Ciclos', () =>
       updatedAt: '',
       deletedAt: null,
     },
-  ];
+  ] as unknown as MindPage[];
 
   it('desativa seleção da própria página e de seus descendentes para evitar ciclos', () => {
     const wrapper = mount(MindMovePageModal, {

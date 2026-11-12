@@ -123,7 +123,8 @@ function isDescendant(targetId: string, ancestorId: string): boolean {
   let curr = props.pages.find((p) => p.id === targetId);
   while (curr && curr.parentId) {
     if (curr.parentId === ancestorId) return true;
-    curr = props.pages.find((p) => p.id === curr.parentId);
+    const nextParentId: string = curr.parentId;
+    curr = props.pages.find((p) => p.id === nextParentId);
   }
   return false;
 }

@@ -25,6 +25,30 @@ export type SlashMenuCategory = 'suggestions' | 'basic' | 'media' | 'highlight' 
 
 export type CalloutType = 'note' | 'tip' | 'important' | 'warning' | 'caution';
 
+export type BlockColorId =
+  | 'default'
+  | 'gray'
+  | 'brown'
+  | 'orange'
+  | 'yellow'
+  | 'green'
+  | 'blue'
+  | 'purple'
+  | 'pink'
+  | 'red';
+
+export interface BlockColorOption {
+  id: BlockColorId;
+  label: string;
+  textColor: string;
+  backgroundColor: string;
+}
+
+export interface BlockColorUpdate {
+  textColor?: BlockColorId | null;
+  backgroundColor?: BlockColorId | null;
+}
+
 export interface CalloutAttributes {
   type: CalloutType;
   icon?: string | null;

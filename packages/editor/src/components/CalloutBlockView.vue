@@ -12,6 +12,7 @@ import {
 } from 'lucide-vue-next';
 import type { CalloutType } from '../types.js';
 import { normalizeCalloutType } from '../extensions/callout-node.js';
+import { getBlockColorOption, normalizeBlockColorId } from '../extensions/block-color.js';
 
 interface CalloutBlockProps {
   node: {
@@ -113,6 +114,23 @@ function setCustomIcon(emoji: string): void {
   isDropdownOpen.value = false;
 }
 
+const customTextColor = computed(() => normalizeBlockColorId(props.node.attrs.blockTextColor));
+const customBgColor = computed(() => normalizeBlockColorId(props.node.attrs.blockBackgroundColor));
+
+const wrapperStyle = computed(() => {
+  const bg = customBgColor.value
+    ? getBlockColorOption(customBgColor.value).backgroundColor
+    : calloutConfig.value.bg;
+  const color = customTextColor.value
+    ? getBlockColorOption(customTextColor.value).textColor
+    : undefined;
+  return {
+    backgroundColor: bg,
+    borderColor: calloutConfig.value.border,
+    ...(color ? { color } : {}),
+  };
+});
+
 function clearCustomIcon(): void {
   props.updateAttributes({ icon: null });
 }
@@ -122,10 +140,9 @@ function clearCustomIcon(): void {
   <NodeViewWrapper
     class="mind-callout-wrapper"
     :data-callout-type="currentType"
-    :style="{
-      backgroundColor: calloutConfig.bg,
-      borderColor: calloutConfig.border,
-    }"
+    :data-block-color="customTextColor || undefined"
+    :data-block-bg="customBgColor || undefined"
+    :style="wrapperStyle"
   >
     <div class="mind-callout-header">
       <div class="mind-callout-badge-container">

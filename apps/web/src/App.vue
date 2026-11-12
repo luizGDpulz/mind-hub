@@ -42,27 +42,6 @@
               <span>{{ crumb.title }}</span>
             </button>
           </template>
-
-          <!-- Topbar Favorite Star Toggle (Issue #67) -->
-          <button
-            type="button"
-            class="topbar-star-btn"
-            :class="{ 'is-favorite': store.activePage.isFavorite }"
-            :title="store.activePage.isFavorite ? 'Remover dos favoritos' : 'Adicionar aos favoritos'"
-            data-testid="topbar-favorite-star-btn"
-            @click.stop="store.toggleFavorite(store.activePage.id)"
-          >
-            <component :is="Star" :size="14" :fill="store.activePage.isFavorite ? '#e67700' : 'none'" />
-          </button>
-
-          <!-- Subtle Sync Indicator (Zero telemetry pollution, Issue #67) -->
-          <div
-            class="topbar-sync-indicator"
-            title="Vault sincronizado com o servidor"
-            data-testid="topbar-sync-indicator"
-          >
-            <span class="sync-dot" />
-          </div>
         </div>
 
         <q-space />
@@ -866,7 +845,6 @@ import {
   Share2,
   Sparkles,
   SquarePen,
-  Star,
   Trash2,
   UserCheck,
 } from 'lucide-vue-next';
@@ -1383,47 +1361,6 @@ function splitSnippetSegments(
 
 .topbar-breadcrumb.no-sidebar-offset {
   margin-left: 6px;
-}
-
-/* Topbar Star & Sync Indicator (Issue #67) */
-.topbar-star-btn {
-  border: none;
-  background: transparent;
-  padding: 4px;
-  margin-left: 4px;
-  border-radius: 4px;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--mind-text-muted);
-  transition: all 0.12s ease;
-}
-
-.topbar-star-btn:hover {
-  background: var(--mind-bg-hover);
-  color: #e67700;
-}
-
-.topbar-star-btn.is-favorite {
-  color: #e67700;
-}
-
-.topbar-sync-indicator {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 4px 6px;
-  margin-left: 2px;
-  cursor: default;
-}
-
-.sync-dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background-color: #2b8a3e;
-  box-shadow: 0 0 0 2px #ebfbee;
 }
 
 /* Favorites Section (Issue #63) */

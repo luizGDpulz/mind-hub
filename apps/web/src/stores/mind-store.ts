@@ -19,12 +19,14 @@ import {
   MIND_REPO_URL,
   MIND_VERSION_HISTORY,
   type AiChatResponse,
+  type AssetKind,
   type BulkImportApiResponse,
   type CreatePageInput,
   type DatabaseStatus,
   type DatabaseTaskRow,
   type DiagramKind,
   type GitSyncSnapshot,
+  type MindAsset,
   type MindPage,
   type MindVersionEntry,
   type PageCommentThread,
@@ -233,7 +235,10 @@ export const useMindStore = defineStore('mindHub', () => {
     lastLatencyMs.value = Number((performance.now() - t0).toFixed(2));
   }
 
-  async function createPage(input: CreatePageInput): Promise<MindPage> {
+  async function createPage(
+    input: CreatePageInput,
+    options: { select?: boolean } = {},
+  ): Promise<MindPage> {
     const t0 = performance.now();
     const now = new Date().toISOString();
     const title = input.title.trim() || 'Nova Página';
@@ -248,6 +253,10 @@ export const useMindStore = defineStore('mindHub', () => {
       slug,
       title,
       icon: input.icon ?? '📄',
+      coverUrl: input.coverUrl,
+      coverYPosition: input.coverYPosition,
+      description: input.description,
+      pageType: input.pageType,
       parentId: input.parentId ?? null,
       sortOrder: input.sortOrder ?? pages.value.length + 1,
       contentMarkdown,
@@ -262,8 +271,10 @@ export const useMindStore = defineStore('mindHub', () => {
     };
 
     pages.value = [...pages.value, newPage];
-    activePageId.value = newPage.id;
-    syncEmbeddedBlocksForPage(newPage.id);
+    if (options.select !== false) {
+      activePageId.value = newPage.id;
+      syncEmbeddedBlocksForPage(newPage.id);
+    }
     lastLatencyMs.value = Number((performance.now() - t0).toFixed(2));
 
     try {
@@ -375,6 +386,11 @@ export const useMindStore = defineStore('mindHub', () => {
       title: updatedTitle,
       slug: input.title !== undefined ? slugifyTitle(updatedTitle) : target.slug,
       icon: input.icon !== undefined ? input.icon : target.icon,
+      coverUrl: input.coverUrl !== undefined ? input.coverUrl : target.coverUrl,
+      coverYPosition:
+        input.coverYPosition !== undefined ? input.coverYPosition : target.coverYPosition,
+      description: input.description !== undefined ? input.description : target.description,
+      pageType: input.pageType !== undefined ? input.pageType : target.pageType,
       parentId: input.parentId !== undefined ? input.parentId : target.parentId,
       isFavorite: input.isFavorite ?? target.isFavorite,
       tags: input.tags ? [...input.tags] : target.tags,
@@ -393,6 +409,44 @@ export const useMindStore = defineStore('mindHub', () => {
     } catch {
       // Offline resilient
     }
+  }
+
+  async function uploadAsset(params: {
+    pageId?: string | null;
+    kind?: AssetKind;
+    filename: string;
+    mimeType: string;
+    dataBase64: string;
+  }): Promise<Omit<MindAsset, 'dataBase64'> | null> {
+    try {
+      const res = await fetch('/api/assets', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(params),
+      });
+      if (res.ok) {
+        const body = (await res.json()) as { asset?: Omit<MindAsset, 'dataBase64'> };
+        if (body.asset) {
+          return body.asset;
+        }
+      }
+    } catch {
+      // Fallback to data URI in offline/test environments without backend
+    }
+
+    const cleanBase64 = params.dataBase64.replace(/^data:[^;]+;base64,/, '');
+    const dataUrl = `data:${params.mimeType};base64,${cleanBase64}`;
+    return {
+      id: `local-${Math.random().toString(36).slice(2, 10)}`,
+      pageId: params.pageId ?? null,
+      kind: params.kind ?? 'inline_image',
+      filename: params.filename,
+      mimeType: params.mimeType,
+      sizeBytes: cleanBase64.length,
+      storagePath: dataUrl,
+      url: dataUrl,
+      createdAt: new Date().toISOString(),
+    };
   }
 
   function isDescendantOf(pageId: string, potentialAncestorId: string): boolean {
@@ -958,6 +1012,7 @@ export const useMindStore = defineStore('mindHub', () => {
     updateActivePageContent,
     updateActivePageMarkdown,
     updatePageMeta,
+    uploadAsset,
     renamePage,
     toggleFavorite,
     duplicatePage,

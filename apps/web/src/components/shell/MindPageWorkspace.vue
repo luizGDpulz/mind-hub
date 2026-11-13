@@ -9,146 +9,152 @@
       />
 
       <!-- Main Document + Embedded Database + Open-Source Diagrams -->
-      <div v-else-if="store.activePage" class="editor-container">
-        <MindEditor
-          ref="mindEditorRef"
-          :key="store.activePage.id"
-          v-model:show-properties="showPropertiesOverride"
-          class="mind-hub-editor-shell"
-          :model-value="store.activePage.contentJson || store.activePage.contentMarkdown"
-          :frontmatter="activePageFrontmatter"
+      <template v-else-if="store.activePage">
+        <PageCoverBanner
+          ref="coverBannerRef"
+          :cover-url="store.activePage.coverUrl"
+          :cover-y-position="store.activePage.coverYPosition"
           :read-only="store.editorReadMode"
-          :pages="mentionPageReferences"
-          @update:json="handleEditorJsonUpdate"
-          @update:frontmatter="handleFrontmatterUpdate"
-          @select-page="
-            (pageId) => {
-              store.activeSurface = 'editor';
-              store.selectPage(pageId);
-            }
+          :uploading="isUploadingCover"
+          @update:cover-url="
+            (val) => store.activePage && store.updatePageMeta(store.activePage.id, { coverUrl: val })
           "
-          @create-subpage="handleAddSubpage"
-          @insert-database-block="store.enableDatabaseBlockForActivePage()"
-          @insert-diagram-block="(kind) => store.enableDiagramBlockForActivePage(kind)"
-        >
-          <template #title>
-            <!-- Notion-like Title Header Zone: Custom Icon + Hover-only Top Actions -->
-            <div class="page-header-zone" data-testid="page-header-icon-container">
-              <div
-                v-if="hasCustomPageIcon"
-                class="page-header-icon-box"
-                data-testid="page-header-icon"
-                title="Clique para mudar o ícone"
-                @click="!store.editorReadMode && (isIconPickerOpen = true)"
-              >
-                <MindPageIcon :icon="store.activePage.icon" :size="44" />
-              </div>
+          @update:cover-y-position="
+            (val) =>
+              store.activePage && store.updatePageMeta(store.activePage.id, { coverYPosition: val })
+          "
+          @upload-file="handleCoverUpload"
+          @remove="
+            store.activePage &&
+            store.updatePageMeta(store.activePage.id, { coverUrl: '', coverYPosition: 50 })
+          "
+        />
 
-              <div
-                v-if="!store.editorReadMode"
-                class="page-header-hover-bar"
-                data-testid="page-header-hover-bar"
-              >
-                <button
-                  type="button"
-                  class="page-header-ghost-btn"
-                  data-testid="page-header-icon-btn"
-                  @click="isIconPickerOpen = true"
-                >
-                  <Smile :size="14" :stroke-width="1.75" />
-                  <span>{{ hasCustomPageIcon ? 'Mudar ícone' : 'Adicionar ícone' }}</span>
-                </button>
-                <button
+        <div class="editor-container" :class="{ 'editor-container--with-cover': hasPageCover }">
+          <MindEditor
+            ref="mindEditorRef"
+            :key="store.activePage.id"
+            v-model:show-properties="showPropertiesOverride"
+            class="mind-hub-editor-shell"
+            :model-value="store.activePage.contentJson || store.activePage.contentMarkdown"
+            :frontmatter="activePageFrontmatter"
+            :read-only="store.editorReadMode"
+            :pages="mentionPageReferences"
+            @update:json="handleEditorJsonUpdate"
+            @update:frontmatter="handleFrontmatterUpdate"
+            @select-page="
+              (pageId) => {
+                store.activeSurface = 'editor';
+                store.selectPage(pageId);
+              }
+            "
+            @create-subpage="handleAddSubpage"
+            @insert-database-block="store.enableDatabaseBlockForActivePage()"
+            @insert-diagram-block="(kind) => store.enableDiagramBlockForActivePage(kind)"
+          >
+            <template #title>
+              <!-- Notion-like Title Header Zone: Custom Icon + Hover-only Top Actions -->
+              <div class="page-header-zone" data-testid="page-header-icon-container">
+                <div
                   v-if="hasCustomPageIcon"
-                  type="button"
-                  class="page-header-ghost-btn"
-                  data-testid="page-header-remove-icon-btn"
-                  @click="store.updatePageMeta(store.activePage.id, { icon: '' })"
+                  class="page-header-icon-box"
+                  :class="{ 'is-overlapping-cover': hasPageCover }"
+                  data-testid="page-header-icon"
+                  title="Clique para mudar o ícone"
+                  @click="!store.editorReadMode && (isIconPickerOpen = true)"
                 >
-                  <span>Remover ícone</span>
-                </button>
-                <button
-                  type="button"
-                  class="page-header-ghost-btn"
-                  data-testid="page-header-comment-btn"
-                  @click="store.rightDrawerMode = 'comments'; store.isCommentsDrawerOpen = true"
+                  <MindPageIcon :icon="store.activePage.icon" :size="44" />
+                </div>
+
+                <div
+                  v-if="!store.editorReadMode"
+                  class="page-header-hover-bar"
+                  data-testid="page-header-hover-bar"
                 >
-                  <MessageSquare :size="14" :stroke-width="1.75" />
-                  <span>Adicionar comentário</span>
-                </button>
-                <button
-                  type="button"
-                  class="page-header-ghost-btn"
-                  data-testid="page-add-properties-btn"
-                  @click="togglePropertiesPanel"
-                >
-                  <SlidersHorizontal :size="14" :stroke-width="1.75" />
-                  <span>{{ showPropertiesOverride ? 'Ocultar propriedades' : 'Propriedades' }}</span>
-                </button>
+                  <button
+                    type="button"
+                    class="page-header-ghost-btn"
+                    data-testid="page-header-icon-btn"
+                    @click="isIconPickerOpen = true"
+                  >
+                    <Smile :size="14" :stroke-width="1.75" />
+                    <span>{{ hasCustomPageIcon ? 'Mudar ícone' : 'Adicionar ícone' }}</span>
+                  </button>
+                  <button
+                    v-if="hasCustomPageIcon"
+                    type="button"
+                    class="page-header-ghost-btn"
+                    data-testid="page-header-remove-icon-btn"
+                    @click="store.updatePageMeta(store.activePage.id, { icon: '' })"
+                  >
+                    <span>Remover ícone</span>
+                  </button>
+                  <button
+                    v-if="!hasPageCover"
+                    type="button"
+                    class="page-header-ghost-btn"
+                    data-testid="page-header-cover-btn"
+                    @click="handleAddDefaultCover"
+                  >
+                    <ImageIcon :size="14" :stroke-width="1.75" />
+                    <span>Adicionar capa</span>
+                  </button>
+                  <button
+                    type="button"
+                    class="page-header-ghost-btn"
+                    data-testid="page-header-comment-btn"
+                    @click="store.rightDrawerMode = 'comments'; store.isCommentsDrawerOpen = true"
+                  >
+                    <MessageSquare :size="14" :stroke-width="1.75" />
+                    <span>Adicionar comentário</span>
+                  </button>
+                  <button
+                    type="button"
+                    class="page-header-ghost-btn"
+                    data-testid="page-add-properties-btn"
+                    @click="togglePropertiesPanel"
+                  >
+                    <SlidersHorizontal :size="14" :stroke-width="1.75" />
+                    <span>{{ showPropertiesOverride ? 'Ocultar propriedades' : 'Propriedades' }}</span>
+                  </button>
+                </div>
+
+                <!-- Clean H1 Title (DB Page.title owns note identity) -->
+                <input
+                  :value="store.activePage.title"
+                  type="text"
+                  class="page-title-h1"
+                  placeholder="Sem título"
+                  :readonly="store.editorReadMode"
+                  data-testid="page-title-input"
+                  aria-label="Page title"
+                  @input="
+                    (e) =>
+                      store.activePage &&
+                      store.updatePageMeta(store.activePage.id, {
+                        title: (e.target as HTMLInputElement).value,
+                      })
+                  "
+                />
               </div>
+            </template>
+          </MindEditor>
 
-              <!-- Clean H1 Title (DB Page.title owns note identity) -->
-              <input
-                :value="store.activePage.title"
-                type="text"
-                class="page-title-h1"
-                placeholder="Sem título"
-                :readonly="store.editorReadMode"
-                data-testid="page-title-input"
-                aria-label="Page title"
-                @input="
-                  (e) =>
-                    store.activePage &&
-                    store.updatePageMeta(store.activePage.id, {
-                      title: (e.target as HTMLInputElement).value,
-                    })
-                "
-              />
-            </div>
-          </template>
-        </MindEditor>
+          <!-- Embedded Database Block -->
+          <DatabaseViewBlock
+            v-if="store.showEmbeddedDatabase"
+            :rows="store.databaseRows"
+            @cycle-status="store.cycleDatabaseRowStatus"
+            @add-row="store.addDatabaseTaskRow"
+          />
 
-        <!-- Embedded Database Block -->
-        <DatabaseViewBlock
-          v-if="store.showEmbeddedDatabase"
-          :rows="store.databaseRows"
-          @cycle-status="store.cycleDatabaseRowStatus"
-          @add-row="store.addDatabaseTaskRow"
-        />
-
-        <!-- Embedded Open-Source Diagrams -->
-        <DiagramEmbedsBlock
-          v-if="store.showEmbeddedDiagrams"
-          :initial-kind="store.activeDiagramKind"
-        />
-
-        <!-- Notion-like Subpages Section -->
-        <div
-          v-if="activePageSubpages.length > 0"
-          class="mind-subpages-section"
-          data-testid="subpages-section"
-        >
-          <div class="subpages-section-header">
-            <span class="subpages-section-title">Subpáginas ({{ activePageSubpages.length }})</span>
-            <button
-              type="button"
-              class="subpage-add-action-btn"
-              data-testid="add-subpage-btn"
-              @click="handleAddSubpage"
-            >
-              + Adicionar subpágina
-            </button>
-          </div>
-          <div class="subpages-grid">
-            <MindSubpageLink
-              v-for="sub in activePageSubpages"
-              :key="sub.id"
-              :page="sub"
-              @navigate="store.selectPage"
-            />
-          </div>
+          <!-- Embedded Open-Source Diagrams -->
+          <DiagramEmbedsBlock
+            v-if="store.showEmbeddedDiagrams"
+            :initial-kind="store.activeDiagramKind"
+          />
         </div>
-      </div>
+      </template>
 
       <!-- Empty State when there are no active pages -->
       <div v-else-if="!store.isBootstrapping" class="empty-workspace-state q-pa-xl flex flex-center column" style="min-height: 400px">
@@ -180,9 +186,9 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, nextTick, ref } from 'vue';
 import { storeToRefs } from 'pinia';
-import { FileText, MessageSquare, SlidersHorizontal, Smile } from 'lucide-vue-next';
+import { FileText, Image as ImageIcon, MessageSquare, SlidersHorizontal, Smile } from 'lucide-vue-next';
 import type { MindNode, TiptapDoc } from '@mind-hub/shared';
 import { MindEditor, type PageReference } from '@mind-hub/editor';
 import { useMindStore } from '../../stores/mind-store.js';
@@ -190,15 +196,17 @@ import { usePageFrontmatter } from '../../composables/usePageFrontmatter.js';
 import CleanLoginView from '../CleanLoginView.vue';
 import DatabaseViewBlock from '../DatabaseViewBlock.vue';
 import DiagramEmbedsBlock from '../DiagramEmbedsBlock.vue';
-import MindSubpageLink from '../ui/MindSubpageLink.vue';
 import MindIconPickerModal from '../ui/MindIconPickerModal.vue';
 import MindPageIcon from '../ui/MindPageIcon.vue';
+import PageCoverBanner from '../ui/PageCoverBanner.vue';
 
 const store = useMindStore();
 const { activePage, activePageId, editorReadMode } = storeToRefs(store);
 
 const isIconPickerOpen = ref(false);
+const isUploadingCover = ref(false);
 const mindEditorRef = ref<InstanceType<typeof MindEditor> | null>(null);
+const coverBannerRef = ref<InstanceType<typeof PageCoverBanner> | null>(null);
 
 const {
   showPropertiesOverride,
@@ -216,6 +224,8 @@ const hasCustomPageIcon = computed<boolean>(() => {
   const icon = store.activePage?.icon;
   return Boolean(icon && icon !== '📄');
 });
+
+const hasPageCover = computed<boolean>(() => Boolean(store.activePage?.coverUrl?.trim()));
 
 function openProperties(): void {
   requestOpenProperties(mindEditorRef.value);
@@ -237,7 +247,7 @@ function handleWorkspaceMouseDown(event: MouseEvent): void {
   if (target.closest('.mind-editor-root')) return;
   if (
     target.closest(
-      '.page-header-zone, .database-view-block, .diagram-embeds-block, .mind-subpages-section, button, input, textarea, select, a',
+      '.page-cover-banner, .page-header-zone, .database-view-block, .diagram-embeds-block, button, input, textarea, select, a',
     )
   ) {
     return;
@@ -258,11 +268,6 @@ const mentionPageReferences = computed<PageReference[]>(() =>
   })),
 );
 
-const activePageSubpages = computed(() => {
-  if (!store.activePage) return [];
-  return store.activePages.filter((p) => p.parentId === store.activePage?.id);
-});
-
 function isMindNode(value: unknown): value is MindNode {
   return (
     typeof value === 'object' &&
@@ -282,16 +287,78 @@ function handleEditorJsonUpdate(doc: Record<string, unknown>): void {
   void store.updateActivePageContent(nextDoc);
 }
 
+async function handleAddDefaultCover(): Promise<void> {
+  if (!store.activePage) return;
+  await store.updatePageMeta(store.activePage.id, {
+    coverUrl: 'preset:sky',
+    coverYPosition: 50,
+  });
+  await nextTick();
+  coverBannerRef.value?.openPicker();
+}
+
+function readFileAsBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === 'string') {
+        resolve(reader.result);
+      } else {
+        reject(new Error('Falha ao ler arquivo de capa'));
+      }
+    };
+    reader.onerror = () => reject(reader.error ?? new Error('Erro ao ler arquivo de capa'));
+    reader.readAsDataURL(file);
+  });
+}
+
+async function handleCoverUpload(file: File): Promise<void> {
+  if (!store.activePage) return;
+  isUploadingCover.value = true;
+  try {
+    const dataBase64 = await readFileAsBase64(file);
+    const asset = await store.uploadAsset({
+      pageId: store.activePage.id,
+      kind: 'cover',
+      filename: file.name,
+      mimeType: file.type || 'image/png',
+      dataBase64,
+    });
+    if (asset) {
+      await store.updatePageMeta(store.activePage.id, {
+        coverUrl: asset.url || asset.storagePath,
+        coverYPosition: 50,
+      });
+    }
+  } finally {
+    isUploadingCover.value = false;
+  }
+}
+
 async function handleAddSubpage(): Promise<void> {
   if (!store.activePage) return;
-  const newSub = await store.createPage({
-    title: 'Sem título',
-    parentId: store.activePage.id,
-    contentMarkdown: '',
-    tags: [],
-    icon: '📄',
+  const parentId = store.activePage.id;
+  const newSub = await store.createPage(
+    {
+      title: 'Sem título',
+      parentId,
+      contentMarkdown: '',
+      tags: [],
+      icon: '📄',
+    },
+    { select: false },
+  );
+
+  const inserted = mindEditorRef.value?.insertSubpageBlock({
+    pageId: newSub.id,
+    title: newSub.title,
+    icon: newSub.icon || '📄',
+    href: `#/page/${newSub.id}`,
   });
-  store.selectPage(newSub.id);
+
+  if (!inserted) {
+    store.selectPage(newSub.id);
+  }
 }
 
 async function handleCreateRootPage(): Promise<void> {
@@ -308,51 +375,8 @@ async function handleCreateRootPage(): Promise<void> {
 </script>
 
 <style scoped>
-.mind-subpages-section {
-  margin-top: 36px;
-  padding-top: 20px;
-  border-top: 1px solid var(--mind-border-subtle);
-}
-
-.subpages-section-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 12px;
-}
-
-.subpages-section-title {
-  font-size: 12px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--mind-text-muted);
-}
-
-.subpage-add-action-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  background: transparent;
-  border: none;
-  font-size: 12.5px;
-  font-weight: 500;
-  color: var(--mind-text-muted);
-  cursor: pointer;
-  padding: 4px 8px;
-  border-radius: 4px;
-  transition: all 0.15s ease;
-}
-
-.subpage-add-action-btn:hover {
-  background: var(--mind-bg-hover);
-  color: var(--mind-text-primary);
-}
-
-.subpages-grid {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
+.editor-container--with-cover {
+  padding-top: 16px;
 }
 
 .mind-workspace-page {
@@ -376,6 +400,18 @@ async function handleCreateRootPage(): Promise<void> {
   margin-bottom: 10px;
   transition: background-color 0.12s ease;
   user-select: none;
+}
+
+.page-header-icon-box.is-overlapping-cover {
+  position: relative;
+  z-index: 2;
+  margin-top: -42px;
+  width: 64px;
+  height: 64px;
+  background: var(--mind-bg-canvas, #ffffff);
+  border: 3px solid var(--mind-bg-canvas, #ffffff);
+  border-radius: 12px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.06);
 }
 
 .page-header-icon-box:hover {

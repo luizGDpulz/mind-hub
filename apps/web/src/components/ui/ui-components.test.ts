@@ -249,34 +249,45 @@ describe('@mind-hub/web — Atomic UI Components (Refs #27, #30, #31, #32, #33)'
     expect(wrapper.emitted('select')?.[0]?.[0]).toBe('p-1');
   });
 
-  it('MindIconPickerModal renders tabs, filters emojis, handles technical presets, image URLs and remove (Issue #26)', async () => {
+  it('MindIconPickerModal renders Emoji, Ícones and Fazer upload tabs, filters emojis, selects colored Lucide icons and removes icon', async () => {
     const wrapper = mount(MindIconPickerModal, {
       props: {
         modelValue: true,
+        currentIcon: '💡',
       },
     });
 
     expect(wrapper.find('[data-testid="mind-icon-picker-modal"]').exists()).toBe(true);
-    expect(wrapper.text()).toContain('Escolher ícone');
-    expect(wrapper.text()).toContain('Emojis');
-    expect(wrapper.text()).toContain('Ícones Técnicos');
-    expect(wrapper.text()).toContain('Link de Imagem');
+    expect(wrapper.find('[data-testid="icon-picker-tab-emoji"]').exists()).toBe(true);
+    expect(wrapper.find('[data-testid="icon-picker-tab-icons"]').exists()).toBe(true);
+    expect(wrapper.find('[data-testid="icon-picker-tab-upload"]').exists()).toBe(true);
 
-    // Filter emojis
+    // Filter full Unicode emoji catalog
     const input = wrapper.find('[data-testid="icon-picker-search"]');
     await input.setValue('foguete');
-    expect(wrapper.find('.emoji-grid').text()).toContain('🚀');
+    expect(wrapper.find('[data-testid="emoji-option-🚀"]').exists()).toBe(true);
 
-    // Click an emoji emits select and update:modelValue false
-    const emojiBtn = wrapper.find('.emoji-grid-item');
-    await emojiBtn.trigger('click');
+    // Click an emoji emits select and closes modal
+    await wrapper.find('[data-testid="emoji-option-🚀"]').trigger('click');
     expect(wrapper.emitted('select')?.[0]?.[0]).toBe('🚀');
     expect(wrapper.emitted('update:modelValue')?.[0]?.[0]).toBe(false);
 
-    // Click remove icon emits empty string
-    const removeBtn = wrapper.find('[data-testid="icon-picker-remove-btn"]');
-    await removeBtn.trigger('click');
-    expect(wrapper.emitted('select')?.[1]?.[0]).toBe('');
+    // Switch to Ícones tab, pick blue color and select Rocket icon
+    await wrapper.find('[data-testid="icon-picker-tab-icons"]').trigger('click');
+    await wrapper.find('[data-testid="icon-color-blue"]').trigger('click');
+    await wrapper.find('[data-testid="icon-picker-search"]').setValue('rocket');
+    await wrapper.find('[data-testid="lucide-option-Rocket"]').trigger('click');
+    expect(wrapper.emitted('select')?.[1]?.[0]).toBe('lucide:Rocket:blue');
+
+    // Switch to Fazer upload tab and submit a public URL
+    await wrapper.find('[data-testid="icon-picker-tab-upload"]').trigger('click');
+    await wrapper.find('[data-testid="icon-upload-url-input"]').setValue('https://example.com/custom.png');
+    await wrapper.find('[data-testid="icon-upload-url-submit"]').trigger('click');
+    expect(wrapper.emitted('select')?.[2]?.[0]).toBe('https://example.com/custom.png');
+
+    // Click remove emits empty string
+    await wrapper.find('[data-testid="icon-picker-remove"]').trigger('click');
+    expect(wrapper.emitted('select')?.[3]?.[0]).toBe('');
   });
 
   it('MindTrashModal supports permanent delete and empty trash with two-step confirmation (Issue #46)', async () => {
@@ -537,5 +548,14 @@ describe('@mind-hub/web — Atomic UI Components (Refs #27, #30, #31, #32, #33)'
 
     const imgWrapper = mount(MindPageIcon, { props: { icon: 'https://example.com/icon.png' } });
     expect(imgWrapper.find('img').attributes('src')).toBe('https://example.com/icon.png');
+
+    const assetWrapper = mount(MindPageIcon, { props: { icon: '/api/assets/asset-123' } });
+    expect(assetWrapper.find('img').attributes('src')).toBe('/api/assets/asset-123');
+
+    const lucideWrapper = mount(MindPageIcon, { props: { icon: 'lucide:Rocket:blue' } });
+    expect(lucideWrapper.find('[data-testid="mind-page-lucide-icon"]').exists()).toBe(true);
+    expect(lucideWrapper.find('[data-testid="mind-page-lucide-icon"]').attributes('style')).toMatch(
+      /#1971c2|rgb\(25, 113, 194\)/i
+    );
   });
 });

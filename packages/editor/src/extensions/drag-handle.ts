@@ -1,7 +1,7 @@
 import { Extension } from '@tiptap/core';
 import { Plugin, PluginKey, Selection } from '@tiptap/pm/state';
 import { Fragment } from '@tiptap/pm/model';
-import type { EditorView } from '@tiptap/pm/view';
+import { Decoration, DecorationSet, type EditorView } from '@tiptap/pm/view';
 import type { Node as PmNode } from '@tiptap/pm/model';
 
 export interface DragHandlePositionPayload {
@@ -694,7 +694,13 @@ export function getNodePosAtDOM(nodeElem: Element, view: EditorView): number | n
   return null;
 }
 
+export interface DragVisualState {
+  draggingPositions: number[];
+  dropTarget: { pos: number; placement: 'before' | 'after' } | null;
+}
+
 export const GlobalDragHandleKey = new PluginKey('globalDragHandle');
+export const GlobalDragVisualPluginKey = new PluginKey<DragVisualState>('mindDragVisual');
 
 export const GlobalDragHandle = Extension.create<DragHandleOptions>({
   name: 'globalDragHandle',
@@ -733,11 +739,40 @@ export const GlobalDragHandle = Extension.create<DragHandleOptions>({
       }
     };
 
-    const clearDropIndicator = () => {
+    const clearDropIndicator = (view?: EditorView) => {
       activeDropTarget = null;
+      if (view) {
+        syncDragVisual(view, activeDragSourcePositions, null);
+      }
       if (this.options.onDropIndicatorChange) {
         this.options.onDropIndicatorChange(null);
       }
+    };
+
+    const syncDragVisual = (
+      view: EditorView,
+      draggingPositions: number[],
+      dropTarget: { pos: number; placement: 'before' | 'after' } | null
+    ) => {
+      if (!view.dom.isConnected) return;
+      const cur = GlobalDragVisualPluginKey.getState(view.state);
+      const sameDrag =
+        cur &&
+        cur.draggingPositions.length === draggingPositions.length &&
+        cur.draggingPositions.every((p, idx) => p === draggingPositions[idx]);
+      const sameTarget =
+        cur &&
+        ((cur.dropTarget === null && dropTarget === null) ||
+          (cur.dropTarget !== null &&
+            dropTarget !== null &&
+            cur.dropTarget.pos === dropTarget.pos &&
+            cur.dropTarget.placement === dropTarget.placement));
+      if (sameDrag && sameTarget) return;
+
+      const tr = view.state.tr;
+      tr.setMeta(GlobalDragVisualPluginKey, { draggingPositions, dropTarget });
+      tr.setMeta('addToHistory', false);
+      view.dispatch(tr);
     };
 
     const updateHandleFromPoint = (
@@ -840,7 +875,7 @@ export const GlobalDragHandle = Extension.create<DragHandleOptions>({
             cleanupDragPreview();
             editorView.dom.classList.remove('is-dragging-block');
             editorView.dragging = null;
-            clearDropIndicator();
+            clearDropIndicator(editorView);
           };
 
           // Attach to window/document instead of view.dom.parentElement because
@@ -884,6 +919,7 @@ export const GlobalDragHandle = Extension.create<DragHandleOptions>({
                 : [hoveredNodePos];
 
             activeDragSourcePositions = dragPositions;
+            syncDragVisual(editorView, dragPositions, null);
 
             try {
               event.dataTransfer.clearData();
@@ -940,7 +976,7 @@ export const GlobalDragHandle = Extension.create<DragHandleOptions>({
             const resolved = resolveDropTarget(editorView, event.clientX, event.clientY, shell);
 
             if (!resolved) {
-              clearDropIndicator();
+              clearDropIndicator(editorView);
               return;
             }
 
@@ -950,6 +986,10 @@ export const GlobalDragHandle = Extension.create<DragHandleOptions>({
             }
 
             activeDropTarget = resolved;
+            syncDragVisual(editorView, activeDragSourcePositions, {
+              pos: resolved.targetPos,
+              placement: resolved.placement,
+            });
             if (this.options.onDropIndicatorChange) {
               this.options.onDropIndicatorChange({
                 visible: true,
@@ -1045,6 +1085,61 @@ export const GlobalDragHandle = Extension.create<DragHandleOptions>({
               view.dom.classList.remove('is-dragging-block');
               return false;
             },
+          },
+        },
+      }),
+      new Plugin<DragVisualState>({
+        key: GlobalDragVisualPluginKey,
+        state: {
+          init: () => ({ draggingPositions: [], dropTarget: null }),
+          apply: (tr, value) => {
+            const meta = tr.getMeta(GlobalDragVisualPluginKey) as DragVisualState | undefined;
+            if (meta) {
+              return meta;
+            }
+            if (tr.docChanged && (value.draggingPositions.length > 0 || value.dropTarget)) {
+              return { draggingPositions: [], dropTarget: null };
+            }
+            return value;
+          },
+        },
+        props: {
+          decorations: (state) => {
+            const visual = GlobalDragVisualPluginKey.getState(state);
+            if (!visual) return DecorationSet.empty;
+
+            const decos: Decoration[] = [];
+            for (const pos of visual.draggingPositions) {
+              const node = state.doc.nodeAt(pos);
+              if (!node) continue;
+              decos.push(
+                Decoration.node(pos, pos + node.nodeSize, {
+                  class: 'mind-block-dragging-source',
+                  'data-block-dragging': 'true',
+                })
+              );
+            }
+
+            if (visual.dropTarget) {
+              const targetNode = state.doc.nodeAt(visual.dropTarget.pos);
+              const isSelfSingle =
+                visual.draggingPositions.length === 1 &&
+                visual.draggingPositions[0] === visual.dropTarget.pos;
+              if (targetNode && !isSelfSingle) {
+                const cls =
+                  visual.dropTarget.placement === 'before'
+                    ? 'mind-block-drop-before'
+                    : 'mind-block-drop-after';
+                decos.push(
+                  Decoration.node(visual.dropTarget.pos, visual.dropTarget.pos + targetNode.nodeSize, {
+                    class: cls,
+                    'data-drop-placement': visual.dropTarget.placement,
+                  })
+                );
+              }
+            }
+
+            return DecorationSet.create(state.doc, decos);
           },
         },
       }),

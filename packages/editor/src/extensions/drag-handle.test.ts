@@ -245,4 +245,74 @@ describe('GlobalDragHandle Extension', () => {
       '<p>Fim</p><ul><li><p>Item A</p></li><li><p>Item B</p></li></ul><p>Um</p><p>Dois</p>'
     );
   });
+
+  it('applies dragging source and drop placement decorations during dragover and clears on drop', () => {
+    const root = document.createElement('div');
+    root.className = 'mind-editor-root';
+    const canvas = document.createElement('div');
+    canvas.className = 'mind-editor-canvas-container';
+    const gripBtn = document.createElement('button');
+    gripBtn.className = 'gutter-grip-btn';
+    canvas.appendChild(gripBtn);
+    root.appendChild(canvas);
+    document.body.appendChild(root);
+
+    const editor = new Editor({
+      element: canvas,
+      extensions: [StarterKit, GlobalDragHandle],
+      content: '<h1>Primeiro</h1><p>Arrastar</p>',
+    });
+    createdEditors.push(editor);
+
+    mockRect(canvas, { top: 100, left: 200, width: 680, height: 200 });
+    mockRect(editor.view.dom, { top: 100, left: 200, width: 680, height: 200 });
+
+    const h1 = editor.view.dom.querySelector('h1')!;
+    const p = editor.view.dom.querySelector('p')!;
+    mockRect(h1, { top: 100, left: 200, width: 680, height: 34 });
+    mockRect(p, { top: 142, left: 200, width: 680, height: 24 });
+
+    // Hover paragraph so GlobalDragHandle knows hoveredNodePos
+    window.dispatchEvent(new MouseEvent('mousemove', { clientX: 160, clientY: 150, bubbles: true }));
+
+    const mockTransfer = {
+      effectAllowed: 'none',
+      dropEffect: 'none',
+      clearData: vi.fn(),
+      setData: vi.fn(),
+      setDragImage: vi.fn(),
+    };
+
+    const dragStart = new Event('dragstart', { bubbles: true, cancelable: true });
+    Object.defineProperty(dragStart, 'dataTransfer', { value: mockTransfer });
+    gripBtn.dispatchEvent(dragStart);
+
+    expect(p.classList.contains('mind-block-dragging-source')).toBe(true);
+    expect(p.getAttribute('data-block-dragging')).toBe('true');
+
+    const dragOver = new MouseEvent('dragover', {
+      clientX: 120,
+      clientY: 106,
+      bubbles: true,
+      cancelable: true,
+    });
+    Object.defineProperty(dragOver, 'dataTransfer', { value: mockTransfer });
+    window.dispatchEvent(dragOver);
+
+    expect(h1.classList.contains('mind-block-drop-before')).toBe(true);
+    expect(h1.getAttribute('data-drop-placement')).toBe('before');
+
+    const drop = new MouseEvent('drop', {
+      clientX: 120,
+      clientY: 106,
+      bubbles: true,
+      cancelable: true,
+    });
+    Object.defineProperty(drop, 'dataTransfer', { value: mockTransfer });
+    window.dispatchEvent(drop);
+
+    expect(editor.view.dom.querySelector('[data-block-dragging="true"]')).toBeNull();
+    expect(editor.view.dom.querySelector('[data-drop-placement]')).toBeNull();
+    expect(editor.state.doc.firstChild?.textContent).toBe('Arrastar');
+  });
 });

@@ -85,7 +85,7 @@ const props = withDefaults(
     repoUrl?: string;
   }>(),
   {
-    currentVersion: '0.3.0',
+    currentVersion: '0.4.0',
     versionHistory: () => [],
     repoUrl: 'https://github.com/luizGDpulz/mind-hub',
   },

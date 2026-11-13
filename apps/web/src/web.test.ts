@@ -129,10 +129,10 @@ describe('@mind-hub/web — Pinia Store, Page Tree, Quick Insight & Search Engin
 
   it('supports permanent delete (purge), empty trash and version evolution tracking (Issue #46)', async () => {
     const store = useMindStore();
-    expect(store.currentVersion).toBe('0.3.0');
+    expect(store.currentVersion).toBe('0.4.0');
     expect(store.repoUrl).toBe('https://github.com/luizGDpulz/mind-hub');
-    expect(store.versionHistory.length).toBeGreaterThanOrEqual(3);
-    expect(store.versionHistory[0]?.version).toBe('0.3.0');
+    expect(store.versionHistory.length).toBeGreaterThanOrEqual(4);
+    expect(store.versionHistory[0]?.version).toBe('0.4.0');
 
     // Create a page and soft delete it
     const page = await store.createPage({ title: 'Nota Para Purge' });

@@ -12,6 +12,32 @@ O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.
 
 ---
 
+## [0.4.0] - 2026-11-13 — Milestone M10: Mind Editor (@mind-hub/editor Beta)
+
+### 🚀 Adicionado
+- **Pacote Desacoplado `@mind-hub/editor`**: motor autoral Notion-like construindo sobre Tiptap v2 + ProseMirror sob `mind-light-style` (#49, #57).
+- **Gutter Autoral (`BlockGutter`) & Seleção por Bloco (`BlockSelection` + `useMarqueeSelection`)**:
+  - Alça lateral `+` e grip `⠿` centralizados na altura do bloco, ocultados automaticamente ao digitar e reativados por hover (#50).
+  - Menu contextual esquerdo Notion-like com busca de ações, transformação (`Transformar em`), duplicação, exclusão e seletor duplo de cores (Cor do texto + Fundo do bloco com cores recentes e paleta hex) (#50).
+  - Caixa de seleção em laço (marquee drag externo) separada da seleção interna de texto, com exclusão, movimentação e duplicação em grupo.
+- **Propriedades YAML Estilo Obsidian (`FrontmatterHeader`)**:
+  - Oculto por padrão em notas em branco e ativável via botão `+ Propriedades`, menu `Propriedades (YAML)` ou digitando `---` (#49, #56).
+  - Suporte a tipos de propriedade (`Texto`, `Lista`, `Número`, `Data`, `Data & hora`, `Caixa de seleção`), adição rápida de tags padrão/livres e alternância `YAML puro` apenas quando expandido.
+- **Slash Menu (`/`), Menções (`@` e `[[...]]`) & Bubble Formatting Inline**:
+  - Catálogo extensível de blocos com busca fuzzy, atalhos e navegação por teclado (#51, #55).
+  - Menções interativas de páginas (`PageMention`) e atalhos Markdown via `InputRules` (`- `, `1. `, `[]`, `---`, headings, etc.) (#52, #55).
+- **Blocos Ricos Nativos (`CalloutNode` & `MermaidNode`)**:
+  - Admonitions / frases de destaque pastel estilizadas com seletor de emoji / ícones Lucide (`MindIconPicker`) (#54).
+  - Diagramas Mermaid com renderização SVG nativa e editor de código inline (#53).
+- **Integração Beta no `apps/web`**:
+  - Substituição integral do editor legado por `<MindEditor>` com slot `#title` abaixo das propriedades YAML, preservando DB `Page.title` como identidade da nota e suíte completa de testes unitários e conformidade (#56, #57).
+
+### 🐛 Corrigido
+- Adicionado `packages/editor/package.json` ao estágio de build do `Dockerfile` para compatibilidade completa com `pnpm install --frozen-lockfile` no GHCR.
+- Normalizado padding entre `.editor-container` e `.mind-hub-editor-shell` mantendo alinhamento vertical entre ícone, título H1 e blocos sem clipping da alça lateral (`BlockGutter`).
+
+---
+
 ## [0.3.0] - 2026-11-12 — Milestone M13: Shell, Gestão de Arquivos & Design System Global
 
 ### 🚀 Adicionado
@@ -79,7 +105,8 @@ O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.
   - Servidor Model Context Protocol nativo com ferramentas para notas e banco de dados (#15).
   - Chat lateral com assistente BYOK (OpenAI, Anthropic, Gemini, Ollama) (#15, #16).
 
-[Não lançado]: https://github.com/luizGDpulz/mind-hub/compare/v0.3.0...HEAD
+[Não lançado]: https://github.com/luizGDpulz/mind-hub/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/luizGDpulz/mind-hub/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/luizGDpulz/mind-hub/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/luizGDpulz/mind-hub/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/luizGDpulz/mind-hub/releases/tag/v0.1.0

@@ -15,6 +15,7 @@ import MindVersionHistoryModal from './MindVersionHistoryModal.vue';
 import MindModal from './MindModal.vue';
 import MindPopover from './MindPopover.vue';
 import MindSettingsModal from './MindSettingsModal.vue';
+import MindPageIcon from './MindPageIcon.vue';
 import type { ActionMenuItem } from './types.js';
 import type { MindPage } from '@mind-hub/shared';
 
@@ -521,5 +522,20 @@ describe('@mind-hub/web — Atomic UI Components (Refs #27, #30, #31, #32, #33)'
     await wrapper.find('[data-testid="settings-tab-storage"]').trigger('click');
     expect(wrapper.text()).toContain('Páginas Ativas');
     expect(wrapper.text()).toContain('12');
+  });
+
+  it('MindPageIcon renders monochrome Lucide FileText for default/empty icon and preserves custom emoji or image (refs #83)', () => {
+    const emptyWrapper = mount(MindPageIcon, { props: { icon: '' } });
+    expect(emptyWrapper.find('[data-testid="mind-page-default-icon"]').exists()).toBe(true);
+
+    const legacyDefaultWrapper = mount(MindPageIcon, { props: { icon: '📄' } });
+    expect(legacyDefaultWrapper.find('[data-testid="mind-page-default-icon"]').exists()).toBe(true);
+
+    const emojiWrapper = mount(MindPageIcon, { props: { icon: '🧠' } });
+    expect(emojiWrapper.find('[data-testid="mind-page-default-icon"]').exists()).toBe(false);
+    expect(emojiWrapper.text()).toContain('🧠');
+
+    const imgWrapper = mount(MindPageIcon, { props: { icon: 'https://example.com/icon.png' } });
+    expect(imgWrapper.find('img').attributes('src')).toBe('https://example.com/icon.png');
   });
 });

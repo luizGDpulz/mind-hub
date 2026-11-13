@@ -66,7 +66,9 @@
           class="trash-item-row"
           :data-testid="`trash-row-${page.id}`"
         >
-          <span class="trash-item-icon">{{ page.icon || '📄' }}</span>
+          <span class="trash-item-icon">
+            <MindPageIcon :icon="page.icon" :size="16" />
+          </span>
           <div class="trash-item-info">
             <div class="trash-item-title">{{ page.title }}</div>
             <div class="trash-item-meta">
@@ -118,6 +120,7 @@
 
 <script setup lang="ts">
 import MindModal from './MindModal.vue';
+import MindPageIcon from './MindPageIcon.vue';
 import { computed, ref } from 'vue';
 import { Search, Trash2, RotateCcw, X } from 'lucide-vue-next';
 import type { MindPage } from '@mind-hub/shared';

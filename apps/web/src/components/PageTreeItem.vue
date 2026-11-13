@@ -28,13 +28,10 @@
         </button>
 
         <span class="tree-icon-span" :class="{ 'has-parent-chevron': node.children.length > 0 }">
-          <img
-            v-if="node.icon && isImageUrl(node.icon)"
-            :src="node.icon"
-            class="tree-custom-img-icon"
-            alt=""
+          <MindPageIcon
+            :icon="node.icon || (node.children.length > 0 ? '📁' : '')"
+            :size="15"
           />
-          <span v-else>{{ node.icon || (node.children.length > 0 ? '📁' : '📄') }}</span>
         </span>
       </div>
 
@@ -100,6 +97,7 @@
 import { computed, nextTick, ref, watch } from 'vue';
 import { ChevronDown, ChevronRight, MoreHorizontal, Plus } from 'lucide-vue-next';
 import type { PageTreeNode } from '@mind-hub/shared';
+import MindPageIcon from './ui/MindPageIcon.vue';
 
 defineOptions({
   name: 'PageTreeItem',

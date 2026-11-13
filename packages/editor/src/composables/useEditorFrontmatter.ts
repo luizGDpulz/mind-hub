@@ -32,7 +32,7 @@ export function useEditorFrontmatter(options: UseEditorFrontmatterOptions) {
     if (!options.enableFrontmatterHeader()) return false;
     const controlled = options.showProperties();
     if (controlled !== undefined) {
-      return controlled || hasFrontmatterProperties(options.frontmatter());
+      return controlled;
     }
     return localShowProperties.value || hasFrontmatterProperties(options.frontmatter());
   });

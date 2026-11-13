@@ -30,13 +30,7 @@
               store.selectPage(crumb.id);
             "
           >
-            <img
-              v-if="crumb.icon && isImageUrl(crumb.icon)"
-              :src="crumb.icon"
-              class="crumb-custom-img"
-              alt=""
-            />
-            <span v-else>{{ crumb.icon || '📄' }}</span>
+            <MindPageIcon :icon="crumb.icon" :size="14" />
             <span>{{ crumb.title }}</span>
           </button>
         </template>
@@ -111,9 +105,9 @@ import {
   UserCheck,
 } from 'lucide-vue-next';
 import { useMindStore } from '../../stores/mind-store.js';
-import { isImageUrl } from '../../utils/media.js';
 import MindIconButton from '../ui/MindIconButton.vue';
 import MindActionMenu from '../ui/MindActionMenu.vue';
+import MindPageIcon from '../ui/MindPageIcon.vue';
 import type { ActionMenuItem, ActionMenuPageMeta } from '../ui/types.js';
 
 defineProps<{

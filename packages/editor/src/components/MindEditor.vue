@@ -411,6 +411,7 @@ onBeforeUnmount(() => {
 
 defineExpose({
   openProperties,
+  handleRootMouseDown,
 });
 </script>
 

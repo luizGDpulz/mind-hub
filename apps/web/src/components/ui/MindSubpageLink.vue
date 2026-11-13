@@ -5,13 +5,7 @@
     @click="$emit('navigate', page.id)"
   >
     <span class="subpage-icon">
-      <img
-        v-if="page.icon && isImageUrl(page.icon)"
-        :src="page.icon"
-        class="subpage-custom-img"
-        alt=""
-      />
-      <span v-else>{{ page.icon || '📄' }}</span>
+      <MindPageIcon :icon="page.icon" :size="15" />
     </span>
     <span class="subpage-title">{{ page.title }}</span>
   </div>
@@ -19,6 +13,7 @@
 
 <script setup lang="ts">
 import type { MindPage } from '@mind-hub/shared';
+import MindPageIcon from './MindPageIcon.vue';
 
 defineProps<{
   page: MindPage;

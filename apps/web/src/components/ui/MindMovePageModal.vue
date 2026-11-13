@@ -49,7 +49,9 @@
           :data-testid="`move-dest-${target.id}`"
           @click="selectTarget(target.id)"
         >
-          <span class="move-dest-icon">{{ target.icon || '📄' }}</span>
+          <span class="move-dest-icon">
+            <MindPageIcon :icon="target.icon" :size="15" />
+          </span>
           <div class="move-dest-meta">
             <span class="move-dest-title">{{ target.title }}</span>
             <span v-if="isTargetInvalid(target.id)" class="move-dest-hint is-warning">
@@ -89,6 +91,7 @@
 import { computed, ref, watch } from 'vue';
 import type { MindPage } from '@mind-hub/shared';
 import MindModal from './MindModal.vue';
+import MindPageIcon from './MindPageIcon.vue';
 
 const props = defineProps<{
   modelValue: boolean;

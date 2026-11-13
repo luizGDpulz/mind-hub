@@ -410,6 +410,20 @@ let isInternalUpdate = false;
 const editor = useEditor({
   editable: !props.readOnly,
   content: props.modelValue,
+  editorProps: {
+    handleKeyDown: (_view, event) => {
+      if (
+        !['Shift', 'Control', 'Alt', 'Meta', 'CapsLock', 'Escape'].includes(event.key) &&
+        !event.ctrlKey &&
+        !event.metaKey &&
+        !isGutterMenuOpen.value
+      ) {
+        isGutterHovered.value = false;
+        gutterState.value.visible = false;
+      }
+      return false;
+    },
+  },
   extensions: [
     StarterKit.configure({
       heading: { levels: [1, 2, 3, 4] },
@@ -1179,18 +1193,18 @@ defineExpose({
   height: 0;
 }
 
-/* Ergonomic Left-Expanded Drop Indicator */
+/* Ergonomic Left-Expanded Drop Indicator (Clean Gray Scale) */
 .mind-drop-indicator {
   position: absolute;
   left: -20px;
   right: -10px;
   height: 3px;
-  background-color: #1971c2;
+  background-color: #868e96;
   border-radius: 2px;
   pointer-events: none;
   z-index: 40;
   transform: translateY(-50%);
-  box-shadow: 0 0 0 1px rgba(25, 113, 194, 0.14);
+  box-shadow: 0 0 0 1px rgba(134, 142, 150, 0.22);
 }
 
 .mind-drop-indicator-dot {
@@ -1201,7 +1215,7 @@ defineExpose({
   height: 8px;
   border-radius: 999px;
   background-color: #ffffff;
-  border: 2px solid #1971c2;
+  border: 2px solid #868e96;
   transform: translateY(-50%);
   box-sizing: border-box;
 }

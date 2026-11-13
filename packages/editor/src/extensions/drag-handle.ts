@@ -484,6 +484,9 @@ export const GlobalDragHandle = Extension.create<DragHandleOptions>({
     let hoveredNodeType = 'paragraph';
     let activeDragSourcePos: number | null = null;
     let activeDropTarget: ResolvedDropTarget | null = null;
+    let lastMouseX: number | null = null;
+    let lastMouseY: number | null = null;
+    let suppressedByTyping = false;
 
     const hideHandle = () => {
       if (this.options.onPositionChange) {
@@ -600,6 +603,16 @@ export const GlobalDragHandle = Extension.create<DragHandleOptions>({
           // @tiptap/vue-3 constructs EditorView inside a temporary detached div
           // before <EditorContent> reparents .ProseMirror into the DOM.
           const onWindowMouseMove = (event: MouseEvent) => {
+            if (
+              suppressedByTyping &&
+              event.clientX === lastMouseX &&
+              event.clientY === lastMouseY
+            ) {
+              return;
+            }
+            suppressedByTyping = false;
+            lastMouseX = event.clientX;
+            lastMouseY = event.clientY;
             const targetEl = event.target instanceof Element ? event.target : null;
             updateHandleFromPoint(editorView, event.clientX, event.clientY, targetEl);
           };
@@ -723,6 +736,22 @@ export const GlobalDragHandle = Extension.create<DragHandleOptions>({
         },
         props: {
           handleDOMEvents: {
+            keydown: (_view, event) => {
+              if (
+                !['Shift', 'Control', 'Alt', 'Meta', 'CapsLock', 'Escape'].includes(event.key) &&
+                !event.ctrlKey &&
+                !event.metaKey
+              ) {
+                suppressedByTyping = true;
+                hideHandle();
+              }
+              return false;
+            },
+            input: () => {
+              suppressedByTyping = true;
+              hideHandle();
+              return false;
+            },
             dragover: (view, event) => {
               if (activeDragSourcePos !== null) {
                 event.preventDefault();

@@ -156,6 +156,25 @@ describe('MindEditor.vue', () => {
     await nextTick();
     expect(wrapper.find('[data-testid="block-gutter-shell"]').exists()).toBe(true);
 
+    // Typing in ProseMirror hides the gutter until a real mousemove happens again
+    proseMirror.dispatchEvent(new KeyboardEvent('keydown', { key: 'a', bubbles: true }));
+    await nextTick();
+    expect(wrapper.find('[data-testid="block-gutter-shell"]').exists()).toBe(false);
+
+    // Same-coord synthetic mousemove while typing stays suppressed
+    window.dispatchEvent(
+      new MouseEvent('mousemove', { clientX: 158, clientY: 150, bubbles: true })
+    );
+    await nextTick();
+    expect(wrapper.find('[data-testid="block-gutter-shell"]').exists()).toBe(false);
+
+    // Moving the mouse to a new position restores the gutter
+    window.dispatchEvent(
+      new MouseEvent('mousemove', { clientX: 156, clientY: 152, bubbles: true })
+    );
+    await nextTick();
+    expect(wrapper.find('[data-testid="block-gutter-shell"]').exists()).toBe(true);
+
     // Open block menu, then hover h1 -> target stays locked while popover is open
     await gutterShell.find('[data-testid="block-gutter-handle-btn"]').trigger('click');
     expect(wrapper.find('[data-testid="block-actions-popover"]').exists()).toBe(true);

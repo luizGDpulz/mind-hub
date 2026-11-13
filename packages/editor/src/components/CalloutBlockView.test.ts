@@ -13,56 +13,56 @@ describe('CalloutBlockView.vue', () => {
     updateAttributes: vi.fn(),
   };
 
-  it('renders default note callout with label and pastel background', () => {
+  const stubs = {
+    NodeViewWrapper: {
+      template: '<div class="mind-callout-wrapper" v-bind="$attrs"><slot /></div>',
+    },
+    NodeViewContent: {
+      template: '<div class="mind-callout-content" />',
+    },
+  };
+
+  it('renders clean Notion-style callout with default lightbulb emoji and light background', () => {
     const wrapper = mount(CalloutBlockView, {
       props: defaultProps,
-      global: {
-        stubs: {
-          NodeViewWrapper: {
-            template: '<div class="mind-callout-wrapper"><slot /></div>',
-          },
-          NodeViewContent: {
-            template: '<div class="mind-callout-content" />',
-          },
-        },
-      },
+      global: { stubs },
     });
 
-    expect(wrapper.text()).toContain('Nota');
+    expect(wrapper.find('[data-testid="callout-type-btn"]').text()).toContain('💡');
     expect(wrapper.find('[data-testid="callout-dropdown"]').exists()).toBe(false);
+    expect(['#f8f9fa', 'rgb(248, 249, 250)']).toContain(
+      (wrapper.element as HTMLElement).style.backgroundColor
+    );
   });
 
-  it('opens dropdown and allows selecting another callout type', async () => {
+  it('opens MindIconPicker dropdown to change tone, pick emoji, or pick Lucide icon', async () => {
     const updateAttrsMock = vi.fn();
     const wrapper = mount(CalloutBlockView, {
       props: {
         ...defaultProps,
         updateAttributes: updateAttrsMock,
       },
-      global: {
-        stubs: {
-          NodeViewWrapper: {
-            template: '<div class="mind-callout-wrapper"><slot /></div>',
-          },
-          NodeViewContent: {
-            template: '<div class="mind-callout-content" />',
-          },
-        },
-      },
+      global: { stubs },
     });
 
-    // Click to open dropdown
     await wrapper.find('[data-testid="callout-type-btn"]').trigger('click');
     expect(wrapper.find('[data-testid="callout-dropdown"]').exists()).toBe(true);
+    expect(wrapper.find('[data-testid="mind-icon-picker"]').exists()).toBe(true);
 
-    // Select 'tip'
+    // Select 'tip' tone
     await wrapper.find('[data-testid="callout-option-tip"]').trigger('click');
     expect(updateAttrsMock).toHaveBeenCalledWith({ type: 'tip' });
     expect(wrapper.find('[data-testid="callout-dropdown"]').exists()).toBe(false);
+
+    // Reopen and pick a Lucide vector icon
+    await wrapper.find('[data-testid="callout-type-btn"]').trigger('click');
+    await wrapper.find('[data-testid="icon-picker-tab-icons"]').trigger('click');
+    await wrapper.find('[data-testid="lucide-option-Rocket"]').trigger('click');
+    expect(updateAttrsMock).toHaveBeenCalledWith({ icon: 'lucide:Rocket' });
   });
 
-  it('renders custom emoji icon when set', () => {
-    const wrapper = mount(CalloutBlockView, {
+  it('renders custom emoji or Lucide icon when set', () => {
+    const emojiWrapper = mount(CalloutBlockView, {
       props: {
         ...defaultProps,
         node: {
@@ -72,20 +72,24 @@ describe('CalloutBlockView.vue', () => {
           },
         },
       },
-      global: {
-        stubs: {
-          NodeViewWrapper: {
-            template: '<div class="mind-callout-wrapper"><slot /></div>',
-          },
-          NodeViewContent: {
-            template: '<div class="mind-callout-content" />',
+      global: { stubs },
+    });
+
+    expect(emojiWrapper.find('[data-testid="callout-type-btn"]').text()).toContain('🔥');
+
+    const lucideWrapper = mount(CalloutBlockView, {
+      props: {
+        ...defaultProps,
+        node: {
+          attrs: {
+            type: 'tip',
+            icon: 'lucide:Target',
           },
         },
       },
+      global: { stubs },
     });
 
-    expect(wrapper.text()).toContain('🔥');
-    expect(wrapper.text()).toContain('Aviso');
+    expect(lucideWrapper.find('[data-testid="callout-type-btn"] svg').exists()).toBe(true);
   });
 });
-

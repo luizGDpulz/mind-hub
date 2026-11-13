@@ -586,7 +586,9 @@ export function turnIntoBlocksAtPositions(
         );
       } else if (targetType === 'callout' && schema.nodes.callout) {
         const pNode = paragraphType.create(null, info.inlineContent);
-        convertedNodes.push(schema.nodes.callout.create(colorAttrs, Fragment.from(pNode)));
+        convertedNodes.push(
+          schema.nodes.callout.create({ type: 'note', icon: '💡', ...colorAttrs }, Fragment.from(pNode))
+        );
       } else {
         convertedNodes.push(paragraphType.create(colorAttrs, info.inlineContent));
       }

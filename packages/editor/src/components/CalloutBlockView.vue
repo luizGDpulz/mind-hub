@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import { NodeViewWrapper, NodeViewContent } from '@tiptap/vue-3';
 import {
   Info,
@@ -7,12 +7,19 @@ import {
   AlertTriangle,
   AlertOctagon,
   Flame,
-  ChevronDown,
-  X,
+  SmilePlus,
 } from 'lucide-vue-next';
 import type { CalloutType } from '../types.js';
 import { normalizeCalloutType } from '../extensions/callout-node.js';
-import { getBlockColorOption, normalizeBlockColorId } from '../extensions/block-color.js';
+import {
+  getBlockColorDisplayHex,
+  normalizeBlockColorValue,
+} from '../extensions/block-color.js';
+import {
+  NO_CALLOUT_ICON_VALUE,
+  resolveLucideIconComponent,
+} from '../extensions/callout-icons.js';
+import MindIconPicker from './MindIconPicker.vue';
 
 interface CalloutBlockProps {
   node: {
@@ -37,13 +44,25 @@ const props = withDefaults(defineProps<CalloutBlockProps>(), {
 });
 
 const isDropdownOpen = ref(false);
+const anchorRef = ref<HTMLElement | null>(null);
 
 const currentType = computed<CalloutType>(() => {
   return normalizeCalloutType(props.node.attrs.type as string | undefined);
 });
 
-const currentIcon = computed<string | null>(() => {
-  return (props.node.attrs.icon as string | null) || null;
+const rawIcon = computed<string | null>(() => {
+  const val = props.node.attrs.icon;
+  return typeof val === 'string' && val.length > 0 ? val : null;
+});
+
+const isIconHidden = computed(() => rawIcon.value === NO_CALLOUT_ICON_VALUE);
+
+const lucideIconComponent = computed(() => resolveLucideIconComponent(rawIcon.value));
+
+const emojiIcon = computed<string | null>(() => {
+  if (isIconHidden.value || lucideIconComponent.value) return null;
+  if (rawIcon.value) return rawIcon.value;
+  return currentType.value === 'note' ? '💡' : null;
 });
 
 const calloutConfig = computed(() => {
@@ -83,22 +102,31 @@ const calloutConfig = computed(() => {
     case 'note':
     default:
       return {
-        label: 'Nota',
-        bg: '#e7f5ff',
-        border: '#d0ebff',
-        accent: '#1971c2',
+        label: 'Frase de destaque',
+        bg: '#f8f9fa',
+        border: '#e9ecef',
+        accent: '#495057',
         iconComponent: Info,
       };
   }
 });
 
-const typesList: Array<{ type: CalloutType; label: string; icon: typeof Info }> = [
-  { type: 'note', label: 'Nota', icon: Info },
-  { type: 'tip', label: 'Dica', icon: Lightbulb },
-  { type: 'important', label: 'Importante', icon: Flame },
-  { type: 'warning', label: 'Aviso', icon: AlertTriangle },
-  { type: 'caution', label: 'Cuidado', icon: AlertOctagon },
-];
+const customTextColor = computed(() => normalizeBlockColorValue(props.node.attrs.blockTextColor));
+const customBgColor = computed(() => normalizeBlockColorValue(props.node.attrs.blockBackgroundColor));
+
+const wrapperStyle = computed(() => {
+  const bg = customBgColor.value
+    ? getBlockColorDisplayHex(customBgColor.value, 'bg')
+    : calloutConfig.value.bg;
+  const color = customTextColor.value
+    ? getBlockColorDisplayHex(customTextColor.value, 'text')
+    : undefined;
+  return {
+    backgroundColor: bg,
+    borderColor: customBgColor.value ? 'rgba(0, 0, 0, 0.06)' : calloutConfig.value.border,
+    ...(color ? { color } : {}),
+  };
+});
 
 function toggleDropdown(): void {
   isDropdownOpen.value = !isDropdownOpen.value;
@@ -109,111 +137,107 @@ function selectType(type: CalloutType): void {
   isDropdownOpen.value = false;
 }
 
-function setCustomIcon(emoji: string): void {
-  props.updateAttributes({ icon: emoji });
+function selectIcon(value: string): void {
+  props.updateAttributes({ icon: value });
   isDropdownOpen.value = false;
 }
 
-const customTextColor = computed(() => normalizeBlockColorId(props.node.attrs.blockTextColor));
-const customBgColor = computed(() => normalizeBlockColorId(props.node.attrs.blockBackgroundColor));
+function removeIcon(): void {
+  props.updateAttributes({ icon: NO_CALLOUT_ICON_VALUE });
+  isDropdownOpen.value = false;
+}
 
-const wrapperStyle = computed(() => {
-  const bg = customBgColor.value
-    ? getBlockColorOption(customBgColor.value).backgroundColor
-    : calloutConfig.value.bg;
-  const color = customTextColor.value
-    ? getBlockColorOption(customTextColor.value).textColor
-    : undefined;
-  return {
-    backgroundColor: bg,
-    borderColor: calloutConfig.value.border,
-    ...(color ? { color } : {}),
-  };
+function handleWindowClick(event: MouseEvent): void {
+  if (!isDropdownOpen.value || !anchorRef.value) return;
+  const target = event.target instanceof Node ? event.target : null;
+  if (target && !anchorRef.value.contains(target)) {
+    isDropdownOpen.value = false;
+  }
+}
+
+function handleWindowKeydown(event: KeyboardEvent): void {
+  if (event.key === 'Escape' && isDropdownOpen.value) {
+    isDropdownOpen.value = false;
+  }
+}
+
+onMounted(() => {
+  window.addEventListener('click', handleWindowClick);
+  window.addEventListener('keydown', handleWindowKeydown);
 });
 
-function clearCustomIcon(): void {
-  props.updateAttributes({ icon: null });
-}
+onBeforeUnmount(() => {
+  window.removeEventListener('click', handleWindowClick);
+  window.removeEventListener('keydown', handleWindowKeydown);
+});
 </script>
 
 <template>
   <NodeViewWrapper
     class="mind-callout-wrapper"
+    :class="{ 'is-icon-hidden': isIconHidden }"
     :data-callout-type="currentType"
+    :data-callout-icon="rawIcon || undefined"
     :data-block-color="customTextColor || undefined"
     :data-block-bg="customBgColor || undefined"
     :style="wrapperStyle"
   >
-    <div class="mind-callout-header">
-      <div class="mind-callout-badge-container">
-        <button
-          type="button"
-          class="mind-callout-type-btn"
-          :style="{ color: calloutConfig.accent }"
-          data-testid="callout-type-btn"
-          title="Alterar tipo de destaque"
-          @click.stop="toggleDropdown"
+    <div
+      ref="anchorRef"
+      class="mind-callout-icon-anchor"
+      contenteditable="false"
+    >
+      <button
+        type="button"
+        class="mind-callout-type-btn"
+        :class="{ 'is-placeholder-trigger': isIconHidden }"
+        :style="{ color: calloutConfig.accent }"
+        data-testid="callout-type-btn"
+        :title="isIconHidden ? 'Adicionar ícone' : 'Alterar ícone ou estilo'"
+        :aria-label="calloutConfig.label"
+        @click.stop="toggleDropdown"
+      >
+        <component
+          :is="lucideIconComponent"
+          v-if="lucideIconComponent"
+          class="mind-callout-icon"
+        />
+        <span
+          v-else-if="emojiIcon"
+          class="mind-callout-emoji"
         >
-          <span v-if="currentIcon" class="mind-callout-emoji">{{ currentIcon }}</span>
-          <component
-            :is="calloutConfig.iconComponent"
-            v-else
-            class="mind-callout-icon"
-          />
-          <span class="mind-callout-label">{{ calloutConfig.label }}</span>
-          <ChevronDown class="mind-callout-chevron" />
-        </button>
+          {{ emojiIcon }}
+        </span>
+        <SmilePlus
+          v-else-if="isIconHidden"
+          class="mind-callout-icon is-ghost-icon"
+        />
+        <component
+          :is="calloutConfig.iconComponent"
+          v-else
+          class="mind-callout-icon"
+        />
+      </button>
 
-        <!-- Dropdown Seletor de Tipo e Ícone -->
-        <div
-          v-if="isDropdownOpen"
-          class="mind-callout-dropdown"
-          data-testid="callout-dropdown"
-        >
-          <div class="mind-dropdown-title">Tipo de destaque</div>
-          <div class="mind-dropdown-list">
-            <button
-              v-for="item in typesList"
-              :key="item.type"
-              type="button"
-              class="mind-dropdown-item"
-              :class="{ 'is-active': item.type === currentType }"
-              :data-testid="`callout-option-${item.type}`"
-              @click="selectType(item.type)"
-            >
-              <component :is="item.icon" class="mind-dropdown-item-icon" />
-              <span>{{ item.label }}</span>
-            </button>
-          </div>
-
-          <div class="mind-dropdown-divider" />
-
-          <div class="mind-dropdown-title">Ícone rápido</div>
-          <div class="mind-emoji-row">
-            <button
-              v-for="emoji in ['💡', '📌', '⚠️', '🔥', '🚀', '🎯']"
-              :key="emoji"
-              type="button"
-              class="mind-emoji-btn"
-              @click="setCustomIcon(emoji)"
-            >
-              {{ emoji }}
-            </button>
-            <button
-              v-if="currentIcon"
-              type="button"
-              class="mind-emoji-btn mind-emoji-clear"
-              title="Restaurar ícone padrão"
-              @click="clearCustomIcon"
-            >
-              <X class="mind-clear-icon" />
-            </button>
-          </div>
-        </div>
+      <!-- Notion-style Robust Emoji & Icon Picker Popover -->
+      <div
+        v-if="isDropdownOpen"
+        class="mind-callout-dropdown"
+        data-testid="callout-dropdown"
+      >
+        <MindIconPicker
+          :model-value="isIconHidden ? null : rawIcon ?? emojiIcon"
+          :callout-type="currentType"
+          :show-callout-tone="true"
+          :allow-remove="!isIconHidden"
+          @select="selectIcon"
+          @remove="removeIcon"
+          @select-type="selectType"
+        />
       </div>
     </div>
 
-    <!-- Conteúdo do Bloco Editável -->
+    <!-- Conteúdo Editável da Frase de Destaque -->
     <NodeViewContent
       class="mind-callout-content"
       data-testid="callout-content"
@@ -225,170 +249,93 @@ function clearCustomIcon(): void {
 .mind-callout-wrapper {
   position: relative;
   display: flex;
-  flex-direction: column;
-  gap: 8px;
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 10px;
   border-width: 1px;
   border-style: solid;
   border-radius: 8px;
   padding: 12px 14px;
-  margin: 14px 0;
+  margin: 6px -10px;
+  box-sizing: border-box;
   transition: border-color 0.15s ease, background-color 0.15s ease;
 }
 
-.mind-callout-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.mind-callout-badge-container {
+.mind-callout-icon-anchor {
   position: relative;
+  flex: 0 0 auto;
   display: inline-flex;
+  align-items: center;
+  margin-top: 1px;
+  user-select: none;
 }
 
 .mind-callout-type-btn {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
   border: none;
   background: transparent;
-  padding: 2px 6px;
+  padding: 0;
   border-radius: 6px;
-  font-size: 12px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
   cursor: pointer;
-  transition: background-color 0.12s ease;
+  transition: background-color 0.12s ease, opacity 0.12s ease;
 }
 
 .mind-callout-type-btn:hover {
-  background-color: rgba(0, 0, 0, 0.05);
+  background-color: rgba(0, 0, 0, 0.06);
+}
+
+.mind-callout-wrapper.is-icon-hidden .mind-callout-type-btn.is-placeholder-trigger {
+  opacity: 0;
+  width: 20px;
+}
+
+.mind-callout-wrapper.is-icon-hidden:hover .mind-callout-type-btn.is-placeholder-trigger,
+.mind-callout-type-btn.is-placeholder-trigger:focus-visible {
+  opacity: 0.7;
+  width: 24px;
 }
 
 .mind-callout-icon {
-  width: 15px;
-  height: 15px;
+  width: 18px;
+  height: 18px;
   flex-shrink: 0;
 }
 
-.mind-callout-emoji {
-  font-size: 14px;
-  line-height: 1;
+.mind-callout-icon.is-ghost-icon {
+  width: 15px;
+  height: 15px;
+  color: #868e96;
 }
 
-.mind-callout-chevron {
-  width: 12px;
-  height: 12px;
-  opacity: 0.7;
+.mind-callout-emoji {
+  font-size: 18px;
+  line-height: 1;
 }
 
 .mind-callout-dropdown {
   position: absolute;
-  top: calc(100% + 4px);
+  top: calc(100% + 6px);
   left: 0;
-  z-index: 50;
-  width: 180px;
-  background-color: #ffffff;
-  border: 1px solid #e9ecef;
-  border-radius: 8px;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08), 0 1px 3px rgba(0, 0, 0, 0.04);
-  padding: 6px;
-}
-
-.mind-dropdown-title {
-  font-size: 11px;
-  font-weight: 600;
-  color: #868e96;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  padding: 4px 6px;
-}
-
-.mind-dropdown-list {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.mind-dropdown-item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  width: 100%;
-  border: none;
-  background: transparent;
-  padding: 6px 8px;
-  border-radius: 6px;
-  font-size: 13px;
-  color: #111827;
-  cursor: pointer;
-  text-align: left;
-  transition: background-color 0.12s ease;
-}
-
-.mind-dropdown-item:hover,
-.mind-dropdown-item.is-active {
-  background-color: #f1f3f5;
-}
-
-.mind-dropdown-item-icon {
-  width: 14px;
-  height: 14px;
-  color: #495057;
-}
-
-.mind-dropdown-divider {
-  height: 1px;
-  background-color: #e9ecef;
-  margin: 6px 0;
-}
-
-.mind-emoji-row {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  padding: 2px 4px;
-}
-
-.mind-emoji-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 24px;
-  height: 24px;
-  border: none;
-  background: transparent;
-  border-radius: 4px;
-  font-size: 14px;
-  cursor: pointer;
-  transition: background-color 0.1s ease;
-}
-
-.mind-emoji-btn:hover {
-  background-color: #f1f3f5;
-}
-
-.mind-emoji-clear {
-  color: #868e96;
-}
-
-.mind-clear-icon {
-  width: 14px;
-  height: 14px;
+  z-index: 70;
 }
 
 .mind-callout-content {
-  color: #111827;
-  font-size: 14px;
+  flex: 1 1 auto;
+  min-width: 0;
   line-height: 1.6;
+  font-size: 15px;
 }
 
-:deep(.mind-callout-content p) {
-  margin: 0 0 6px 0;
+:deep(.mind-callout-content > p) {
+  margin: 0;
+  padding: 0;
 }
 
-:deep(.mind-callout-content p:last-child) {
-  margin-bottom: 0;
+:deep(.mind-callout-content > p + p) {
+  margin-top: 6px;
 }
 </style>

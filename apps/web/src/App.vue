@@ -460,72 +460,93 @@
 
         <!-- Main Document + Embedded Database + Open-Source Diagrams -->
         <div v-else-if="store.activePage" class="editor-container">
-          <!-- Page Header Icon & Customization (Notion-like, Issue #26) -->
-          <div class="page-header-icon-container" data-testid="page-header-icon-container">
-            <div
-              class="page-header-icon-box"
-              data-testid="page-header-icon"
-              title="Clique para mudar o ícone"
-              @click="isIconPickerOpen = true"
-            >
-              <img
-                v-if="store.activePage.icon && isImageUrl(store.activePage.icon)"
-                :src="store.activePage.icon"
-                class="page-header-custom-img"
-                alt="Page Icon"
-              />
-              <span v-else class="page-header-emoji">{{ store.activePage.icon || '📄' }}</span>
-            </div>
-
-            <div class="page-header-icon-hover-actions">
-              <button
-                type="button"
-                class="page-icon-action-btn"
-                @click="isIconPickerOpen = true"
-              >
-                Mudar ícone
-              </button>
-              <button
-                v-if="store.activePage.icon"
-                type="button"
-                class="page-icon-action-btn"
-                @click="store.updatePageMeta(store.activePage.id, { icon: '' })"
-              >
-                Remover
-              </button>
-            </div>
-          </div>
-
-          <!-- Clean H1 Title -->
-          <input
-            :value="store.activePage.title"
-            type="text"
-            class="page-title-h1"
-            data-testid="page-title-input"
-            aria-label="Page title"
-            @input="
-              (e) =>
-                store.activePage &&
-                store.updatePageMeta(store.activePage.id, {
-                  title: (e.target as HTMLInputElement).value,
-                })
-            "
-          />
-
-          <!-- MindBlockEditor with Left Gutter (+ / ⠿), Slash (/) & Mention (@) -->
-          <MindBlockEditor
+          <!-- MindEditor Notion-Like: Plug & Play Engine (@mind-hub/editor) -->
+          <MindEditor
+            ref="mindEditorRef"
             :key="store.activePage.id"
-            :model-value="store.activePage.contentJson"
-            :markdown-value="store.activePage.contentMarkdown"
-            :page-title="store.activePage.title"
-            :read-only-mode="store.editorReadMode"
-            :mention-pages="store.activePages"
-            @update:model-value="store.updateActivePageContent"
-            @update:markdown-value="store.updateActivePageMarkdown"
+            v-model:show-properties="showPropertiesOverride"
+            class="mind-hub-editor-shell"
+            :model-value="store.activePage.contentJson || store.activePage.contentMarkdown"
+            :frontmatter="activePageFrontmatter"
+            :read-only="store.editorReadMode"
+            :pages="mentionPageReferences"
+            @update:json="handleEditorJsonUpdate"
+            @update:frontmatter="handleFrontmatterUpdate"
+            @select-page="
+              (pageId) => {
+                store.activeSurface = 'editor';
+                store.selectPage(pageId);
+              }
+            "
+            @create-subpage="handleAddSubpage"
             @insert-database-block="store.enableDatabaseBlockForActivePage()"
             @insert-diagram-block="(kind) => store.enableDiagramBlockForActivePage(kind)"
-            @create-subpage="handleAddSubpage"
-          />
+          >
+            <template #title>
+              <!-- Page Header Icon & Customization (below YAML Properties, Notion-like Issue #26) -->
+              <div class="page-header-icon-container" data-testid="page-header-icon-container">
+                <div
+                  class="page-header-icon-box"
+                  data-testid="page-header-icon"
+                  title="Clique para mudar o ícone"
+                  @click="!store.editorReadMode && (isIconPickerOpen = true)"
+                >
+                  <img
+                    v-if="store.activePage.icon && isImageUrl(store.activePage.icon)"
+                    :src="store.activePage.icon"
+                    class="page-header-custom-img"
+                    alt="Page Icon"
+                  />
+                  <span v-else class="page-header-emoji">{{ store.activePage.icon || '📄' }}</span>
+                </div>
+
+                <div v-if="!store.editorReadMode" class="page-header-icon-hover-actions">
+                  <button
+                    type="button"
+                    class="page-icon-action-btn"
+                    @click="isIconPickerOpen = true"
+                  >
+                    Mudar ícone
+                  </button>
+                  <button
+                    v-if="store.activePage.icon"
+                    type="button"
+                    class="page-icon-action-btn"
+                    @click="store.updatePageMeta(store.activePage.id, { icon: '' })"
+                  >
+                    Remover
+                  </button>
+                  <button
+                    v-if="!isActivePagePropertiesVisible"
+                    type="button"
+                    class="page-icon-action-btn"
+                    data-testid="page-add-properties-btn"
+                    @click="openActivePageProperties"
+                  >
+                    + Propriedades
+                  </button>
+                </div>
+              </div>
+
+              <!-- Clean H1 Title (DB Page.title owns note identity) -->
+              <input
+                :value="store.activePage.title"
+                type="text"
+                class="page-title-h1"
+                placeholder="Sem título"
+                :readonly="store.editorReadMode"
+                data-testid="page-title-input"
+                aria-label="Page title"
+                @input="
+                  (e) =>
+                    store.activePage &&
+                    store.updatePageMeta(store.activePage.id, {
+                      title: (e.target as HTMLInputElement).value,
+                    })
+                "
+              />
+            </template>
+          </MindEditor>
 
           <!-- Embedded Database Block: Table & Kanban Board (only when inserted on this page) -->
           <DatabaseViewBlock
@@ -801,7 +822,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue';
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 import { Dark } from 'quasar';
 import {
   ChevronDown,
@@ -826,15 +847,16 @@ import {
   Search as SearchIcon,
   Settings,
   Share2,
+  SlidersHorizontal,
   Sparkles,
   SquarePen,
   Trash2,
   UserCheck,
 } from 'lucide-vue-next';
-import type { RawMarkdownFileEntry } from '@mind-hub/shared';
+import type { MindNode, RawMarkdownFileEntry, TiptapDoc } from '@mind-hub/shared';
 import { useMindStore } from './stores/mind-store.js';
 import PageTreeItem from './components/PageTreeItem.vue';
-import MindBlockEditor from './components/MindBlockEditor.vue';
+import { MindEditor, type EditorFrontmatter, type PageReference } from '@mind-hub/editor';
 import DatabaseViewBlock from './components/DatabaseViewBlock.vue';
 import DiagramEmbedsBlock from './components/DiagramEmbedsBlock.vue';
 import CleanLoginView from './components/CleanLoginView.vue';
@@ -870,6 +892,126 @@ const quickInsightText = ref('');
 const aiPromptInput = ref('');
 const replyBuffers = reactive<Record<string, string>>({});
 
+const STORAGE_PAGE_PROPS_KEY = 'mind_hub_page_properties';
+
+function loadStoredPageProperties(): Record<string, EditorFrontmatter> {
+  try {
+    const raw = localStorage.getItem(STORAGE_PAGE_PROPS_KEY);
+    if (!raw) return {};
+    const parsed: unknown = JSON.parse(raw);
+    if (typeof parsed === 'object' && parsed !== null) {
+      return parsed as Record<string, EditorFrontmatter>;
+    }
+  } catch {
+    // Ignore storage read errors in constrained environments
+  }
+  return {};
+}
+
+const mindEditorRef = ref<InstanceType<typeof MindEditor> | null>(null);
+const showPropertiesOverride = ref(false);
+const pagePropertiesById = reactive<Record<string, EditorFrontmatter>>(loadStoredPageProperties());
+
+function persistPageProperties(): void {
+  try {
+    localStorage.setItem(STORAGE_PAGE_PROPS_KEY, JSON.stringify(pagePropertiesById));
+  } catch {
+    // Ignore storage quota errors
+  }
+}
+
+watch(
+  () => store.activePageId,
+  () => {
+    showPropertiesOverride.value = false;
+  },
+);
+
+const activePageFrontmatter = computed<EditorFrontmatter>(() => {
+  const current = store.activePage;
+  if (!current) return {};
+  const extra = pagePropertiesById[current.id] ?? {};
+  const next: EditorFrontmatter = { ...extra };
+  if (current.tags && current.tags.length > 0) {
+    next.tags = [...current.tags];
+  }
+  return next;
+});
+
+const isActivePagePropertiesVisible = computed<boolean>(() => {
+  if (showPropertiesOverride.value) return true;
+  for (const [key, val] of Object.entries(activePageFrontmatter.value)) {
+    if (key === 'title' || val === undefined) continue;
+    if (key === 'tags' && Array.isArray(val) && val.length === 0) continue;
+    return true;
+  }
+  return false;
+});
+
+function openActivePageProperties(): void {
+  if (store.editorReadMode) return;
+  showPropertiesOverride.value = true;
+  void mindEditorRef.value?.openProperties(true);
+}
+
+function isMindNode(value: unknown): value is MindNode {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    typeof (value as { type?: unknown }).type === 'string'
+  );
+}
+
+function handleEditorJsonUpdate(doc: Record<string, unknown>): void {
+  const safeContent: MindNode[] = Array.isArray(doc.content)
+    ? doc.content.filter(isMindNode)
+    : [];
+  const nextDoc: TiptapDoc = {
+    type: 'doc',
+    content: safeContent,
+  };
+  void store.updateActivePageContent(nextDoc);
+}
+
+function handleFrontmatterUpdate(meta: EditorFrontmatter): void {
+  const current = store.activePage;
+  if (!current) return;
+
+  const nextTags = Array.isArray(meta.tags)
+    ? meta.tags.map((tag) => String(tag).trim()).filter(Boolean)
+    : [];
+
+  const nextExtra: EditorFrontmatter = {};
+  for (const [key, val] of Object.entries(meta)) {
+    if (key === 'title' || key === 'tags' || val === undefined) continue;
+    nextExtra[key] = val;
+  }
+
+  if (Object.keys(nextExtra).length > 0) {
+    pagePropertiesById[current.id] = nextExtra;
+  } else {
+    delete pagePropertiesById[current.id];
+  }
+  persistPageProperties();
+
+  const prevTagsJson = JSON.stringify(current.tags ?? []);
+  const nextTagsJson = JSON.stringify(nextTags);
+  if (prevTagsJson !== nextTagsJson) {
+    void store.updatePageMeta(current.id, { tags: nextTags });
+  }
+}
+
+const mentionPageReferences = computed<PageReference[]>(() =>
+  store.activePages.map((p) => ({
+    id: p.id,
+    title: p.title,
+    slug: p.slug,
+    icon: p.icon || '📄',
+    summary: p.tags?.join(', '),
+    updatedAt: p.updatedAt,
+  })),
+);
+
 const isFavoritesCollapsed = ref(false);
 const treeForceExpanded = ref<boolean | null>(null);
 const renamingPageId = ref<string>('');
@@ -888,7 +1030,13 @@ function toggleTreeExpandAll(): void {
 
 function handleTreeContextMenu(
   event: MouseEvent,
-  node: any,
+  node: {
+    id: string;
+    title: string;
+    icon?: string;
+    isFavorite?: boolean;
+    updatedAt?: string | number | Date;
+  },
   source: 'tree' | 'favorites' = 'tree',
 ): void {
   contextMenuSource.value = source;
@@ -1021,6 +1169,16 @@ const actionMenuItems = computed<ActionMenuItem[]>(() => {
       },
     },
     {
+      id: 'add-properties',
+      label: 'Propriedades (YAML)',
+      icon: SlidersHorizontal,
+      shortcut: '---',
+      section: 'tools',
+      handler: () => {
+        openActivePageProperties();
+      },
+    },
+    {
       id: 'lock-page',
       label: 'Bloquear página / Leitura',
       icon: Lock,
@@ -1136,6 +1294,7 @@ async function handleAddSubpage(): Promise<void> {
     title: 'Sem título',
     parentId: store.activePage.id,
     contentMarkdown: '',
+    tags: [],
     icon: '📄',
   });
   store.selectPage(newSub.id);
@@ -1213,7 +1372,8 @@ async function handleCreateRootPage(): Promise<void> {
     title: 'Sem título',
     icon: '📄',
     parentId: null,
-    tags: ['nota'],
+    contentMarkdown: '',
+    tags: [],
   });
   store.selectPage(newPage.id);
 }
@@ -1240,10 +1400,11 @@ function handleOpenHelp(): void {
 function handleCreateChildPage(parentId: string): void {
   store.activeSurface = 'editor';
   void store.createPage({
-    title: 'Subpage Specification',
+    title: 'Sem título',
     icon: '📑',
     parentId,
-    tags: ['subpage'],
+    contentMarkdown: '',
+    tags: [],
   });
 }
 
@@ -1989,5 +2150,11 @@ function splitSnippetSegments(
   height: 15px;
   object-fit: contain;
   border-radius: 2px;
+}
+
+.editor-container :deep(.mind-editor-root) {
+  padding: 0 0 28px;
+  max-width: none;
+  margin: 0;
 }
 </style>

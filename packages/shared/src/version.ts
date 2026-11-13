@@ -6,10 +6,24 @@ export interface MindVersionEntry {
   highlights: string[];
 }
 
-export const CURRENT_MIND_VERSION = '0.3.0';
+export const CURRENT_MIND_VERSION = '0.4.0';
 export const MIND_REPO_URL = 'https://github.com/luizGDpulz/mind-hub';
 
 export const MIND_VERSION_HISTORY: MindVersionEntry[] = [
+  {
+    version: '0.4.0',
+    releaseDate: '2026-11-13',
+    milestoneTitle: 'M10: Mind Editor (@mind-hub/editor Beta)',
+    summary:
+      'Motor de editor autoral desacoplado sobre Tiptap v2 + ProseMirror sob mind-light-style com gutter Notion-like, seleção em laço, propriedades YAML estilo Obsidian, Slash (/), menções (@), callouts e Mermaid nativo.',
+    highlights: [
+      'Pacote @mind-hub/editor desacoplado com BlockGutter (+ / ⠿), menu contextual esquerdo e seletor duplo de cor por bloco',
+      'Seleção externa em laço (marquee drag) separada de seleção de texto, com ações em grupo',
+      'Propriedades YAML estilo Obsidian (FrontmatterHeader) abaixo ocultadas em notas em branco e ativáveis via --- ou botão',
+      'Slash Menu (/), PageMention (@ / [[...]]), Callouts com seletor de ícones/emoji e diagramas Mermaid SVG',
+      'Integração plug-and-play no apps/web preservando DB Page.title como identidade da nota',
+    ],
+  },
   {
     version: '0.3.0',
     releaseDate: '2026-11-12',

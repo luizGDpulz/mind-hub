@@ -201,7 +201,7 @@ export class McpHandler {
               protocolVersion: '2024-11-05',
               serverInfo: {
                 name: 'mind-hub-mcp',
-                version: '0.3.0',
+                version: '0.4.0',
               },
               capabilities: {
                 tools: {},

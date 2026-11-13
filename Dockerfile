@@ -7,6 +7,7 @@ RUN corepack enable && corepack prepare pnpm@12.9.1 --activate
 
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json ./
 COPY packages/shared/package.json ./packages/shared/package.json
+COPY packages/editor/package.json ./packages/editor/package.json
 COPY apps/server/package.json ./apps/server/package.json
 COPY apps/web/package.json ./apps/web/package.json
 

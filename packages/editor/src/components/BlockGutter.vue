@@ -50,10 +50,13 @@
       </div>
     </div>
 
-    <!-- Actions Popover Menu (Light Mode Notion-style with Search + Submenus) -->
+    <!-- Actions Popover Menu (Opens to the LEFT of the gutter handle like Notion) -->
     <div
       v-if="showMenu"
+      ref="popoverRef"
       class="block-actions-popover"
+      :class="{ 'is-flipped-right': popoverFlipRight }"
+      :style="popoverPositionStyle"
       data-testid="block-actions-popover"
       @keydown.esc.stop="closeMenu"
     >
@@ -111,7 +114,7 @@
       <!-- Standard Cascading Menu Mode -->
       <template v-else>
         <div class="popover-section">
-          <div class="section-title">Bloco</div>
+          <div class="section-title">{{ menuSectionTitle }}</div>
 
           <!-- Transformar em > -->
           <div
@@ -153,7 +156,7 @@
             </div>
           </div>
 
-          <!-- Cor > -->
+          <!-- Cor > (Quick Recent Access + Text Color Subselection + Background Color Subselection) -->
           <div
             class="popover-submenu-anchor"
             @mouseenter="openSubmenu('color')"
@@ -180,54 +183,231 @@
 
             <div
               v-if="activeSubmenu === 'color'"
-              class="popover-submenu popover-submenu-color"
+              class="popover-submenu popover-submenu-color-hub"
               data-testid="submenu-color"
             >
-              <div class="section-title">Cor do texto</div>
-              <button
-                v-for="color in BLOCK_COLOR_PALETTE"
-                :key="`text-${color.id}`"
-                type="button"
-                class="popover-item"
-                :class="{ 'is-active': isTextColorActive(color.id) }"
-                :data-testid="`text-color-${color.id}`"
-                @click="handleSetColor({ textColor: color.id })"
-              >
-                <span
-                  class="color-swatch-letter"
-                  :style="{ color: color.textColor }"
-                >
-                  A
-                </span>
-                <span class="item-label">{{ color.label }}</span>
-                <Check v-if="isTextColorActive(color.id)" :size="13" class="item-check" />
-              </button>
+              <!-- Quick Access: Last Used Text & Background Colors -->
+              <template v-if="lastUsedTextColor || lastUsedBgColor">
+                <div class="section-title">Usada recentemente</div>
 
-              <div class="popover-divider" />
-
-              <div class="section-title">Cor de fundo</div>
-              <button
-                v-for="color in BLOCK_COLOR_PALETTE"
-                :key="`bg-${color.id}`"
-                type="button"
-                class="popover-item"
-                :class="{ 'is-active': isBgColorActive(color.id) }"
-                :data-testid="`bg-color-${color.id}`"
-                @click="handleSetColor({ backgroundColor: color.id })"
-              >
-                <span
-                  class="color-swatch-bg"
-                  :style="{
-                    backgroundColor:
-                      color.backgroundColor === 'transparent' ? '#ffffff' : color.backgroundColor,
-                    color: '#37352f',
-                  }"
+                <button
+                  v-if="lastUsedTextColor"
+                  type="button"
+                  class="popover-item"
+                  data-testid="quick-last-text-color"
+                  @mouseenter="activeColorSubgroup = null"
+                  @click="handleSetColor({ textColor: lastUsedTextColor })"
                 >
-                  A
-                </span>
-                <span class="item-label">{{ color.label }}</span>
-                <Check v-if="isBgColorActive(color.id)" :size="13" class="item-check" />
-              </button>
+                  <span
+                    class="color-swatch-letter"
+                    :style="{ color: getColorDisplayHex(lastUsedTextColor, 'text') }"
+                  >
+                    A
+                  </span>
+                  <span class="item-label">Texto: {{ getColorDisplayLabel(lastUsedTextColor) }}</span>
+                </button>
+
+                <button
+                  v-if="lastUsedBgColor"
+                  type="button"
+                  class="popover-item"
+                  data-testid="quick-last-bg-color"
+                  @mouseenter="activeColorSubgroup = null"
+                  @click="handleSetColor({ backgroundColor: lastUsedBgColor })"
+                >
+                  <span
+                    class="color-swatch-bg"
+                    :style="{
+                      backgroundColor: getColorDisplayHex(lastUsedBgColor, 'bg'),
+                      color: '#37352f',
+                    }"
+                  >
+                    A
+                  </span>
+                  <span class="item-label">Fundo: {{ getColorDisplayLabel(lastUsedBgColor) }}</span>
+                </button>
+
+                <div class="popover-divider" />
+              </template>
+
+              <div class="section-title">Cores</div>
+
+              <!-- Subselection 1: Cor do texto > -->
+              <div
+                class="popover-submenu-anchor"
+                @mouseenter="openColorSubgroup('text')"
+              >
+                <button
+                  type="button"
+                  class="popover-item"
+                  :class="{ 'is-active': activeColorSubgroup === 'text' }"
+                  data-testid="submenu-color-text-trigger"
+                  @mouseenter="openColorSubgroup('text')"
+                  @click="toggleColorSubgroup('text')"
+                >
+                  <span
+                    class="color-swatch-letter"
+                    :style="{ color: activeTextSwatchHex }"
+                  >
+                    A
+                  </span>
+                  <span class="item-label">Cor do texto</span>
+                  <ChevronRight :size="13" class="chevron-right" />
+                </button>
+
+                <div
+                  v-if="activeColorSubgroup === 'text'"
+                  class="popover-submenu popover-submenu-nested"
+                  data-testid="submenu-color-text"
+                >
+                  <div class="section-title">Cor do texto</div>
+                  <button
+                    v-for="color in BLOCK_COLOR_PALETTE"
+                    :key="`text-${color.id}`"
+                    type="button"
+                    class="popover-item"
+                    :class="{ 'is-active': isTextColorActive(color.id) }"
+                    :data-testid="`text-color-${color.id}`"
+                    @click="handleSetColor({ textColor: color.id })"
+                  >
+                    <span
+                      class="color-swatch-letter"
+                      :style="{ color: color.textColor }"
+                    >
+                      A
+                    </span>
+                    <span class="item-label">{{ color.label }}</span>
+                    <Check v-if="isTextColorActive(color.id)" :size="13" class="item-check" />
+                  </button>
+
+                  <div class="popover-divider" />
+
+                  <button
+                    type="button"
+                    class="popover-item"
+                    :class="{ 'is-active': showCustomTextPicker }"
+                    data-testid="custom-text-color-trigger"
+                    @click="toggleCustomPicker('text')"
+                  >
+                    <span
+                      class="color-swatch-letter"
+                      :style="{ color: isCustomHexColor(normalizedTextColor) ? normalizedTextColor! : '#111827' }"
+                    >
+                      A
+                    </span>
+                    <span class="item-label">Personalizada...</span>
+                    <Pipette :size="13" class="chevron-right" />
+                  </button>
+
+                  <MindColorPicker
+                    v-if="showCustomTextPicker"
+                    mode="text"
+                    :initial-color="isCustomHexColor(normalizedTextColor) ? normalizedTextColor : activeTextSwatchHex"
+                    @apply="handleSetColor({ textColor: $event })"
+                  />
+                </div>
+              </div>
+
+              <!-- Subselection 2: Cor de fundo > -->
+              <div
+                class="popover-submenu-anchor"
+                @mouseenter="openColorSubgroup('bg')"
+              >
+                <button
+                  type="button"
+                  class="popover-item"
+                  :class="{ 'is-active': activeColorSubgroup === 'bg' }"
+                  data-testid="submenu-color-bg-trigger"
+                  @mouseenter="openColorSubgroup('bg')"
+                  @click="toggleColorSubgroup('bg')"
+                >
+                  <span
+                    class="color-swatch-bg"
+                    :style="{
+                      backgroundColor: activeBgSwatchHex === 'transparent' ? '#ffffff' : activeBgSwatchHex,
+                      color: '#37352f',
+                    }"
+                  >
+                    A
+                  </span>
+                  <span class="item-label">Cor de fundo</span>
+                  <ChevronRight :size="13" class="chevron-right" />
+                </button>
+
+                <div
+                  v-if="activeColorSubgroup === 'bg'"
+                  class="popover-submenu popover-submenu-nested"
+                  data-testid="submenu-color-bg"
+                >
+                  <div class="section-title">Cor de fundo</div>
+                  <button
+                    v-for="color in BLOCK_COLOR_PALETTE"
+                    :key="`bg-${color.id}`"
+                    type="button"
+                    class="popover-item"
+                    :class="{ 'is-active': isBgColorActive(color.id) }"
+                    :data-testid="`bg-color-${color.id}`"
+                    @click="handleSetColor({ backgroundColor: color.id })"
+                  >
+                    <span
+                      class="color-swatch-bg"
+                      :style="{
+                        backgroundColor:
+                          color.backgroundColor === 'transparent' ? '#ffffff' : color.backgroundColor,
+                        color: '#37352f',
+                      }"
+                    >
+                      A
+                    </span>
+                    <span class="item-label">{{ color.label }}</span>
+                    <Check v-if="isBgColorActive(color.id)" :size="13" class="item-check" />
+                  </button>
+
+                  <div class="popover-divider" />
+
+                  <button
+                    type="button"
+                    class="popover-item"
+                    :class="{ 'is-active': showCustomBgPicker }"
+                    data-testid="custom-bg-color-trigger"
+                    @click="toggleCustomPicker('bg')"
+                  >
+                    <span
+                      class="color-swatch-bg"
+                      :style="{
+                        backgroundColor: isCustomHexColor(normalizedBgColor) ? normalizedBgColor! : '#f8f9fa',
+                        color: '#37352f',
+                      }"
+                    >
+                      A
+                    </span>
+                    <span class="item-label">Personalizada...</span>
+                    <Pipette :size="13" class="chevron-right" />
+                  </button>
+
+                  <MindColorPicker
+                    v-if="showCustomBgPicker"
+                    mode="bg"
+                    :initial-color="isCustomHexColor(normalizedBgColor) ? normalizedBgColor : (activeBgSwatchHex === 'transparent' ? '#e7f5ff' : activeBgSwatchHex)"
+                    @apply="handleSetColor({ backgroundColor: $event })"
+                  />
+                </div>
+              </div>
+
+              <!-- Quick Clear All Colors -->
+              <template v-if="normalizedTextColor || normalizedBgColor">
+                <div class="popover-divider" />
+                <button
+                  type="button"
+                  class="popover-item"
+                  data-testid="reset-block-colors"
+                  @mouseenter="activeColorSubgroup = null"
+                  @click="handleSetColor({ textColor: 'default', backgroundColor: 'default' })"
+                >
+                  <RotateCcw :size="13" class="item-icon" />
+                  <span class="item-label">Restaurar padrão</span>
+                </button>
+              </template>
             </div>
           </div>
         </div>
@@ -282,7 +462,7 @@
             @click="handleAction('delete')"
           >
             <Trash2 :size="14" class="item-icon" />
-            <span class="item-label">Excluir bloco</span>
+            <span class="item-label">{{ deleteActionLabel }}</span>
             <span class="shortcut">Del</span>
           </button>
         </div>
@@ -317,13 +497,21 @@ import {
   ChevronRight,
   Check,
   Search,
+  Pipette,
+  RotateCcw,
 } from 'lucide-vue-next';
+import MindColorPicker from './MindColorPicker.vue';
 import type { BlockColorId, BlockColorUpdate } from '../types.js';
 import {
   BLOCK_COLOR_PALETTE,
+  getBlockColorDisplayHex,
   getBlockColorOption,
-  normalizeBlockColorId,
+  isCustomHexColor,
+  normalizeBlockColorValue,
 } from '../extensions/block-color.js';
+
+const LAST_TEXT_COLOR_STORAGE_KEY = 'mind-editor:last-text-color';
+const LAST_BG_COLOR_STORAGE_KEY = 'mind-editor:last-bg-color';
 
 const props = withDefaults(
   defineProps<{
@@ -334,6 +522,7 @@ const props = withDefaults(
     nodeTextColor?: string | null;
     nodeBgColor?: string | null;
     basicBlocksOnly?: boolean;
+    selectedCount?: number;
   }>(),
   {
     visible: false,
@@ -343,6 +532,7 @@ const props = withDefaults(
     nodeTextColor: null,
     nodeBgColor: null,
     basicBlocksOnly: false,
+    selectedCount: 0,
   }
 );
 
@@ -357,11 +547,54 @@ const emit = defineEmits<{
   (e: 'menuToggle', isOpen: boolean): void;
 }>();
 
+function readStoredColor(key: string): string | null {
+  try {
+    if (typeof window === 'undefined' || !window.localStorage) return null;
+    return normalizeBlockColorValue(window.localStorage.getItem(key));
+  } catch {
+    return null;
+  }
+}
+
+function writeStoredColor(key: string, value: string | null): void {
+  try {
+    if (typeof window === 'undefined' || !window.localStorage) return;
+    if (value) {
+      window.localStorage.setItem(key, value);
+    } else {
+      window.localStorage.removeItem(key);
+    }
+  } catch {
+    // Ignore storage quota errors
+  }
+}
+
 const isGripHovered = ref(false);
 const showMenu = ref(false);
 const activeSubmenu = ref<'turnInto' | 'color' | null>(null);
+const activeColorSubgroup = ref<'text' | 'bg' | null>(null);
+const showCustomTextPicker = ref(false);
+const showCustomBgPicker = ref(false);
 const actionQuery = ref('');
 const searchInputRef = ref<HTMLInputElement | null>(null);
+const popoverRef = ref<HTMLElement | null>(null);
+const popoverFlipRight = ref(false);
+const popoverOffsetY = ref(-42);
+
+const lastUsedTextColor = ref<string | null>(readStoredColor(LAST_TEXT_COLOR_STORAGE_KEY));
+const lastUsedBgColor = ref<string | null>(readStoredColor(LAST_BG_COLOR_STORAGE_KEY));
+
+const popoverPositionStyle = computed(() => ({
+  top: `${popoverOffsetY.value}px`,
+}));
+
+const menuSectionTitle = computed(() =>
+  props.selectedCount > 1 ? `${props.selectedCount} blocos selecionados` : 'Bloco'
+);
+
+const deleteActionLabel = computed(() =>
+  props.selectedCount > 1 ? `Excluir ${props.selectedCount} blocos` : 'Excluir bloco'
+);
 
 const turnIntoOptions: Array<{ type: string; label: string; icon: Component }> = [
   { type: 'paragraph', label: 'Texto', icon: Type },
@@ -384,22 +617,31 @@ const visibleTurnIntoOptions = computed(() =>
     : turnIntoOptions
 );
 
-const normalizedTextColor = computed(() => normalizeBlockColorId(props.nodeTextColor));
-const normalizedBgColor = computed(() => normalizeBlockColorId(props.nodeBgColor));
+const normalizedTextColor = computed(() => normalizeBlockColorValue(props.nodeTextColor));
+const normalizedBgColor = computed(() => normalizeBlockColorValue(props.nodeBgColor));
+
+const activeTextSwatchHex = computed(() =>
+  getBlockColorDisplayHex(normalizedTextColor.value, 'text')
+);
+const activeBgSwatchHex = computed(() =>
+  getBlockColorDisplayHex(normalizedBgColor.value, 'bg')
+);
 
 const activeColorIndicator = computed(() => {
   if (!normalizedTextColor.value && !normalizedBgColor.value) return null;
-  const textHex = normalizedTextColor.value
-    ? getBlockColorOption(normalizedTextColor.value).textColor
-    : '#37352f';
-  const bgHex = normalizedBgColor.value
-    ? getBlockColorOption(normalizedBgColor.value).backgroundColor
-    : '#f8f9fa';
   return {
-    color: textHex,
-    backgroundColor: bgHex,
+    color: activeTextSwatchHex.value,
+    backgroundColor: activeBgSwatchHex.value === 'transparent' ? '#f8f9fa' : activeBgSwatchHex.value,
   };
 });
+
+function getColorDisplayHex(colorVal: string, kind: 'text' | 'bg'): string {
+  return getBlockColorDisplayHex(colorVal, kind);
+}
+
+function getColorDisplayLabel(colorVal: string): string {
+  return getBlockColorOption(colorVal).label;
+}
 
 const isFiltering = computed(() => actionQuery.value.trim().length > 0);
 
@@ -486,8 +728,8 @@ const filteredEntries = computed<FilteredActionEntry[]>(() => {
     {
       key: 'act-delete',
       kind: 'action',
-      label: 'Excluir bloco',
-      searchTokens: 'excluir apagar remover deletar bloco',
+      label: deleteActionLabel.value,
+      searchTokens: 'excluir apagar remover deletar bloco grupo',
       testId: 'action-delete',
       icon: Trash2,
       shortcut: 'Del',
@@ -523,15 +765,68 @@ function handleShellMouseLeave() {
 
 function openSubmenu(name: 'turnInto' | 'color') {
   activeSubmenu.value = name;
+  if (name !== 'color') {
+    activeColorSubgroup.value = null;
+    showCustomTextPicker.value = false;
+    showCustomBgPicker.value = false;
+  }
 }
 
 function toggleSubmenu(name: 'turnInto' | 'color') {
-  activeSubmenu.value = activeSubmenu.value === name ? null : name;
+  if (activeSubmenu.value === name) {
+    activeSubmenu.value = null;
+    activeColorSubgroup.value = null;
+  } else {
+    openSubmenu(name);
+  }
+}
+
+function openColorSubgroup(group: 'text' | 'bg') {
+  activeColorSubgroup.value = group;
+  if (group !== 'text') showCustomTextPicker.value = false;
+  if (group !== 'bg') showCustomBgPicker.value = false;
+}
+
+function toggleColorSubgroup(group: 'text' | 'bg') {
+  activeColorSubgroup.value = activeColorSubgroup.value === group ? null : group;
+}
+
+function toggleCustomPicker(group: 'text' | 'bg') {
+  if (group === 'text') {
+    showCustomTextPicker.value = !showCustomTextPicker.value;
+    showCustomBgPicker.value = false;
+  } else {
+    showCustomBgPicker.value = !showCustomBgPicker.value;
+    showCustomTextPicker.value = false;
+  }
+}
+
+function adjustPopoverViewportBounds() {
+  const el = popoverRef.value;
+  if (!el || typeof window === 'undefined') return;
+  const rect = el.getBoundingClientRect();
+  if (rect.width === 0 && rect.height === 0) return;
+
+  if (rect.left < 8) {
+    popoverFlipRight.value = true;
+  }
+
+  let nextTop = popoverOffsetY.value;
+  if (rect.bottom > window.innerHeight - 12) {
+    nextTop -= rect.bottom - (window.innerHeight - 12);
+  }
+  if (rect.top + (nextTop - popoverOffsetY.value) < 12) {
+    nextTop += 12 - (rect.top + (nextTop - popoverOffsetY.value));
+  }
+  popoverOffsetY.value = Math.round(nextTop);
 }
 
 function closeMenu() {
   showMenu.value = false;
   activeSubmenu.value = null;
+  activeColorSubgroup.value = null;
+  showCustomTextPicker.value = false;
+  showCustomBgPicker.value = false;
   actionQuery.value = '';
   emit('menuToggle', false);
 }
@@ -541,11 +836,17 @@ function toggleMenu() {
     closeMenu();
     return;
   }
+  popoverFlipRight.value = false;
+  popoverOffsetY.value = -42;
   showMenu.value = true;
   activeSubmenu.value = null;
+  activeColorSubgroup.value = null;
+  showCustomTextPicker.value = false;
+  showCustomBgPicker.value = false;
   actionQuery.value = '';
   emit('menuToggle', true);
   nextTick(() => {
+    adjustPopoverViewportBounds();
     searchInputRef.value?.focus();
   });
 }
@@ -561,6 +862,20 @@ function handleTurnInto(type: string) {
 }
 
 function handleSetColor(payload: BlockColorUpdate) {
+  if (payload.textColor !== undefined) {
+    const normalized = normalizeBlockColorValue(payload.textColor);
+    if (normalized) {
+      lastUsedTextColor.value = normalized;
+      writeStoredColor(LAST_TEXT_COLOR_STORAGE_KEY, normalized);
+    }
+  }
+  if (payload.backgroundColor !== undefined) {
+    const normalized = normalizeBlockColorValue(payload.backgroundColor);
+    if (normalized) {
+      lastUsedBgColor.value = normalized;
+      writeStoredColor(LAST_BG_COLOR_STORAGE_KEY, normalized);
+    }
+  }
   closeMenu();
   emit('setColor', payload);
 }
@@ -648,15 +963,16 @@ onBeforeUnmount(() => {
 }
 
 .tooltip-row strong {
-  color: #1971c2;
+  color: #495057;
   font-weight: 600;
 }
 
+/* Notion-style Left-Anchored Popover (falls back right on narrow viewports) */
 .block-actions-popover {
   position: absolute;
-  top: 100%;
-  left: 0;
-  margin-top: 4px;
+  top: -42px;
+  right: calc(100% + 6px);
+  left: auto;
   background-color: #ffffff;
   border: 1px solid #e9ecef;
   border-radius: 8px;
@@ -664,7 +980,12 @@ onBeforeUnmount(() => {
   width: 228px;
   z-index: 120;
   padding: 6px;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+}
+
+.block-actions-popover.is-flipped-right {
+  right: auto;
+  left: calc(100% + 6px);
 }
 
 .popover-search-wrap {
@@ -701,7 +1022,7 @@ onBeforeUnmount(() => {
 
 .popover-search-input:focus {
   background-color: #ffffff;
-  border-color: #1971c2;
+  border-color: #adb5bd;
 }
 
 .popover-search-results {
@@ -748,7 +1069,7 @@ onBeforeUnmount(() => {
   top: -6px;
   left: calc(100% + 6px);
   width: 215px;
-  max-height: 340px;
+  max-height: 360px;
   overflow-y: auto;
   background-color: #ffffff;
   border: 1px solid #e9ecef;
@@ -761,7 +1082,19 @@ onBeforeUnmount(() => {
   gap: 2px;
 }
 
-/* Hover bridge between main menu and cascading submenu */
+.popover-submenu-color-hub {
+  overflow: visible;
+  max-height: none;
+  width: 218px;
+}
+
+.popover-submenu-nested {
+  z-index: 160;
+  width: 218px;
+  max-height: 410px;
+}
+
+/* Hover bridge between menus */
 .popover-submenu::before {
   content: '';
   position: absolute;

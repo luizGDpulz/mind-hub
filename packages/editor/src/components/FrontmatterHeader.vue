@@ -14,7 +14,7 @@
         @click="toggleCollapse"
       >
         <ChevronRight
-          :size="15"
+          :size="14"
           :stroke-width="2"
           class="chevron-indicator"
           :class="{ 'is-open': !isCollapsed }"
@@ -1048,7 +1048,7 @@ defineExpose({
   margin-bottom: 14px;
   padding-bottom: 10px;
   border-bottom: 1px solid #f1f3f5;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  font-family: 'Inter', 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, Helvetica, Arial, sans-serif;
   color: #37352f;
 }
 
@@ -1066,33 +1066,46 @@ defineExpose({
 }
 
 .frontmatter-toggle-btn {
+  position: relative;
   display: inline-flex;
   align-items: center;
-  gap: 6px;
   background: none;
   border: none;
   cursor: pointer;
-  padding: 4px 6px 4px 2px;
-  margin-left: -4px;
+  padding: 2px 6px 2px 22px;
+  margin-left: -22px;
   border-radius: 5px;
-  color: #495057;
-  font-size: 13.5px;
-  font-weight: 600;
-  transition: background-color 0.12s ease, color 0.12s ease;
-}
-
-.frontmatter-toggle-btn:hover {
-  background-color: #f8f9fa;
   color: #111827;
+  font-family: ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Inter', sans-serif;
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 1.35;
+  letter-spacing: -0.015em;
+  transition: color 0.12s ease;
 }
 
 .chevron-indicator {
+  position: absolute;
+  left: 3px;
+  top: 50%;
   color: #868e96;
-  transition: transform 0.16s ease;
+  opacity: 0;
+  transform: translateY(-50%);
+  transition: opacity 0.14s ease, transform 0.16s ease, color 0.12s ease;
+}
+
+.frontmatter-top-bar:hover .chevron-indicator,
+.frontmatter-toggle-btn:hover .chevron-indicator,
+.frontmatter-toggle-btn:focus-visible .chevron-indicator {
+  opacity: 1;
+}
+
+.frontmatter-toggle-btn:hover .chevron-indicator {
+  color: #495057;
 }
 
 .chevron-indicator.is-open {
-  transform: rotate(90deg);
+  transform: translateY(-50%) rotate(90deg);
 }
 
 .frontmatter-actions {

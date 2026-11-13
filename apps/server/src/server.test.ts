@@ -1,4 +1,5 @@
-import { rmSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -522,5 +523,163 @@ describe('@mind-hub/server — Fastify API, Soft Delete, Durable Persistence, MC
 
     await app2.close();
     rmSync(storeFile, { force: true });
+  });
+
+  it('enforces optimistic concurrency control (409 Conflict) on stale expectedHash updates', async () => {
+    const app = await buildApp();
+    const createRes = await app.inject({
+      method: 'POST',
+      url: '/api/pages',
+      payload: { title: 'Nota Concorrente', contentMarkdown: 'Versão 1' },
+    });
+    expect(createRes.statusCode).toBe(201);
+    const created = createRes.json<{ page: { id: string; sourceHash: string } }>().page;
+    expect(created.sourceHash).toBeTruthy();
+
+    // Update with stale expectedHash
+    const conflictRes = await app.inject({
+      method: 'PATCH',
+      url: `/api/pages/${created.id}`,
+      payload: { contentMarkdown: 'Sobrescrita cega', expectedHash: 'fnv64-0000000000000000' },
+    });
+    expect(conflictRes.statusCode).toBe(409);
+
+    // Update with matching expectedHash succeeds
+    const okRes = await app.inject({
+      method: 'PATCH',
+      url: `/api/pages/${created.id}`,
+      payload: { contentMarkdown: 'Versão 2 limpa', expectedHash: created.sourceHash },
+    });
+    expect(okRes.statusCode).toBe(200);
+    await app.close();
+  });
+
+  it('executes full Plug & Play GitHub OKF Delta Sync (push, no-op, single delta, pull) and serves assets by-path', async () => {
+    const baseDir = join(tmpdir(), `mind-hub-gitsync-test-${Date.now()}`);
+    const bareRepo = join(baseDir, 'remote.git');
+    const vaultWork = join(baseDir, 'git-vault');
+    const externalClone = join(baseDir, 'external-clone');
+    mkdirSync(bareRepo, { recursive: true });
+    execFileSync('git', ['init', '--bare', '-b', 'main', bareRepo]);
+
+    const app = await buildApp({ gitVaultDir: vaultWork });
+
+    // Upload a cover asset
+    const pngBase64 =
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+    const assetRes = await app.inject({
+      method: 'POST',
+      url: '/api/assets',
+      payload: {
+        kind: 'cover',
+        filename: 'secullum-cover.png',
+        mimeType: 'image/png',
+        dataBase64: pngBase64,
+      },
+    });
+    expect(assetRes.statusCode).toBe(201);
+    const { asset } = assetRes.json<{ asset: { id: string; url: string; storagePath: string } }>();
+    expect(asset.storagePath).toContain('assets/covers/');
+
+    // Serve via by-path
+    const byPathRes = await app.inject({
+      method: 'GET',
+      url: `/api/assets/by-path/${asset.storagePath}`,
+    });
+    expect(byPathRes.statusCode).toBe(200);
+    expect(byPathRes.headers['content-type']).toBe('image/png');
+
+    // Create a parent page and child page
+    const parentRes = await app.inject({
+      method: 'POST',
+      url: '/api/pages',
+      payload: {
+        title: 'Secullum',
+        icon: '☀️',
+        coverUrl: asset.url,
+        contentMarkdown: 'Central da Secullum.',
+      },
+    });
+    const parent = parentRes.json<{ page: { id: string } }>().page;
+    await app.inject({
+      method: 'POST',
+      url: '/api/pages',
+      payload: {
+        title: 'Ponto Web',
+        icon: '❄️',
+        parentId: parent.id,
+        contentMarkdown: 'Documentação do Ponto.',
+      },
+    });
+
+    // Test connection
+    const testConn = await app.inject({
+      method: 'POST',
+      url: '/api/sync/github/test-connection',
+      payload: { repository: bareRepo, branch: 'main', token: '' },
+    });
+    expect(testConn.statusCode).toBe(200);
+    expect(testConn.json<{ ok: boolean; isEmpty: boolean }>().ok).toBe(true);
+
+    // Configure & Initial Push
+    const configRes = await app.inject({
+      method: 'POST',
+      url: '/api/sync/github/configure',
+      payload: {
+        repository: bareRepo,
+        branch: 'main',
+        token: '',
+        strategy: 'push_initial',
+        autoSyncEnabled: false,
+      },
+    });
+    expect(configRes.statusCode).toBe(200);
+    const configBody = configRes.json<{
+      status: { configured: boolean; state: string; pendingChangesCount: number };
+      initialSync: { ok: boolean; pushedFiles: string[]; commitSha: string | null };
+    }>();
+    expect(configBody.status.configured).toBe(true);
+    expect(configBody.status.state).toBe('connected');
+    expect(configBody.initialSync.ok).toBe(true);
+    expect(configBody.initialSync.commitSha).toBeTruthy();
+    expect(existsSync(join(vaultWork, 'index.md'))).toBe(true);
+    expect(existsSync(join(vaultWork, 'log.md'))).toBe(true);
+    expect(existsSync(join(vaultWork, 'secullum', 'index.md'))).toBe(true);
+    expect(existsSync(join(vaultWork, 'secullum', 'ponto-web.md'))).toBe(true);
+    expect(existsSync(join(vaultWork, asset.storagePath))).toBe(true);
+
+    // Second sync with zero changes -> no-op!
+    const noopRes = await app.inject({ method: 'POST', url: '/api/sync/github/sync' });
+    expect(noopRes.statusCode).toBe(200);
+    const noopBody = noopRes.json<{ result: { pushedFiles: string[]; pulledFiles: string[] } }>();
+    expect(noopBody.result.pushedFiles).toHaveLength(0);
+    expect(noopBody.result.pulledFiles).toHaveLength(0);
+
+    // External edit pushed to bareRepo -> Mind Hub pulls it cleanly
+    execFileSync('git', ['clone', bareRepo, externalClone]);
+    const pontoPath = join(externalClone, 'secullum', 'ponto-web.md');
+    const updatedExternalMd = readFileSync(pontoPath, 'utf-8').replace(
+      'Documentação do Ponto.',
+      'Documentação atualizada via Obsidian.',
+    );
+    writeFileSync(pontoPath, updatedExternalMd, 'utf-8');
+    execFileSync('git', ['-C', externalClone, 'config', 'user.email', 'ext@mind.local']);
+    execFileSync('git', ['-C', externalClone, 'config', 'user.name', 'External User']);
+    execFileSync('git', ['-C', externalClone, 'add', '-A']);
+    execFileSync('git', ['-C', externalClone, 'commit', '-m', 'docs: external edit']);
+    execFileSync('git', ['-C', externalClone, 'push', 'origin', 'main']);
+
+    const pullRes = await app.inject({ method: 'POST', url: '/api/sync/github/sync' });
+    expect(pullRes.statusCode).toBe(200);
+    const pullBody = pullRes.json<{ result: { pulledFiles: string[] } }>();
+    expect(pullBody.result.pulledFiles.length).toBeGreaterThanOrEqual(1);
+
+    // Verify disconnect
+    const disconnectRes = await app.inject({ method: 'POST', url: '/api/sync/github/disconnect' });
+    expect(disconnectRes.statusCode).toBe(200);
+    expect(disconnectRes.json<{ status: { configured: boolean } }>().status.configured).toBe(false);
+
+    await app.close();
+    rmSync(baseDir, { recursive: true, force: true });
   });
 });

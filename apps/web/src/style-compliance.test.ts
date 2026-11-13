@@ -122,17 +122,34 @@ describe('Gatekeeper UI — Validação Rigorosa mind-light-style (Veto ao Azul 
       path.join(currentDir, 'components', 'DatabaseViewBlock.vue'),
       'utf-8',
     );
+    const kanbanVue = fs.readFileSync(
+      path.join(currentDir, 'components', 'database', 'DatabaseKanbanBoard.vue'),
+      'utf-8',
+    );
     expect(dbVue).toContain('data-testid="db-tab-table"');
     expect(dbVue).toContain('data-testid="db-tab-board"');
-    expect(dbVue).toContain('data-testid="db-kanban-board"');
+    expect(kanbanVue).toContain('data-testid="db-kanban-board"');
 
     const diagramsVue = fs.readFileSync(
       path.join(currentDir, 'components', 'DiagramEmbedsBlock.vue'),
       'utf-8',
     );
-    expect(diagramsVue).toContain('data-testid="mermaid-diagram-block"');
-    expect(diagramsVue).toContain('data-testid="excalidraw-whiteboard-block"');
-    expect(diagramsVue).toContain('data-testid="drawio-diagram-block"');
+    const mermaidVue = fs.readFileSync(
+      path.join(currentDir, 'components', 'diagrams', 'MermaidEmbedPanel.vue'),
+      'utf-8',
+    );
+    const excalidrawVue = fs.readFileSync(
+      path.join(currentDir, 'components', 'diagrams', 'ExcalidrawEmbedPanel.vue'),
+      'utf-8',
+    );
+    const drawioVue = fs.readFileSync(
+      path.join(currentDir, 'components', 'diagrams', 'DrawioEmbedPanel.vue'),
+      'utf-8',
+    );
+    expect(diagramsVue).toContain('data-testid="diagram-embeds-block"');
+    expect(mermaidVue).toContain('data-testid="mermaid-diagram-block"');
+    expect(excalidrawVue).toContain('data-testid="excalidraw-whiteboard-block"');
+    expect(drawioVue).toContain('data-testid="drawio-diagram-block"');
 
     const loginVue = fs.readFileSync(
       path.join(currentDir, 'components', 'CleanLoginView.vue'),

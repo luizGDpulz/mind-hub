@@ -239,6 +239,8 @@ describe('MindEditor.vue', () => {
     await wrapper.find('[data-testid="block-gutter-handle-btn"]').trigger('click');
     await wrapper.find('[data-testid="menu-trigger-color"]').trigger('mouseenter');
     await nextTick();
+    await wrapper.find('[data-testid="submenu-color-text-trigger"]').trigger('mouseenter');
+    await nextTick();
 
     await wrapper.find('[data-testid="text-color-blue"]').trigger('click');
     await nextTick();
@@ -247,6 +249,8 @@ describe('MindEditor.vue', () => {
     // Re-open menu and apply pastel background highlight
     await wrapper.find('[data-testid="block-gutter-handle-btn"]').trigger('click');
     await wrapper.find('[data-testid="menu-trigger-color"]').trigger('mouseenter');
+    await nextTick();
+    await wrapper.find('[data-testid="submenu-color-bg-trigger"]').trigger('mouseenter');
     await nextTick();
     await wrapper.find('[data-testid="bg-color-yellow"]').trigger('click');
     await nextTick();
@@ -408,6 +412,8 @@ describe('MindEditor.vue', () => {
 
     await wrapper.find('[data-testid="block-gutter-handle-btn"]').trigger('click');
     await wrapper.find('[data-testid="menu-trigger-color"]').trigger('click');
+    await wrapper.find('[data-testid="submenu-color-bg-trigger"]').trigger('mouseenter');
+    await nextTick();
     await wrapper.find('[data-testid="bg-color-green"]').trigger('click');
     await nextTick();
 
@@ -422,6 +428,117 @@ describe('MindEditor.vue', () => {
     expect(li.exists()).toBe(true);
     expect(li.attributes('data-block-bg')).toBe('green');
     expect(li.find('p').attributes('data-block-bg')).toBeUndefined();
+
+    wrapper.unmount();
+  });
+
+  it('supports Notion-style marquee group selection from outside blocks, group color/turn-into/D&D and group delete', async () => {
+    const host = document.createElement('div');
+    document.body.appendChild(host);
+
+    const wrapper = mount(MindEditor, {
+      attachTo: host,
+      props: {
+        modelValue: '<p>Bloco A</p><p>Bloco B</p><p>Bloco C</p>',
+        enableFrontmatterHeader: false,
+      },
+      global: {
+        stubs: {
+          BubbleFormattingMenu: true,
+        },
+      },
+    });
+
+    await nextTick();
+    await nextTick();
+
+    const root = wrapper.find('[data-testid="mind-editor-root"]').element;
+    const canvas = wrapper.find('.mind-editor-canvas-container').element;
+    const proseMirror = wrapper.find('.ProseMirror').element;
+    const paragraphs = Array.from(proseMirror.querySelectorAll('p'));
+    expect(paragraphs).toHaveLength(3);
+
+    setRect(root, { top: 80, left: 100, width: 880, height: 300 });
+    setRect(canvas, { top: 100, left: 200, width: 680, height: 240 });
+    setRect(proseMirror, { top: 100, left: 200, width: 680, height: 240 });
+    setRect(paragraphs[0]!, { top: 104, left: 200, width: 680, height: 28 });
+    setRect(paragraphs[1]!, { top: 138, left: 200, width: 680, height: 28 });
+    setRect(paragraphs[2]!, { top: 172, left: 200, width: 680, height: 28 });
+
+    // 1. Marquee drag starting in the left margin outside blocks covering Bloco A and Bloco B
+    root.dispatchEvent(
+      new MouseEvent('mousedown', { clientX: 140, clientY: 102, button: 0, bubbles: true })
+    );
+    window.dispatchEvent(
+      new MouseEvent('mousemove', { clientX: 280, clientY: 152, bubbles: true })
+    );
+    await nextTick();
+
+    expect(wrapper.find('[data-testid="mind-marquee-box"]').exists()).toBe(true);
+    const selected = proseMirror.querySelectorAll('.mind-block-selected');
+    expect(selected).toHaveLength(2);
+    expect(selected[0]?.textContent).toBe('Bloco A');
+    expect(selected[1]?.textContent).toBe('Bloco B');
+
+    window.dispatchEvent(new MouseEvent('mouseup', { clientX: 280, clientY: 152, bubbles: true }));
+    await nextTick();
+    expect(wrapper.find('[data-testid="mind-marquee-box"]').exists()).toBe(false);
+    expect(proseMirror.querySelectorAll('.mind-block-selected')).toHaveLength(2);
+
+    // 2. Hover Bloco A gutter -> apply background color to BOTH selected blocks via group action
+    window.dispatchEvent(
+      new MouseEvent('mousemove', { clientX: 156, clientY: 116, bubbles: true })
+    );
+    await nextTick();
+
+    await wrapper.find('[data-testid="block-gutter-handle-btn"]').trigger('click');
+    expect(wrapper.find('[data-testid="block-actions-popover"]').text()).toContain('2 blocos selecionados');
+
+    await wrapper.find('[data-testid="menu-trigger-color"]').trigger('click');
+    await wrapper.find('[data-testid="submenu-color-bg-trigger"]').trigger('mouseenter');
+    await nextTick();
+    await wrapper.find('[data-testid="bg-color-blue"]').trigger('click');
+    await nextTick();
+
+    const updatedParagraphs = Array.from(proseMirror.querySelectorAll('p'));
+    expect(updatedParagraphs[0]?.getAttribute('data-block-bg')).toBe('blue');
+    expect(updatedParagraphs[1]?.getAttribute('data-block-bg')).toBe('blue');
+    expect(updatedParagraphs[2]?.getAttribute('data-block-bg')).toBeNull();
+
+    // 3. Drag the group [Bloco A, Bloco B] together below Bloco C
+    const gripBtn = wrapper.find('[data-testid="block-gutter-handle-btn"]').element;
+    const mockTransfer = {
+      effectAllowed: 'none',
+      dropEffect: 'none',
+      clearData: vi.fn(),
+      setData: vi.fn(),
+      setDragImage: vi.fn(),
+    };
+    const dragStartEvent = new Event('dragstart', { bubbles: true, cancelable: true });
+    Object.defineProperty(dragStartEvent, 'dataTransfer', { value: mockTransfer });
+    gripBtn.dispatchEvent(dragStartEvent);
+
+    const dropEvent = new MouseEvent('drop', {
+      clientX: 120,
+      clientY: 194,
+      bubbles: true,
+      cancelable: true,
+    });
+    Object.defineProperty(dropEvent, 'dataTransfer', { value: mockTransfer });
+    window.dispatchEvent(dropEvent);
+    await nextTick();
+
+    const reordered = Array.from(proseMirror.querySelectorAll('p')).map((el) => el.textContent);
+    expect(reordered).toEqual(['Bloco C', 'Bloco A', 'Bloco B']);
+    expect(proseMirror.querySelectorAll('.mind-block-selected')).toHaveLength(2);
+
+    // 4. Press Delete -> deletes the entire selected group cleanly
+    root.dispatchEvent(new KeyboardEvent('keydown', { key: 'Delete', bubbles: true }));
+    await nextTick();
+
+    const remaining = Array.from(proseMirror.querySelectorAll('p')).map((el) => el.textContent);
+    expect(remaining).toEqual(['Bloco C']);
+    expect(proseMirror.querySelectorAll('.mind-block-selected')).toHaveLength(0);
 
     wrapper.unmount();
   });

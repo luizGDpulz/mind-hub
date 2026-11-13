@@ -53,10 +53,20 @@ import CalloutBlockView from './CalloutBlockView.vue';
 
 import { GlobalDragHandle } from '../extensions/drag-handle.js';
 import {
+  BlockSelection,
+  clearBlockSelection,
+  deleteBlocksAtPositions,
+  duplicateBlocksAtPositions,
+  findBlocksIntersectingRect,
+  moveSelectedBlocksStep,
+  setBlockSelection,
+  shouldStartMarqueeFromPoint,
+  turnIntoBlocksAtPositions,
+} from '../extensions/block-selection.js';
+import {
   BlockColor,
-  applyBlockColorAtPos,
+  applyBlockColorAtPositions,
   normalizeContainerBlockColors,
-  syncBlockColorsAtSelection,
 } from '../extensions/block-color.js';
 import { SlashCommand, executeSlashItem } from '../extensions/slash-command.js';
 import { PageMention } from '../extensions/page-mention.js';
@@ -164,6 +174,51 @@ const dropIndicatorState = ref<{
 
 const isGutterHovered = ref(false);
 const isGutterMenuOpen = ref(false);
+const selectedBlockPositions = ref<number[]>([]);
+
+const marqueeState = ref<{
+  active: boolean;
+  startX: number;
+  startY: number;
+  currentX: number;
+  currentY: number;
+}>({
+  active: false,
+  startX: 0,
+  startY: 0,
+  currentX: 0,
+  currentY: 0,
+});
+
+const marqueeRectStyle = computed(() => {
+  if (!marqueeState.value.active) return null;
+  const left = Math.min(marqueeState.value.startX, marqueeState.value.currentX);
+  const top = Math.min(marqueeState.value.startY, marqueeState.value.currentY);
+  const width = Math.abs(marqueeState.value.currentX - marqueeState.value.startX);
+  const height = Math.abs(marqueeState.value.currentY - marqueeState.value.startY);
+  return {
+    left: `${left}px`,
+    top: `${top}px`,
+    width: `${width}px`,
+    height: `${height}px`,
+  };
+});
+
+const activeGutterSelectedCount = computed(() =>
+  selectedBlockPositions.value.includes(gutterState.value.nodePos)
+    ? selectedBlockPositions.value.length
+    : 0
+);
+
+function resolveGutterTargetPositions(): number[] {
+  if (
+    selectedBlockPositions.value.length > 1 &&
+    selectedBlockPositions.value.includes(gutterState.value.nodePos)
+  ) {
+    return [...selectedBlockPositions.value];
+  }
+  return [gutterState.value.nodePos];
+}
 
 function handleGutterHover(hovered: boolean) {
   isGutterHovered.value = hovered;
@@ -472,6 +527,17 @@ const editor = useEditor({
       onDropIndicatorChange: (indicator) => {
         dropIndicatorState.value = indicator ?? { visible: false, top: 0 };
       },
+      getSelectedPositions: () => selectedBlockPositions.value,
+      onGroupMoved: (newPositions) => {
+        if (editor.value) {
+          setBlockSelection(editor.value.view, newPositions);
+        }
+      },
+    }),
+    BlockSelection.configure({
+      onSelectionChange: (positions) => {
+        selectedBlockPositions.value = positions;
+      },
     }),
     SlashCommand.configure({
       items: [...defaultSlashItems, ...(props.customSlashItems ?? [])],
@@ -606,40 +672,23 @@ function handleAddBlockBelow(): void {
 
 function handleGutterAction(action: 'moveUp' | 'moveDown' | 'duplicate' | 'delete'): void {
   if (!editor.value) return;
-  const pos = gutterState.value.nodePos;
-  const { state, view } = editor.value;
-  const node = state.doc.nodeAt(pos);
-  if (!node) return;
+  const targets = resolveGutterTargetPositions();
+  const { view } = editor.value;
 
   if (action === 'delete') {
-    editor.value.chain().focus().deleteRange({ from: pos, to: pos + node.nodeSize }).run();
-    gutterState.value.visible = false;
-  } else if (action === 'duplicate') {
-    editor.value.chain().focus().insertContentAt(pos + node.nodeSize, node.toJSON()).run();
-  } else if (action === 'moveUp') {
-    if (pos > 0) {
-      const $pos = state.doc.resolve(pos);
-      const prevNode = $pos.nodeBefore;
-      if (prevNode) {
-        const prevPos = pos - prevNode.nodeSize;
-        const tr = state.tr;
-        tr.delete(pos, pos + node.nodeSize);
-        tr.insert(prevPos, node);
-        view.dispatch(tr);
-        gutterState.value.nodePos = prevPos;
-      }
+    if (deleteBlocksAtPositions(view, targets)) {
+      gutterState.value.visible = false;
+      isGutterHovered.value = false;
     }
-  } else if (action === 'moveDown') {
-    const afterPos = pos + node.nodeSize;
-    if (afterPos < state.doc.content.size) {
-      const $after = state.doc.resolve(afterPos);
-      const nextNode = $after.nodeAfter;
-      if (nextNode) {
-        const tr = state.tr;
-        tr.delete(pos, pos + node.nodeSize);
-        tr.insert(pos + nextNode.nodeSize, node);
-        view.dispatch(tr);
-        gutterState.value.nodePos = pos + nextNode.nodeSize;
+  } else if (action === 'duplicate') {
+    duplicateBlocksAtPositions(view, targets);
+  } else if (action === 'moveUp' || action === 'moveDown') {
+    const dir = action === 'moveUp' ? 'up' : 'down';
+    const result = moveSelectedBlocksStep(view, targets, dir);
+    if (result.moved && result.newPositions.length > 0) {
+      gutterState.value.nodePos = result.newPositions[0]!;
+      if (targets.length > 1) {
+        setBlockSelection(view, result.newPositions);
       }
     }
   }
@@ -647,8 +696,8 @@ function handleGutterAction(action: 'moveUp' | 'moveDown' | 'duplicate' | 'delet
 
 function handleGutterSetColor(update: BlockColorUpdate): void {
   if (!editor.value) return;
-  const pos = gutterState.value.nodePos;
-  const applied = applyBlockColorAtPos(editor.value, pos, update);
+  const targets = resolveGutterTargetPositions();
+  const applied = applyBlockColorAtPositions(editor.value, targets, update);
   if (!applied) return;
 
   if (update.textColor !== undefined) {
@@ -665,56 +714,23 @@ function handleGutterSetColor(update: BlockColorUpdate): void {
 
 function handleGutterTurnInto(type: string): void {
   if (!editor.value) return;
-  const pos = gutterState.value.nodePos;
-  const node = editor.value.state.doc.nodeAt(pos);
-  const savedColors: BlockColorUpdate = {
-    textColor: (node?.attrs?.blockTextColor as BlockColorUpdate['textColor']) ?? null,
-    backgroundColor:
-      (node?.attrs?.blockBackgroundColor as BlockColorUpdate['backgroundColor']) ?? null,
-  };
+  const targets = resolveGutterTargetPositions();
 
-  let textOffset = pos;
-  let cur: PmNode | null = node ?? null;
-  while (cur && !cur.isTextblock && cur.firstChild) {
-    cur = cur.firstChild;
-    textOffset += 1;
-  }
-  const cursorPos = cur?.isTextblock
-    ? Math.min(textOffset + 1, editor.value.state.doc.content.size)
-    : pos + 1;
-
-  editor.value.chain().focus().setTextSelection(cursorPos).run();
-
-  if (node?.type.name === 'listItem' && type !== 'bulletList' && type !== 'orderedList') {
-    editor.value.chain().focus().liftListItem('listItem').run();
-  } else if (node?.type.name === 'taskItem' && type !== 'taskList') {
-    editor.value.chain().focus().liftListItem('taskItem').run();
-  } else if (node?.type.name === 'blockquote' && type !== 'blockquote') {
-    editor.value.chain().focus().lift('blockquote').run();
-  } else if (node?.type.name === 'callout' && type !== 'callout') {
-    editor.value.chain().focus().unsetCallout().run();
+  if (type === 'mermaid') {
+    const pos = targets[0] ?? gutterState.value.nodePos;
+    editor.value
+      .chain()
+      .focus()
+      .setTextSelection(Math.min(pos + 1, editor.value.state.doc.content.size))
+      .insertContent({ type: 'mermaid' })
+      .run();
+    return;
   }
 
-  if (type === 'h1') editor.value.chain().focus().setHeading({ level: 1 }).run();
-  else if (type === 'h2') editor.value.chain().focus().setHeading({ level: 2 }).run();
-  else if (type === 'h3') editor.value.chain().focus().setHeading({ level: 3 }).run();
-  else if (type === 'h4') editor.value.chain().focus().setHeading({ level: 4 }).run();
-  else if (type === 'bulletList') {
-    if (!editor.value.isActive('bulletList')) editor.value.chain().focus().toggleBulletList().run();
-  } else if (type === 'orderedList') {
-    if (!editor.value.isActive('orderedList')) editor.value.chain().focus().toggleOrderedList().run();
-  } else if (type === 'taskList') {
-    if (!editor.value.isActive('taskList')) editor.value.chain().focus().toggleTaskList().run();
-  } else if (type === 'blockquote') {
-    if (!editor.value.isActive('blockquote')) editor.value.chain().focus().toggleBlockquote().run();
-  } else if (type === 'codeBlock') {
-    if (!editor.value.isActive('codeBlock')) editor.value.chain().focus().toggleCodeBlock().run();
-  } else if (type === 'callout') editor.value.chain().focus().setCallout().run();
-  else if (type === 'mermaid') editor.value.chain().focus().insertContent({ type: 'mermaid' }).run();
-  else editor.value.chain().focus().setParagraph().run();
-
-  if (type !== 'mermaid' && (savedColors.textColor || savedColors.backgroundColor)) {
-    syncBlockColorsAtSelection(editor.value, savedColors);
+  const res = turnIntoBlocksAtPositions(editor.value, targets, type);
+  if (res.converted && res.newPositions.length > 0) {
+    gutterState.value.nodePos = res.newPositions[0]!;
+    gutterState.value.nodeType = type;
   }
 }
 
@@ -767,15 +783,115 @@ function focusEditorStart(): void {
   editor.value?.chain().focus('start').run();
 }
 
-// Global Save Keyboard Shortcut (Ctrl+S / Cmd+S)
+// Notion-style External Marquee Box Selection vs Internal Text Selection
+let pendingMarqueeStart: { x: number; y: number } | null = null;
+
+function onMarqueeMouseMove(event: MouseEvent): void {
+  if (!pendingMarqueeStart || !editor.value) return;
+  const dx = event.clientX - pendingMarqueeStart.x;
+  const dy = event.clientY - pendingMarqueeStart.y;
+
+  if (!marqueeState.value.active) {
+    if (Math.hypot(dx, dy) < 5) return;
+    marqueeState.value = {
+      active: true,
+      startX: pendingMarqueeStart.x,
+      startY: pendingMarqueeStart.y,
+      currentX: event.clientX,
+      currentY: event.clientY,
+    };
+    window.getSelection()?.removeAllRanges();
+  } else {
+    marqueeState.value.currentX = event.clientX;
+    marqueeState.value.currentY = event.clientY;
+  }
+
+  const left = Math.min(marqueeState.value.startX, marqueeState.value.currentX);
+  const top = Math.min(marqueeState.value.startY, marqueeState.value.currentY);
+  const right = Math.max(marqueeState.value.startX, marqueeState.value.currentX);
+  const bottom = Math.max(marqueeState.value.startY, marqueeState.value.currentY);
+
+  const hits = findBlocksIntersectingRect(editor.value.view, { left, top, right, bottom });
+  setBlockSelection(editor.value.view, hits);
+}
+
+function cleanupMarqueeListeners(): void {
+  window.removeEventListener('mousemove', onMarqueeMouseMove);
+  window.removeEventListener('mouseup', onMarqueeMouseUp);
+}
+
+function onMarqueeMouseUp(): void {
+  cleanupMarqueeListeners();
+  const wasActive = marqueeState.value.active;
+  marqueeState.value.active = false;
+  pendingMarqueeStart = null;
+
+  if (!editor.value) return;
+
+  if (wasActive && selectedBlockPositions.value.length > 0) {
+    window.getSelection()?.removeAllRanges();
+    editor.value.view.dom.focus({ preventScroll: true });
+  }
+}
+
+function handleRootMouseDown(event: MouseEvent): void {
+  if (props.readOnly || !editor.value || event.button !== 0) return;
+
+  const targetEl = event.target instanceof Element ? event.target : null;
+
+  // Keep current group selection intact while interacting with gutter handle/menu
+  if (
+    targetEl?.closest('.mind-block-gutter-shell, .block-actions-popover, .mind-color-picker-shell')
+  ) {
+    return;
+  }
+
+  if (!shouldStartMarqueeFromPoint(editor.value.view, targetEl, event.clientX, event.clientY)) {
+    if (selectedBlockPositions.value.length > 0) {
+      clearBlockSelection(editor.value.view);
+    }
+    return;
+  }
+
+  if (selectedBlockPositions.value.length > 0) {
+    clearBlockSelection(editor.value.view);
+  }
+
+  pendingMarqueeStart = { x: event.clientX, y: event.clientY };
+  window.addEventListener('mousemove', onMarqueeMouseMove);
+  window.addEventListener('mouseup', onMarqueeMouseUp);
+}
+
+// Global Save & Group Block Keyboard Shortcuts
 function handleKeydown(event: KeyboardEvent): void {
   if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') {
     event.preventDefault();
     emit('save');
+    return;
+  }
+
+  if (props.readOnly || !editor.value || selectedBlockPositions.value.length === 0) {
+    return;
+  }
+
+  const target = event.target as HTMLElement | null;
+  if (target?.closest('input, textarea, select')) {
+    return;
+  }
+
+  if (event.key === 'Escape') {
+    clearBlockSelection(editor.value.view);
+  } else if (event.key === 'Backspace' || event.key === 'Delete') {
+    event.preventDefault();
+    deleteBlocksAtPositions(editor.value.view, selectedBlockPositions.value);
+  } else if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'd') {
+    event.preventDefault();
+    duplicateBlocksAtPositions(editor.value.view, selectedBlockPositions.value);
   }
 }
 
 onBeforeUnmount(() => {
+  cleanupMarqueeListeners();
   editor.value?.destroy();
 });
 
@@ -787,9 +903,18 @@ defineExpose({
 <template>
   <div
     class="mind-editor-root"
+    :class="{ 'is-marquee-selecting': marqueeState.active }"
     data-testid="mind-editor-root"
     @keydown="handleKeydown"
+    @mousedown="handleRootMouseDown"
   >
+    <!-- Marquee Lasso Box Overlay for Block Group Selection -->
+    <div
+      v-if="marqueeRectStyle"
+      class="mind-marquee-box"
+      data-testid="mind-marquee-box"
+      :style="marqueeRectStyle"
+    />
     <!-- 1. Obsidian-style Frontmatter Properties Header (hidden on blank note until triggered) -->
     <FrontmatterHeader
       v-if="isFrontmatterVisible"
@@ -833,6 +958,7 @@ defineExpose({
         :node-text-color="gutterState.textColor"
         :node-bg-color="gutterState.bgColor"
         :basic-blocks-only="basicBlocksOnly"
+        :selected-count="activeGutterSelectedCount"
         @add-block="handleAddBlockBelow"
         @action="handleGutterAction"
         @turn-into="handleGutterTurnInto"
@@ -1244,4 +1370,23 @@ defineExpose({
 :deep(.ProseMirror [data-block-bg="purple"]) { background-color: #f3f0ff; }
 :deep(.ProseMirror [data-block-bg="pink"]) { background-color: #fff0f6; }
 :deep(.ProseMirror [data-block-bg="red"]) { background-color: #fff5f5; }
+
+/* Marquee Lasso Box & Selected Block Group Highlight */
+.mind-editor-root.is-marquee-selecting {
+  user-select: none;
+}
+
+.mind-marquee-box {
+  position: fixed;
+  pointer-events: none;
+  z-index: 90;
+  background-color: rgba(25, 113, 194, 0.08);
+  border: 1px solid rgba(25, 113, 194, 0.36);
+  border-radius: 4px;
+}
+
+:deep(.ProseMirror .mind-block-selected) {
+  box-shadow: inset 0 0 0 999px rgba(25, 113, 194, 0.1), 0 0 0 1px rgba(25, 113, 194, 0.25);
+  border-radius: 6px;
+}
 </style>

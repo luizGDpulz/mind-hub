@@ -1,6 +1,7 @@
 export * from './types.js';
 export { default as FrontmatterHeader } from './components/FrontmatterHeader.vue';
 export { default as BlockGutter } from './components/BlockGutter.vue';
+export { default as MindColorPicker } from './components/MindColorPicker.vue';
 export { default as SlashMenu } from './components/SlashMenu.vue';
 export { default as PageMentionPopover } from './components/PageMentionPopover.vue';
 export { default as MermaidBlockView } from './components/MermaidBlockView.vue';
@@ -10,16 +11,37 @@ export { default as MindEditor } from './components/MindEditor.vue';
 export {
   GlobalDragHandle,
   GlobalDragHandleKey,
+  collectBlockCandidates,
   findBlockDOMAtCoords,
   calculateHandlePosition,
   getNodePosAtDOM,
   resolveDropTarget,
   moveBlockAtPos,
+  moveBlocksAtPositions,
+  moveBlocksWithResult,
   type DragHandleOptions,
   type DragHandlePositionPayload,
   type DropIndicatorPayload,
   type ResolvedDropTarget,
+  type MoveBlocksResult,
 } from './extensions/drag-handle.js';
+export {
+  BlockSelection,
+  BlockSelectionPluginKey,
+  getSelectedBlockPositions,
+  setBlockSelection,
+  clearBlockSelection,
+  isPointInsideTextContent,
+  shouldStartMarqueeFromPoint,
+  findBlocksIntersectingRect,
+  deleteBlocksAtPositions,
+  duplicateBlocksAtPositions,
+  moveSelectedBlocksStep,
+  turnIntoBlocksAtPositions,
+  type BlockSelectionOptions,
+  type BlockSelectionState,
+  type ViewportRect,
+} from './extensions/block-selection.js';
 export {
   SlashCommand,
   SlashCommandKey,
@@ -56,9 +78,14 @@ export {
   BlockColor,
   BLOCK_COLOR_PALETTE,
   BLOCK_COLORABLE_TYPES,
+  isCustomHexColor,
+  normalizeHexColor,
+  normalizeBlockColorValue,
   normalizeBlockColorId,
   getBlockColorOption,
+  getBlockColorDisplayHex,
   applyBlockColorAtPos,
+  applyBlockColorAtPositions,
   syncBlockColorsAtSelection,
   normalizeContainerBlockColors,
 } from './extensions/block-color.js';

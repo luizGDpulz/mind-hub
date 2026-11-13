@@ -152,7 +152,10 @@ const editor = useEditor({
       dropcursor: false,
     }),
     TaskList,
-    TaskItem.configure({ nested: true }),
+    TaskItem.configure({
+      nested: true,
+      HTMLAttributes: { 'data-type': 'taskItem' },
+    }),
     Table.configure({ resizable: true }),
     TableRow,
     TableHeader,

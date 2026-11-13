@@ -3,7 +3,12 @@ import { Plugin, PluginKey } from '@tiptap/pm/state';
 import type { Editor } from '@tiptap/core';
 import type { EditorState, Transaction } from '@tiptap/pm/state';
 import type { Node as PmNode } from '@tiptap/pm/model';
-import type { BlockColorId, BlockColorOption, BlockColorUpdate } from '../types.js';
+import type {
+  BlockColorId,
+  BlockColorOption,
+  BlockColorUpdate,
+  BlockColorValue,
+} from '../types.js';
 
 export const BLOCK_COLOR_PALETTE: BlockColorOption[] = [
   { id: 'default', label: 'Padrão', textColor: '#111827', backgroundColor: 'transparent' },
@@ -29,19 +34,97 @@ export const BLOCK_COLORABLE_TYPES = [
 ] as const;
 
 const VALID_COLOR_IDS = new Set<string>(BLOCK_COLOR_PALETTE.map((c) => c.id));
+const HEX_COLOR_REGEX = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i;
 
-export function normalizeBlockColorId(value: unknown): BlockColorId | null {
-  if (typeof value !== 'string') return null;
-  const trimmed = value.trim().toLowerCase();
-  if (!trimmed || trimmed === 'default') return null;
-  return VALID_COLOR_IDS.has(trimmed) ? (trimmed as BlockColorId) : null;
+export function isCustomHexColor(value: unknown): value is string {
+  return typeof value === 'string' && HEX_COLOR_REGEX.test(value.trim());
 }
 
+export function normalizeHexColor(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim().toLowerCase();
+  const match = HEX_COLOR_REGEX.exec(trimmed);
+  if (!match) return null;
+  const raw = match[1]!;
+  if (raw.length === 3) {
+    return `#${raw[0]}${raw[0]}${raw[1]}${raw[1]}${raw[2]}${raw[2]}`;
+  }
+  return `#${raw}`;
+}
+
+export function normalizeBlockColorValue(value: unknown): BlockColorValue | null {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim().toLowerCase();
+  if (!trimmed || trimmed === 'default' || trimmed === 'transparent') return null;
+  if (VALID_COLOR_IDS.has(trimmed)) {
+    return trimmed as BlockColorId;
+  }
+  return normalizeHexColor(trimmed);
+}
+
+export const normalizeBlockColorId = normalizeBlockColorValue;
+
 export function getBlockColorOption(id: unknown): BlockColorOption {
-  const normalized = normalizeBlockColorId(id);
-  return (
-    BLOCK_COLOR_PALETTE.find((opt) => opt.id === normalized) ?? BLOCK_COLOR_PALETTE[0]!
-  );
+  const normalized = normalizeBlockColorValue(id);
+  if (!normalized) return BLOCK_COLOR_PALETTE[0]!;
+  const preset = BLOCK_COLOR_PALETTE.find((opt) => opt.id === normalized);
+  if (preset) return preset;
+  return {
+    id: 'default',
+    label: normalized,
+    textColor: normalized,
+    backgroundColor: normalized,
+  };
+}
+
+export function getBlockColorDisplayHex(value: unknown, kind: 'text' | 'bg'): string {
+  const normalized = normalizeBlockColorValue(value);
+  if (!normalized) {
+    return kind === 'text' ? '#111827' : 'transparent';
+  }
+  const preset = BLOCK_COLOR_PALETTE.find((opt) => opt.id === normalized);
+  if (preset) {
+    return kind === 'text' ? preset.textColor : preset.backgroundColor;
+  }
+  return normalized;
+}
+
+/**
+ * Updates text color and/or background color attributes for one or more blocks
+ * in a single ProseMirror transaction.
+ */
+export function applyBlockColorAtPositions(
+  editor: Editor,
+  positions: number[],
+  update: BlockColorUpdate
+): boolean {
+  const { state, view } = editor;
+  const uniqueSorted = Array.from(new Set(positions))
+    .filter((pos) => pos >= 0 && pos < state.doc.content.size)
+    .sort((a, b) => a - b);
+
+  if (uniqueSorted.length === 0) return false;
+
+  const tr = state.tr;
+  let modified = false;
+
+  for (const pos of uniqueSorted) {
+    const node = tr.doc.nodeAt(pos);
+    if (!node) continue;
+    const nextAttrs: Record<string, unknown> = { ...node.attrs };
+    if (update.textColor !== undefined) {
+      nextAttrs.blockTextColor = normalizeBlockColorValue(update.textColor);
+    }
+    if (update.backgroundColor !== undefined) {
+      nextAttrs.blockBackgroundColor = normalizeBlockColorValue(update.backgroundColor);
+    }
+    tr.setNodeMarkup(pos, undefined, nextAttrs);
+    modified = true;
+  }
+
+  if (!modified) return false;
+  view.dispatch(tr);
+  return true;
 }
 
 /**
@@ -53,24 +136,7 @@ export function applyBlockColorAtPos(
   pos: number,
   update: BlockColorUpdate
 ): boolean {
-  const { state, view } = editor;
-  if (pos < 0 || pos >= state.doc.content.size) return false;
-
-  const node = state.doc.nodeAt(pos);
-  if (!node) return false;
-
-  const nextAttrs: Record<string, unknown> = { ...node.attrs };
-
-  if (update.textColor !== undefined) {
-    nextAttrs.blockTextColor = normalizeBlockColorId(update.textColor);
-  }
-  if (update.backgroundColor !== undefined) {
-    nextAttrs.blockBackgroundColor = normalizeBlockColorId(update.backgroundColor);
-  }
-
-  const tr = state.tr.setNodeMarkup(pos, undefined, nextAttrs);
-  view.dispatch(tr);
-  return true;
+  return applyBlockColorAtPositions(editor, [pos], update);
 }
 
 const CONTAINER_PRIORITY_TYPES = new Set(['listItem', 'taskItem', 'callout', 'blockquote']);
@@ -280,8 +346,8 @@ function buildBlockColorSyncTransaction(
 declare module '@tiptap/core' {
   interface Commands<ReturnType> {
     blockColor: {
-      setBlockTextColor: (color: BlockColorId | null) => ReturnType;
-      setBlockBackgroundColor: (color: BlockColorId | null) => ReturnType;
+      setBlockTextColor: (color: BlockColorValue | null) => ReturnType;
+      setBlockBackgroundColor: (color: BlockColorValue | null) => ReturnType;
       unsetBlockColors: () => ReturnType;
     };
   }
@@ -308,21 +374,27 @@ export const BlockColor = Extension.create({
           blockTextColor: {
             default: null,
             parseHTML: (element: HTMLElement) =>
-              normalizeBlockColorId(element.getAttribute('data-block-color')),
+              normalizeBlockColorValue(element.getAttribute('data-block-color')),
             renderHTML: (attributes: Record<string, unknown>) => {
-              const colorId = normalizeBlockColorId(attributes.blockTextColor);
-              if (!colorId) return {};
-              return { 'data-block-color': colorId };
+              const colorVal = normalizeBlockColorValue(attributes.blockTextColor);
+              if (!colorVal) return {};
+              if (isCustomHexColor(colorVal)) {
+                return { 'data-block-color': colorVal, style: `color: ${colorVal};` };
+              }
+              return { 'data-block-color': colorVal };
             },
           },
           blockBackgroundColor: {
             default: null,
             parseHTML: (element: HTMLElement) =>
-              normalizeBlockColorId(element.getAttribute('data-block-bg')),
+              normalizeBlockColorValue(element.getAttribute('data-block-bg')),
             renderHTML: (attributes: Record<string, unknown>) => {
-              const bgId = normalizeBlockColorId(attributes.blockBackgroundColor);
-              if (!bgId) return {};
-              return { 'data-block-bg': bgId };
+              const bgVal = normalizeBlockColorValue(attributes.blockBackgroundColor);
+              if (!bgVal) return {};
+              if (isCustomHexColor(bgVal)) {
+                return { 'data-block-bg': bgVal, style: `background-color: ${bgVal};` };
+              }
+              return { 'data-block-bg': bgVal };
             },
           },
         },

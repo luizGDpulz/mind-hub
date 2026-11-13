@@ -7,7 +7,9 @@ import {
   BlockColor,
   BLOCK_COLOR_PALETTE,
   applyBlockColorAtPos,
+  applyBlockColorAtPositions,
   normalizeBlockColorId,
+  normalizeBlockColorValue,
   normalizeContainerBlockColors,
 } from './block-color.js';
 
@@ -117,5 +119,32 @@ describe('BlockColor Extension', () => {
 
     expect(normalizeContainerBlockColors(editor)).toBe(true);
     expect(editor.getHTML()).toBe('<ul><li data-block-bg="blue"><p>Legado</p></li></ul>');
+  });
+
+  it('supports sanitized custom hex colors and group block coloring in one transaction', () => {
+    const editor = new Editor({
+      extensions: [StarterKit, BlockColor],
+      content: '<p>Bloco 1</p><p>Bloco 2</p><p>Bloco 3</p>',
+    });
+    editors.push(editor);
+
+    expect(normalizeBlockColorValue('#abc')).toBe('#aabbcc');
+    expect(normalizeBlockColorValue('#2F9E44')).toBe('#2f9e44');
+    expect(normalizeBlockColorValue('javascript:alert(1)')).toBeNull();
+
+    const pos1 = 0;
+    const pos2 = editor.state.doc.child(0).nodeSize;
+    expect(
+      applyBlockColorAtPositions(editor, [pos1, pos2], {
+        textColor: '#2F9E44',
+        backgroundColor: '#EBFBEE',
+      })
+    ).toBe(true);
+
+    const html = editor.getHTML();
+    expect(html).toContain('data-block-color="#2f9e44"');
+    expect(html).toContain('data-block-bg="#ebfbee"');
+    expect(html).toContain('color: #2f9e44');
+    expect(html).toContain('background-color: #ebfbee');
   });
 });

@@ -84,6 +84,8 @@ export type BlockColorId =
   | 'pink'
   | 'red';
 
+export type BlockColorValue = BlockColorId | (string & {});
+
 export interface BlockColorOption {
   id: BlockColorId;
   label: string;
@@ -92,8 +94,8 @@ export interface BlockColorOption {
 }
 
 export interface BlockColorUpdate {
-  textColor?: BlockColorId | null;
-  backgroundColor?: BlockColorId | null;
+  textColor?: BlockColorValue | null;
+  backgroundColor?: BlockColorValue | null;
 }
 
 export interface CalloutAttributes {

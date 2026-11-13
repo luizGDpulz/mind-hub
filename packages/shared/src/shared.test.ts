@@ -18,6 +18,10 @@ import {
   CURRENT_MIND_VERSION,
   MIND_REPO_URL,
   MIND_VERSION_HISTORY,
+  computeOkfPagePath,
+  exportPageAsOkfMarkdown,
+  generateOkfRootIndex,
+  generateOkfLogMarkdown,
 } from './index.js';
 
 describe('@mind-hub/shared — Markdown <-> Tiptap AST & Domain Engine', () => {
@@ -177,5 +181,112 @@ describe('@mind-hub/shared — Markdown <-> Tiptap AST & Domain Engine', () => {
     expect(MIND_VERSION_HISTORY.length).toBeGreaterThanOrEqual(5);
     expect(MIND_VERSION_HISTORY[0].version).toBe('0.5.0');
     expect(MIND_VERSION_HISTORY[0].highlights.length).toBeGreaterThan(0);
+  });
+
+  it('converts Notion-like subpageBlock nodes bidirectionally between Markdown and Tiptap AST', () => {
+    const md = [
+      '# Secullum',
+      '',
+      '[📅 Calendário Secullum](#/page/page-cal) <!-- mind:subpage id="page-cal" icon="📅" color="purple" -->',
+      '[subpage: Ponto](./ponto.md){color="blue"}',
+    ].join('\n');
+
+    const doc = markdownToTiptap(md);
+    const subpages = doc.content.filter((n) => n.type === 'subpageBlock');
+    expect(subpages).toHaveLength(2);
+    expect(subpages[0]?.attrs?.pageId).toBe('page-cal');
+    expect(subpages[0]?.attrs?.icon).toBe('📅');
+    expect(subpages[0]?.attrs?.color).toBe('purple');
+    expect(subpages[1]?.attrs?.title).toBe('Ponto');
+    expect(subpages[1]?.attrs?.color).toBe('blue');
+
+    const backToMd = tiptapToMarkdown(doc);
+    expect(backToMd).toContain('[📅 Calendário Secullum](#/page/page-cal) <!-- mind:subpage id="page-cal" icon="📅" color="purple" -->');
+  });
+
+  it('exports pages in Google Open Knowledge Format (OKF v0.2) with index.md folders and relative assets', () => {
+    const now = '2026-11-13T18:00:00Z';
+    const parentPage = {
+      id: 'page-secullum',
+      slug: 'secullum',
+      title: 'Secullum',
+      icon: '☀️',
+      coverUrl: '/api/assets/asset-cover-1',
+      coverYPosition: 35,
+      parentId: null,
+      sortOrder: 1,
+      contentMarkdown: '[📅 Calendário](#/page/page-cal) <!-- mind:subpage id="page-cal" icon="📅" color="purple" -->\n\n![Rede](/api/assets/asset-img-1)',
+      contentJson: { type: 'doc' as const, content: [] },
+      isFavorite: true,
+      isInbox: false,
+      tags: ['trabalho', 'secullum'],
+      embedding: null,
+      createdAt: now,
+      updatedAt: now,
+      deletedAt: null,
+    };
+    const childPage = {
+      ...parentPage,
+      id: 'page-cal',
+      slug: 'calendario',
+      title: 'Calendário',
+      icon: '📅',
+      coverUrl: null,
+      parentId: 'page-secullum',
+      contentMarkdown: 'Eventos do mês.',
+    };
+    const allPages = [parentPage, childPage];
+    const assets = [
+      {
+        id: 'asset-cover-1',
+        kind: 'cover' as const,
+        filename: 'cover.webp',
+        mimeType: 'image/webp',
+        dataBase64: '',
+        sizeBytes: 120,
+        storagePath: 'assets/covers/asset-cover-1-cover.webp',
+        url: '/api/assets/asset-cover-1',
+        createdAt: now,
+      },
+      {
+        id: 'asset-img-1',
+        kind: 'inline_image' as const,
+        filename: 'rede.png',
+        mimeType: 'image/png',
+        dataBase64: '',
+        sizeBytes: 120,
+        storagePath: 'assets/images/asset-img-1-rede.png',
+        url: '/api/assets/asset-img-1',
+        createdAt: now,
+      },
+    ];
+
+    expect(computeOkfPagePath(parentPage, allPages)).toBe('secullum/index.md');
+    expect(computeOkfPagePath(childPage, allPages)).toBe('secullum/calendario.md');
+
+    const okfParent = exportPageAsOkfMarkdown(parentPage, allPages, assets);
+    expect(okfParent).toContain('type: "index"');
+    expect(okfParent).toContain('cover_url: "../assets/covers/asset-cover-1-cover.webp"');
+    expect(okfParent).toContain('cover_y: 35');
+    expect(okfParent).toContain('![Rede](../assets/images/asset-img-1-rede.png)');
+    expect(okfParent).toContain('[📅 Calendário](./calendario.md)');
+
+    const rootIndex = generateOkfRootIndex(allPages);
+    expect(rootIndex).toContain('type: "index"');
+    expect(rootIndex).toContain('[☀️ Secullum](./secullum/index.md)');
+
+    const logMd = generateOkfLogMarkdown([
+      {
+        id: 'sync-1',
+        timestamp: now,
+        direction: 'push',
+        commitSha: 'abc1234567890',
+        filesChanged: 2,
+        summary: 'Sync OKF bundle',
+        status: 'success',
+      },
+    ]);
+    expect(logMd).toContain('abc1234');
+    expect(logMd).toContain('Sync OKF bundle');
   });
 });

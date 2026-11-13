@@ -22,11 +22,18 @@ export interface MindDoc {
 }
 export type TiptapDoc = MindDoc;
 
+export type OkfPageType = 'concept' | 'index' | 'project' | 'runbook' | 'standard';
+export type AssetKind = 'icon' | 'cover' | 'inline_image' | 'attachment';
+
 export interface MindPage {
   id: string;
   slug: string;
   title: string;
   icon: string;
+  pageType?: OkfPageType;
+  description?: string;
+  coverUrl?: string | null;
+  coverYPosition?: number;
   parentId: string | null;
   sortOrder: number;
   contentMarkdown: string;
@@ -40,6 +47,7 @@ export interface MindPage {
   deletedAt: string | null;
   sourcePath?: string | null;
   sourceHash?: string | null;
+  lastSyncedHash?: string | null;
 }
 
 export interface PageTreeNode extends MindPage {
@@ -51,6 +59,10 @@ export interface CreatePageInput {
   slug?: string;
   title: string;
   icon?: string;
+  pageType?: OkfPageType;
+  description?: string;
+  coverUrl?: string | null;
+  coverYPosition?: number;
   parentId?: string | null;
   sortOrder?: number;
   contentMarkdown?: string;
@@ -60,11 +72,16 @@ export interface CreatePageInput {
   tags?: string[];
   sourcePath?: string | null;
   sourceHash?: string | null;
+  lastSyncedHash?: string | null;
 }
 
 export interface UpdatePageInput {
   title?: string;
   icon?: string;
+  pageType?: OkfPageType;
+  description?: string;
+  coverUrl?: string | null;
+  coverYPosition?: number;
   parentId?: string | null;
   sortOrder?: number;
   contentMarkdown?: string;
@@ -74,6 +91,8 @@ export interface UpdatePageInput {
   tags?: string[];
   sourcePath?: string | null;
   sourceHash?: string | null;
+  lastSyncedHash?: string | null;
+  expectedHash?: string | null;
 }
 
 export interface QuickInsightInput {
@@ -307,9 +326,14 @@ export interface RawMarkdownFileEntry {
 }
 
 export interface ParsedFrontmatterMetadata {
+  id?: string;
   title?: string;
   slug?: string;
   icon?: string;
+  type?: string;
+  description?: string;
+  coverUrl?: string;
+  coverY?: number;
   tags: string[];
   created?: string;
   updated?: string;
@@ -362,17 +386,98 @@ export interface BulkImportApiResponse {
 
 export interface MindAsset {
   id: string;
+  pageId?: string | null;
+  kind?: AssetKind;
   filename: string;
   mimeType: string;
   dataBase64: string;
   sizeBytes: number;
+  storagePath?: string;
   url: string;
   createdAt: string;
 }
 
 export interface CreateAssetInput {
   id?: string;
+  pageId?: string | null;
+  kind?: AssetKind;
   filename: string;
   mimeType: string;
   dataBase64: string;
+}
+
+export type GitHubSyncStrategy = 'push_initial' | 'pull_initial' | 'merge';
+export type GitHubSyncState = 'disconnected' | 'connected' | 'syncing' | 'conflict' | 'error';
+
+export interface GitHubSyncConfigInput {
+  repository: string;
+  branch?: string;
+  token: string;
+  autoSyncEnabled?: boolean;
+  debounceSeconds?: number;
+  strategy?: GitHubSyncStrategy;
+}
+
+export interface GitHubSyncConfigPublic {
+  id: string;
+  provider: 'github';
+  repository: string;
+  branch: string;
+  hasToken: boolean;
+  maskedToken: string;
+  autoSyncEnabled: boolean;
+  debounceSeconds: number;
+  lastSyncAt: string | null;
+  lastCommitSha: string | null;
+  lastError: string | null;
+  updatedAt: string;
+}
+
+export interface GitHubSyncHistoryEntry {
+  id: string;
+  timestamp: string;
+  direction: 'push' | 'pull' | 'bidirectional';
+  commitSha: string | null;
+  filesChanged: number;
+  summary: string;
+  status: 'success' | 'conflict' | 'error';
+}
+
+export interface GitHubSyncStatus {
+  state: GitHubSyncState;
+  configured: boolean;
+  repository: string | null;
+  branch: string;
+  autoSyncEnabled: boolean;
+  debounceSeconds: number;
+  pendingChangesCount: number;
+  lastSyncAt: string | null;
+  lastCommitSha: string | null;
+  lastError: string | null;
+  history: GitHubSyncHistoryEntry[];
+}
+
+export interface GitHubTestConnectionInput {
+  repository: string;
+  branch?: string;
+  token: string;
+}
+
+export interface GitHubTestConnectionResult {
+  ok: boolean;
+  repository: string;
+  branch: string;
+  defaultBranch?: string;
+  isEmpty?: boolean;
+  message: string;
+}
+
+export interface GitHubSyncResult {
+  ok: boolean;
+  pushedFiles: string[];
+  pulledFiles: string[];
+  conflictPages: string[];
+  commitSha: string | null;
+  syncedAt: string;
+  message: string;
 }

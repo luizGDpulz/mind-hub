@@ -874,7 +874,10 @@ export const GlobalDragHandle = Extension.create<DragHandleOptions>({
       new Plugin({
         key: GlobalDragHandleKey,
         view: (editorView) => {
+          let isGutterPointerDown = false;
+
           const resetDragState = () => {
+            isGutterPointerDown = false;
             activeDragSourcePositions = [];
             cleanupDragPreview();
             editorView.dom.classList.remove('is-dragging-block');
@@ -882,12 +885,37 @@ export const GlobalDragHandle = Extension.create<DragHandleOptions>({
             clearDropIndicator(editorView);
           };
 
+          const onWindowMouseDown = (event: MouseEvent) => {
+            if (event.button !== 0) return;
+            const targetEl = event.target instanceof Element ? event.target : null;
+            const gutterEl = targetEl?.closest('.mind-block-gutter-shell');
+            const editorRoot = editorView.dom.closest('.mind-editor-root');
+            if (gutterEl && (!editorRoot || editorRoot.contains(gutterEl))) {
+              isGutterPointerDown = true;
+            }
+          };
+
+          const onWindowMouseUp = () => {
+            isGutterPointerDown = false;
+          };
+
           // Attach to window/document instead of view.dom.parentElement because
           // @tiptap/vue-3 constructs EditorView inside a temporary detached div
           // before <EditorContent> reparents .ProseMirror into the DOM.
           const onWindowMouseMove = (event: MouseEvent) => {
             const editorRoot = editorView.dom.closest('.mind-editor-root');
-            if (event.buttons !== 0 || editorRoot?.classList.contains('is-marquee-selecting')) {
+            if (editorRoot?.classList.contains('is-marquee-selecting')) {
+              isGutterPointerDown = false;
+              hoveredNodePos = null;
+              hideHandle();
+              return;
+            }
+            const targetEl = event.target instanceof Element ? event.target : null;
+            const isGutterOrActiveDrag =
+              activeDragSourcePositions.length > 0 ||
+              isGutterPointerDown ||
+              Boolean(targetEl?.closest('.mind-block-gutter-shell, .block-actions-popover'));
+            if (event.buttons !== 0 && !isGutterOrActiveDrag) {
               hoveredNodePos = null;
               hideHandle();
               return;
@@ -902,7 +930,9 @@ export const GlobalDragHandle = Extension.create<DragHandleOptions>({
             suppressedByTyping = false;
             lastMouseX = event.clientX;
             lastMouseY = event.clientY;
-            const targetEl = event.target instanceof Element ? event.target : null;
+            if (isGutterOrActiveDrag) {
+              return;
+            }
             updateHandleFromPoint(editorView, event.clientX, event.clientY, targetEl);
           };
 
@@ -1044,6 +1074,8 @@ export const GlobalDragHandle = Extension.create<DragHandleOptions>({
             resetDragState();
           };
 
+          window.addEventListener('mousedown', onWindowMouseDown);
+          window.addEventListener('mouseup', onWindowMouseUp);
           window.addEventListener('mousemove', onWindowMouseMove);
           document.addEventListener('mouseleave', onDocumentMouseLeave);
           window.addEventListener('dragstart', onWindowDragStart);
@@ -1053,6 +1085,8 @@ export const GlobalDragHandle = Extension.create<DragHandleOptions>({
 
           return {
             destroy: () => {
+              window.removeEventListener('mousedown', onWindowMouseDown);
+              window.removeEventListener('mouseup', onWindowMouseUp);
               window.removeEventListener('mousemove', onWindowMouseMove);
               document.removeEventListener('mouseleave', onDocumentMouseLeave);
               window.removeEventListener('dragstart', onWindowDragStart);

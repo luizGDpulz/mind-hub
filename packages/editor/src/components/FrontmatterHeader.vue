@@ -1073,13 +1073,17 @@ defineExpose({
   padding: 2px 6px 2px 20px;
   margin-left: -20px;
   border-radius: 5px;
-  color: #111827;
+  color: #ced4da;
   font-family: inherit;
   font-size: 15.5px;
   font-weight: 600;
   line-height: 1.4;
   letter-spacing: -0.01em;
   transition: color 0.12s ease;
+}
+
+.frontmatter-toggle-btn:hover {
+  color: #adb5bd;
 }
 
 .chevron-indicator {

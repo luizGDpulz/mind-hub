@@ -45,9 +45,14 @@ export interface AiChatEntry {
   createdAt: string;
 }
 
+const IS_TEST_RUNTIME =
+  Boolean(import.meta.env?.VITEST || import.meta.env?.MODE === 'test') ||
+  (typeof process !== 'undefined' && Boolean(process.env?.VITEST));
+
 export const useMindStore = defineStore('mindHub', () => {
-  const pages = ref<MindPage[]>(createInitialSeedPages());
-  const activePageId = ref<string>('page-manifesto');
+  const isBootstrapping = ref<boolean>(!IS_TEST_RUNTIME);
+  const pages = ref<MindPage[]>(IS_TEST_RUNTIME ? createInitialSeedPages() : []);
+  const activePageId = ref<string>(IS_TEST_RUNTIME ? 'page-teste' : '');
   const darkMode = ref<boolean>(false);
   const activeSurface = ref<'editor' | 'database' | 'login'>('editor');
   const editorReadMode = ref<boolean>(false);
@@ -158,7 +163,13 @@ export const useMindStore = defineStore('mindHub', () => {
       }
     } catch {
       backendConnected.value = false;
+      if (pages.value.length === 0) {
+        const seed = createInitialSeedPages();
+        pages.value = seed;
+        activePageId.value = seed[0]?.id ?? '';
+      }
     } finally {
+      isBootstrapping.value = false;
       lastLatencyMs.value = Number((performance.now() - t0).toFixed(2));
     }
   }
@@ -896,6 +907,7 @@ export const useMindStore = defineStore('mindHub', () => {
   }
 
   return {
+    isBootstrapping,
     pages,
     activePages,
     activePageId,

@@ -7,26 +7,28 @@ describe('@mind-hub/web — Pinia Store, Page Tree, Quick Insight & Search Engin
     setActivePinia(createPinia());
   });
 
-  it('initializes with RFC seed pages, hierarchical pageTree and breadcrumbs, with right drawers closed by default', () => {
+  it('initializes with clean 2-page test seed without icons, hierarchical pageTree and closed right drawers', () => {
     const store = useMindStore();
-    expect(store.activePages.length).toBe(4);
-    expect(store.pageTree.length).toBe(2);
-    expect(store.activePage?.id).toBe('page-manifesto');
+    expect(store.activePages.length).toBe(2);
+    expect(store.pageTree.length).toBe(1);
+    expect(store.activePage?.id).toBe('page-teste');
+    expect(store.activePage?.icon).toBe('');
     expect(store.isCommentsDrawerOpen).toBe(false);
     expect(store.isAiDrawerOpen).toBe(false);
 
-    store.selectPage('page-adr-stack');
+    store.selectPage('page-teste-interno');
     expect(store.breadcrumbs.map((b) => b.id)).toEqual([
-      'page-manifesto',
-      'page-adr-stack',
+      'page-teste',
+      'page-teste-interno',
     ]);
+    expect(store.activePage?.icon).toBe('');
   });
 
   it('creates new nested page, updates Tiptap AST content, soft-deletes and restores page', async () => {
     const store = useMindStore();
     const created = await store.createPage({
       title: 'Especificação Tiptap v2',
-      parentId: 'page-manifesto',
+      parentId: 'page-teste',
       contentMarkdown: '# Editor Headless\n\n- [x] Slash Commands',
     });
 
@@ -58,16 +60,16 @@ describe('@mind-hub/web — Pinia Store, Page Tree, Quick Insight & Search Engin
     expect(results.length).toBeGreaterThan(0);
     expect(results[0]?.page.id).toBe(updatedInbox.id);
 
-    const aiReply = await store.askAiAssistant('Por que usamos Drizzle ORM?');
+    const aiReply = await store.askAiAssistant('Workbox Quasar PWA');
     expect(aiReply.role).toBe('assistant');
-    expect(aiReply.text).toContain('ADR 001');
+    expect(aiReply.text).toContain('Inbox');
 
     const snapshot = store.exportMarkdownVault();
-    expect(snapshot.totalFiles).toBe(4);
+    expect(snapshot.totalFiles).toBe(3);
     expect(snapshot.files[0]?.markdown).toContain('---');
   });
 
-  it('manages Database tasks (Table & Kanban status cycling) and Page Comments in mind-light-style', () => {
+  it('manages Database tasks (Table & Kanban status cycling) and starts with clean empty comments in mind-light-style', () => {
     const store = useMindStore();
     expect(store.darkMode).toBe(false);
     expect(store.databaseRows.length).toBeGreaterThanOrEqual(8);
@@ -80,9 +82,7 @@ describe('@mind-hub/web — Pinia Store, Page Tree, Quick Insight & Search Engin
     const added = store.addDatabaseTaskRow('In Review');
     expect(added.status).toBe('In Review');
 
-    const initialReplies = store.pageComments[0]?.replies.length ?? 0;
-    store.addCommentReply('thread-1', 'Aligned with mind-light-style!');
-    expect(store.pageComments[0]?.replies.length).toBe(initialReplies + 1);
+    expect(store.pageComments).toEqual([]);
   });
 
   it('imports Second Brain Markdown batch into store with folder hierarchy and WikiLinks', async () => {
@@ -112,12 +112,12 @@ describe('@mind-hub/web — Pinia Store, Page Tree, Quick Insight & Search Engin
     expect(store.activeDiagramKind).toBe('excalidraw');
 
     // Switching to another note must keep the other note clean
-    store.selectPage('page-adr-stack');
+    store.selectPage('page-teste-interno');
     expect(store.showEmbeddedDatabase).toBe(false);
     expect(store.showEmbeddedDiagrams).toBe(false);
 
-    // Switching back restores the blocks bound to 'page-manifesto'
-    store.selectPage('page-manifesto');
+    // Switching back restores the blocks bound to 'page-teste'
+    store.selectPage('page-teste');
     expect(store.showEmbeddedDatabase).toBe(true);
     expect(store.showEmbeddedDiagrams).toBe(true);
     expect(store.activeDiagramKind).toBe('excalidraw');

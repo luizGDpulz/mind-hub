@@ -359,3 +359,20 @@ export interface BulkImportApiResponse {
   discoveredTags: string[];
   pages: MindPage[];
 }
+
+export interface MindAsset {
+  id: string;
+  filename: string;
+  mimeType: string;
+  dataBase64: string;
+  sizeBytes: number;
+  url: string;
+  createdAt: string;
+}
+
+export interface CreateAssetInput {
+  id?: string;
+  filename: string;
+  mimeType: string;
+  dataBase64: string;
+}

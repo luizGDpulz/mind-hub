@@ -135,7 +135,9 @@
 }
 
 :deep(.ProseMirror li > ul),
-:deep(.ProseMirror li > ol) {
+:deep(.ProseMirror li > ol),
+:deep(.ProseMirror li > div > ul),
+:deep(.ProseMirror li > div > ol) {
   padding-left: 24px;
   margin: 6px 0 0;
 }
@@ -215,6 +217,7 @@
   margin: 0;
 }
 
+:deep(.ProseMirror ul[data-type="taskList"] > li),
 :deep(.ProseMirror li[data-type="taskItem"]) {
   display: flex;
   align-items: flex-start;
@@ -228,14 +231,17 @@
   transition: background-color 0.12s ease;
 }
 
+:deep(.ProseMirror ul[data-type="taskList"] > li > label),
 :deep(.ProseMirror li[data-type="taskItem"] > label) {
   flex: 0 0 auto;
   display: inline-flex;
   align-items: center;
   height: 24px;
+  margin: 0;
   user-select: none;
 }
 
+:deep(.ProseMirror ul[data-type="taskList"] > li input[type="checkbox"]),
 :deep(.ProseMirror li[data-type="taskItem"] input[type="checkbox"]) {
   margin: 0;
   width: 15px;
@@ -244,16 +250,31 @@
   cursor: pointer;
 }
 
+:deep(.ProseMirror ul[data-type="taskList"] > li > div),
 :deep(.ProseMirror li[data-type="taskItem"] > div) {
   flex: 1 1 auto;
   min-width: 0;
 }
 
 :deep(.ProseMirror hr) {
-  width: 100%;
+  display: block;
+  width: calc(100% + 20px);
+  height: 21px;
   border: none;
-  border-top: 1px solid #e9ecef;
-  margin: 14px 0;
+  margin: 2px -10px;
+  padding: 10px 10px;
+  border-radius: 6px;
+  box-sizing: border-box;
+  cursor: pointer;
+  background-color: transparent;
+  background-image: linear-gradient(#e9ecef, #e9ecef);
+  background-clip: content-box;
+  transition: background-color 0.12s ease, box-shadow 0.12s ease;
+}
+
+:deep(.ProseMirror hr.ProseMirror-selectednode) {
+  background-image: linear-gradient(#1971c2, #1971c2);
+  outline: none;
 }
 
 :deep(.mind-link) {

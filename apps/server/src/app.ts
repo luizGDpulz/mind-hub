@@ -110,6 +110,7 @@ export interface BuildAppOptions {
 export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyInstance> {
   const app = Fastify({
     logger: false,
+    bodyLimit: 6 * 1024 * 1024,
   });
 
   await app.register(cors, {
@@ -627,6 +628,83 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
   app.get('/api/git/export', async () => {
     const snapshot = await repo.exportGitSnapshot();
     return snapshot;
+  });
+
+  // =========================================================================
+  // MEDIA & ICON ASSETS (Database / Store Persistence)
+  // =========================================================================
+  const ALLOWED_ASSET_MIME_TYPES = new Set([
+    'image/png',
+    'image/jpeg',
+    'image/jpg',
+    'image/webp',
+    'image/gif',
+    'image/svg+xml',
+  ]);
+  const MAX_ASSET_BYTES = 2.5 * 1024 * 1024;
+
+  app.post<{
+    Body: {
+      filename?: string;
+      mimeType?: string;
+      dataBase64?: string;
+    };
+  }>('/api/assets', async (request, reply) => {
+    const body = request.body ?? {};
+    const rawMime = (body.mimeType ?? '').toLowerCase().trim();
+    const mimeType = rawMime === 'image/jpg' ? 'image/jpeg' : rawMime;
+    const rawData = body.dataBase64 ?? '';
+
+    if (!ALLOWED_ASSET_MIME_TYPES.has(mimeType)) {
+      return reply.code(400).send({
+        error: 'Tipo de imagem não suportado. Use PNG, JPG, WebP, GIF ou SVG.',
+      });
+    }
+
+    const cleanBase64 = rawData.replace(/^data:[^;]+;base64,/, '').trim();
+    if (!cleanBase64) {
+      return reply.code(400).send({ error: 'Conteúdo da imagem ausente.' });
+    }
+
+    const decoded = Buffer.from(cleanBase64, 'base64');
+    if (decoded.byteLength === 0 || decoded.byteLength > MAX_ASSET_BYTES) {
+      return reply.code(400).send({
+        error: 'Imagem inválida ou maior que o limite de 2,5 MB.',
+      });
+    }
+
+    const asset = await repo.createAsset({
+      filename: body.filename?.trim() || 'icon-upload',
+      mimeType,
+      dataBase64: cleanBase64,
+    });
+
+    return reply.code(201).send({
+      asset: {
+        id: asset.id,
+        filename: asset.filename,
+        mimeType: asset.mimeType,
+        sizeBytes: asset.sizeBytes,
+        url: asset.url,
+        createdAt: asset.createdAt,
+      },
+    });
+  });
+
+  app.get<{ Params: { id: string } }>('/api/assets/:id', async (request, reply) => {
+    const asset = await repo.getAssetById(request.params.id);
+    if (!asset) {
+      return reply.code(404).send({ error: 'Asset not found' });
+    }
+
+    const payload = Buffer.from(asset.dataBase64, 'base64');
+    reply.header('Content-Type', asset.mimeType);
+    reply.header('X-Content-Type-Options', 'nosniff');
+    reply.header('Cache-Control', 'public, max-age=31536000, immutable');
+    if (asset.mimeType === 'image/svg+xml') {
+      reply.header('Content-Security-Policy', 'sandbox');
+    }
+    return reply.send(payload);
   });
 
   app.get('/mcp', async () => {

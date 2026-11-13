@@ -151,7 +151,7 @@
       </div>
 
       <!-- Empty State when there are no active pages -->
-      <div v-else class="empty-workspace-state q-pa-xl flex flex-center column" style="min-height: 400px">
+      <div v-else-if="!store.isBootstrapping" class="empty-workspace-state q-pa-xl flex flex-center column" style="min-height: 400px">
         <FileText :size="36" :stroke-width="1.5" style="color: var(--mind-text-muted); margin-bottom: 12px" />
         <div style="font-size: 16px; font-weight: 600; color: var(--mind-text-primary); margin-bottom: 6px">
           Nenhuma página encontrada
@@ -173,6 +173,7 @@
     <!-- Page Icon Picker Modal -->
     <MindIconPickerModal
       v-model="isIconPickerOpen"
+      :current-icon="store.activePage?.icon ?? ''"
       @select="(icon) => store.activePage && store.updatePageMeta(store.activePage.id, { icon })"
     />
   </q-page-container>

@@ -96,6 +96,9 @@ describe('@mind-hub/shared — Markdown <-> Tiptap AST & Domain Engine', () => {
 
   it('builds hierarchical page tree, flattens it, and resolves breadcrumbs while filtering soft-deleted pages', () => {
     const pages = createInitialSeedPages();
+    expect(pages.length).toBe(2);
+    expect(pages.every((p) => p.icon === '')).toBe(true);
+
     const deletedPage = {
       ...pages[0]!,
       id: 'page-deleted',
@@ -104,18 +107,18 @@ describe('@mind-hub/shared — Markdown <-> Tiptap AST & Domain Engine', () => {
     };
 
     const tree = buildPageTree([...pages, deletedPage]);
-    expect(tree.length).toBe(2);
-    const manifestoNode = tree.find((n) => n.id === 'page-manifesto');
-    expect(manifestoNode).toBeDefined();
-    expect(manifestoNode?.children.length).toBe(2);
+    expect(tree.length).toBe(1);
+    const rootNode = tree.find((n) => n.id === 'page-teste');
+    expect(rootNode).toBeDefined();
+    expect(rootNode?.children.length).toBe(1);
 
     const flat = flattenPageTree(tree);
-    expect(flat.length).toBe(4);
-    const adrEntry = flat.find((f) => f.page.id === 'page-adr-stack');
-    expect(adrEntry?.depth).toBe(1);
+    expect(flat.length).toBe(2);
+    const innerEntry = flat.find((f) => f.page.id === 'page-teste-interno');
+    expect(innerEntry?.depth).toBe(1);
 
-    const crumbs = getPageBreadcrumbs(pages, 'page-adr-stack');
-    expect(crumbs.map((c) => c.id)).toEqual(['page-manifesto', 'page-adr-stack']);
+    const crumbs = getPageBreadcrumbs(pages, 'page-teste-interno');
+    expect(crumbs.map((c) => c.id)).toEqual(['page-teste', 'page-teste-interno']);
   });
 
   it('computes deterministic embeddings and ranks search results in text, semantic, and hybrid modes', () => {
@@ -128,14 +131,14 @@ describe('@mind-hub/shared — Markdown <-> Tiptap AST & Domain Engine', () => {
 
     const pages = createInitialSeedPages();
     const hybridResults = searchPagesEngine(pages, {
-      query: 'Drizzle Rust Prisma',
+      query: 'Frase de destaque Tabela',
       mode: 'hybrid',
     });
     expect(hybridResults.length).toBeGreaterThan(0);
-    expect(hybridResults[0]?.page.id).toBe('page-adr-stack');
+    expect(hybridResults[0]?.page.id).toBe('page-teste');
 
     const semanticResults = searchPagesEngine(pages, {
-      query: 'agentes autônomos claude cursor protocolo',
+      query: 'subpagina interna exemplo',
       mode: 'semantic',
     });
     expect(semanticResults.length).toBeGreaterThan(0);
@@ -144,8 +147,8 @@ describe('@mind-hub/shared — Markdown <-> Tiptap AST & Domain Engine', () => {
   it('exports page with clean YAML frontmatter for Git sovereignty and provides default slash commands', () => {
     const pages = createInitialSeedPages();
     const exported = exportPageWithFrontmatter(pages[0]!);
-    expect(exported).toContain('---\nid: page-manifesto');
-    expect(exported).toContain('tags: [arquitetura, rfc, mcp, editor]');
+    expect(exported).toContain('---\nid: page-teste');
+    expect(exported).toContain('\n# Nota de Testes\n');
     expect(DEFAULT_SLASH_COMMANDS.length).toBeGreaterThanOrEqual(8);
   });
 

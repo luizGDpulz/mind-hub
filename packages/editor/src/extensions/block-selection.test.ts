@@ -8,6 +8,7 @@ import {
   BlockSelection,
   deleteBlocksAtPositions,
   duplicateBlocksAtPositions,
+  findBlocksIntersectingRect,
   getSelectedBlockPositions,
   isPointInsideTextContent,
   setBlockSelection,
@@ -134,5 +135,58 @@ describe('BlockSelection Extension', () => {
     expect(deleteBlocksAtPositions(editor.view, dupRes.newPositions)).toBe(true);
     expect(editor.view.dom.querySelectorAll('ol > li')).toHaveLength(2);
     expect(getSelectedBlockPositions(editor.state)).toEqual([]);
+  });
+
+  it('selects taskItem elements with data-type="taskItem" and horizontalRule (<hr>) dividers via marquee (refs #85)', () => {
+    const editor = new Editor({
+      extensions: [
+        StarterKit,
+        TaskList,
+        TaskItem.configure({ nested: true, HTMLAttributes: { 'data-type': 'taskItem' } }),
+        BlockColor,
+        BlockSelection,
+      ],
+      content:
+        '<ul data-type="taskList"><li data-type="taskItem" data-checked="true"><p>Item 1</p></li><li data-type="taskItem" data-checked="false"><p>Item 2</p></li></ul><hr><p>Final</p>',
+    });
+    editors.push(editor);
+    document.body.appendChild(editor.view.dom);
+
+    const lis = Array.from(editor.view.dom.querySelectorAll('li'));
+    const hr = editor.view.dom.querySelector('hr')!;
+    const pFinal = editor.view.dom.querySelector('.ProseMirror > p')!;
+
+    expect(lis).toHaveLength(2);
+    expect(lis[0]?.getAttribute('data-type')).toBe('taskItem');
+    expect(lis[1]?.getAttribute('data-type')).toBe('taskItem');
+
+    setRect(editor.view.dom, { top: 0, left: 0, width: 680, height: 220 });
+    setRect(lis[0]!, { top: 10, left: 0, width: 680, height: 32 });
+    setRect(lis[1]!, { top: 48, left: 0, width: 680, height: 32 });
+    setRect(hr, { top: 86, left: 0, width: 680, height: 21 });
+    setRect(pFinal, { top: 113, left: 0, width: 680, height: 32 });
+
+    // Marquee spanning task item 2 and divider <hr>
+    const hits = findBlocksIntersectingRect(editor.view, {
+      left: 50,
+      top: 52,
+      right: 300,
+      bottom: 98,
+    });
+    expect(hits).toHaveLength(2);
+
+    setBlockSelection(editor.view, hits);
+    const selectedEls = Array.from(editor.view.dom.querySelectorAll('.mind-block-selected'));
+    expect(selectedEls).toHaveLength(2);
+    expect(selectedEls[0]?.tagName).toBe('LI');
+    expect(selectedEls[1]?.tagName).toBe('HR');
+
+    // Duplicate & delete selected task item + <hr> cleanly
+    const dup = duplicateBlocksAtPositions(editor.view, hits);
+    expect(dup.duplicated).toBe(true);
+    expect(editor.view.dom.querySelectorAll('hr')).toHaveLength(2);
+
+    expect(deleteBlocksAtPositions(editor.view, dup.newPositions)).toBe(true);
+    expect(editor.view.dom.querySelectorAll('hr')).toHaveLength(1);
   });
 });

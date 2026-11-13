@@ -17,7 +17,7 @@ import {
 } from '../extensions/block-color.js';
 import {
   NO_CALLOUT_ICON_VALUE,
-  resolveLucideIconComponent,
+  parseLucideIconValue,
 } from '../extensions/callout-icons.js';
 import MindIconPicker from './MindIconPicker.vue';
 
@@ -57,7 +57,8 @@ const rawIcon = computed<string | null>(() => {
 
 const isIconHidden = computed(() => rawIcon.value === NO_CALLOUT_ICON_VALUE);
 
-const lucideIconComponent = computed(() => resolveLucideIconComponent(rawIcon.value));
+const parsedLucideIcon = computed(() => parseLucideIconValue(rawIcon.value));
+const lucideIconComponent = computed(() => parsedLucideIcon.value?.component ?? null);
 
 const emojiIcon = computed<string | null>(() => {
   if (isIconHidden.value || lucideIconComponent.value) return null;
@@ -201,6 +202,7 @@ onBeforeUnmount(() => {
           :is="lucideIconComponent"
           v-if="lucideIconComponent"
           class="mind-callout-icon"
+          :style="parsedLucideIcon?.colorHex ? { color: parsedLucideIcon.colorHex } : undefined"
         />
         <span
           v-else-if="emojiIcon"

@@ -151,10 +151,18 @@ body.body--dark,
   color: var(--mind-text-primary);
   border: none;
   outline: none;
+  box-shadow: none;
   width: 100%;
   background: transparent;
   margin: 0 0 20px 0;
   padding: 0;
+}
+
+.page-title-h1:focus,
+.page-title-h1:focus-visible {
+  outline: none !important;
+  border: none !important;
+  box-shadow: none !important;
 }
 
 /* Floating Popovers: Slash Menu (/) & Mention Menu (@) */

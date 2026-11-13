@@ -1,6 +1,6 @@
 <template>
   <q-page-container>
-    <q-page>
+    <q-page class="mind-workspace-page" @mousedown="handleWorkspaceMouseDown">
       <!-- Clean Login Surface -->
       <CleanLoginView
         v-if="store.activeSurface === 'login'"
@@ -32,68 +32,79 @@
           @insert-diagram-block="(kind) => store.enableDiagramBlockForActivePage(kind)"
         >
           <template #title>
-            <!-- Page Header Icon & Customization (below YAML Properties) -->
-            <div class="page-header-icon-container" data-testid="page-header-icon-container">
+            <!-- Notion-like Title Header Zone: Custom Icon + Hover-only Top Actions -->
+            <div class="page-header-zone" data-testid="page-header-icon-container">
               <div
+                v-if="hasCustomPageIcon"
                 class="page-header-icon-box"
                 data-testid="page-header-icon"
                 title="Clique para mudar o ícone"
                 @click="!store.editorReadMode && (isIconPickerOpen = true)"
               >
-                <img
-                  v-if="store.activePage.icon && isImageUrl(store.activePage.icon)"
-                  :src="store.activePage.icon"
-                  class="page-header-custom-img"
-                  alt="Page Icon"
-                />
-                <span v-else class="page-header-emoji">{{ store.activePage.icon || '📄' }}</span>
+                <MindPageIcon :icon="store.activePage.icon" :size="44" />
               </div>
 
-              <div v-if="!store.editorReadMode" class="page-header-icon-hover-actions">
+              <div
+                v-if="!store.editorReadMode"
+                class="page-header-hover-bar"
+                data-testid="page-header-hover-bar"
+              >
                 <button
                   type="button"
-                  class="page-icon-action-btn"
+                  class="page-header-ghost-btn"
+                  data-testid="page-header-icon-btn"
                   @click="isIconPickerOpen = true"
                 >
-                  Mudar ícone
+                  <Smile :size="14" :stroke-width="1.75" />
+                  <span>{{ hasCustomPageIcon ? 'Mudar ícone' : 'Adicionar ícone' }}</span>
                 </button>
                 <button
-                  v-if="store.activePage.icon"
+                  v-if="hasCustomPageIcon"
                   type="button"
-                  class="page-icon-action-btn"
+                  class="page-header-ghost-btn"
+                  data-testid="page-header-remove-icon-btn"
                   @click="store.updatePageMeta(store.activePage.id, { icon: '' })"
                 >
-                  Remover
+                  <span>Remover ícone</span>
                 </button>
                 <button
-                  v-if="!isActivePagePropertiesVisible"
                   type="button"
-                  class="page-icon-action-btn"
-                  data-testid="page-add-properties-btn"
-                  @click="openProperties"
+                  class="page-header-ghost-btn"
+                  data-testid="page-header-comment-btn"
+                  @click="store.rightDrawerMode = 'comments'; store.isCommentsDrawerOpen = true"
                 >
-                  + Propriedades
+                  <MessageSquare :size="14" :stroke-width="1.75" />
+                  <span>Adicionar comentário</span>
+                </button>
+                <button
+                  type="button"
+                  class="page-header-ghost-btn"
+                  data-testid="page-add-properties-btn"
+                  @click="togglePropertiesPanel"
+                >
+                  <SlidersHorizontal :size="14" :stroke-width="1.75" />
+                  <span>{{ showPropertiesOverride ? 'Ocultar propriedades' : 'Propriedades' }}</span>
                 </button>
               </div>
-            </div>
 
-            <!-- Clean H1 Title (DB Page.title owns note identity) -->
-            <input
-              :value="store.activePage.title"
-              type="text"
-              class="page-title-h1"
-              placeholder="Sem título"
-              :readonly="store.editorReadMode"
-              data-testid="page-title-input"
-              aria-label="Page title"
-              @input="
-                (e) =>
-                  store.activePage &&
-                  store.updatePageMeta(store.activePage.id, {
-                    title: (e.target as HTMLInputElement).value,
-                  })
-              "
-            />
+              <!-- Clean H1 Title (DB Page.title owns note identity) -->
+              <input
+                :value="store.activePage.title"
+                type="text"
+                class="page-title-h1"
+                placeholder="Sem título"
+                :readonly="store.editorReadMode"
+                data-testid="page-title-input"
+                aria-label="Page title"
+                @input="
+                  (e) =>
+                    store.activePage &&
+                    store.updatePageMeta(store.activePage.id, {
+                      title: (e.target as HTMLInputElement).value,
+                    })
+                "
+              />
+            </div>
           </template>
         </MindEditor>
 
@@ -141,7 +152,7 @@
 
       <!-- Empty State when there are no active pages -->
       <div v-else class="empty-workspace-state q-pa-xl flex flex-center column" style="min-height: 400px">
-        <span style="font-size: 40px; margin-bottom: 12px">📄</span>
+        <FileText :size="36" :stroke-width="1.5" style="color: var(--mind-text-muted); margin-bottom: 12px" />
         <div style="font-size: 16px; font-weight: 600; color: var(--mind-text-primary); margin-bottom: 6px">
           Nenhuma página encontrada
         </div>
@@ -170,16 +181,17 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
 import { storeToRefs } from 'pinia';
+import { FileText, MessageSquare, SlidersHorizontal, Smile } from 'lucide-vue-next';
 import type { MindNode, TiptapDoc } from '@mind-hub/shared';
 import { MindEditor, type PageReference } from '@mind-hub/editor';
 import { useMindStore } from '../../stores/mind-store.js';
 import { usePageFrontmatter } from '../../composables/usePageFrontmatter.js';
-import { isImageUrl } from '../../utils/media.js';
 import CleanLoginView from '../CleanLoginView.vue';
 import DatabaseViewBlock from '../DatabaseViewBlock.vue';
 import DiagramEmbedsBlock from '../DiagramEmbedsBlock.vue';
 import MindSubpageLink from '../ui/MindSubpageLink.vue';
 import MindIconPickerModal from '../ui/MindIconPickerModal.vue';
+import MindPageIcon from '../ui/MindPageIcon.vue';
 
 const store = useMindStore();
 const { activePage, activePageId, editorReadMode } = storeToRefs(store);
@@ -190,7 +202,6 @@ const mindEditorRef = ref<InstanceType<typeof MindEditor> | null>(null);
 const {
   showPropertiesOverride,
   activePageFrontmatter,
-  isActivePagePropertiesVisible,
   handleFrontmatterUpdate,
   requestOpenProperties,
 } = usePageFrontmatter({
@@ -200,8 +211,37 @@ const {
   updatePageMeta: store.updatePageMeta,
 });
 
+const hasCustomPageIcon = computed<boolean>(() => {
+  const icon = store.activePage?.icon;
+  return Boolean(icon && icon !== '📄');
+});
+
 function openProperties(): void {
   requestOpenProperties(mindEditorRef.value);
+}
+
+function togglePropertiesPanel(): void {
+  if (showPropertiesOverride.value) {
+    showPropertiesOverride.value = false;
+  } else {
+    openProperties();
+  }
+}
+
+function handleWorkspaceMouseDown(event: MouseEvent): void {
+  if (store.activeSurface !== 'editor' || !store.activePage || store.editorReadMode) return;
+  const target = event.target instanceof Element ? event.target : null;
+  if (!target) return;
+  // Let MindEditor's own @mousedown handle events originating inside .mind-editor-root
+  if (target.closest('.mind-editor-root')) return;
+  if (
+    target.closest(
+      '.page-header-zone, .database-view-block, .diagram-embeds-block, .mind-subpages-section, button, input, textarea, select, a',
+    )
+  ) {
+    return;
+  }
+  mindEditorRef.value?.handleRootMouseDown(event);
 }
 
 defineExpose({ openProperties });
@@ -314,11 +354,14 @@ async function handleCreateRootPage(): Promise<void> {
   gap: 2px;
 }
 
-.page-header-icon-container {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-bottom: 16px;
+.mind-workspace-page {
+  min-height: 100%;
+}
+
+.page-header-zone {
+  position: relative;
+  padding-top: 4px;
+  margin-bottom: 6px;
 }
 
 .page-header-icon-box {
@@ -329,6 +372,7 @@ async function handleCreateRootPage(): Promise<void> {
   align-items: center;
   justify-content: center;
   cursor: pointer;
+  margin-bottom: 10px;
   transition: background-color 0.12s ease;
   user-select: none;
 }
@@ -337,46 +381,42 @@ async function handleCreateRootPage(): Promise<void> {
   background: var(--mind-bg-hover);
 }
 
-.page-header-emoji {
-  font-size: 42px;
-  line-height: 1;
-}
-
-.page-header-custom-img {
-  width: 44px;
-  height: 44px;
-  object-fit: contain;
-  border-radius: 6px;
-}
-
-.page-header-icon-hover-actions {
+.page-header-hover-bar {
   display: flex;
   align-items: center;
-  gap: 6px;
+  flex-wrap: wrap;
+  gap: 4px;
+  min-height: 26px;
+  margin-bottom: 6px;
   opacity: 0;
+  pointer-events: none;
   transition: opacity 0.14s ease;
 }
 
-.page-header-icon-container:hover .page-header-icon-hover-actions {
+.page-header-zone:hover .page-header-hover-bar,
+.page-header-zone:focus-within .page-header-hover-bar {
   opacity: 1;
+  pointer-events: auto;
 }
 
-.page-icon-action-btn {
-  border: 1px solid var(--mind-border-subtle);
-  background: var(--mind-bg-surface-subtle);
+.page-header-ghost-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border: none;
+  background: transparent;
   color: var(--mind-text-muted);
-  font-size: 11.5px;
+  font-size: 12.5px;
   font-weight: 500;
-  padding: 3px 8px;
-  border-radius: 4px;
+  padding: 4px 8px;
+  border-radius: 5px;
   cursor: pointer;
-  transition: all 0.12s ease;
+  transition: background-color 0.12s ease, color 0.12s ease;
 }
 
-.page-icon-action-btn:hover {
+.page-header-ghost-btn:hover {
   background: var(--mind-bg-hover);
   color: var(--mind-text-primary);
-  border-color: var(--mind-border-control);
 }
 
 .editor-container :deep(.mind-editor-root) {

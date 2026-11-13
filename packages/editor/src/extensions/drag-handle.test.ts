@@ -49,18 +49,31 @@ describe('GlobalDragHandle Extension', () => {
     expect(ext.options.dragHandleWidth).toBe(20);
   });
 
-  it('calculates handle position correctly relative to mock DOM element', () => {
+  it('calculates handle position vertically centered on separate block pills and list items', () => {
     const mockElem = document.createElement('div');
-    mockElem.style.lineHeight = '24px';
-    mockElem.style.paddingTop = '4px';
     document.body.appendChild(mockElem);
 
     mockRect(mockElem, { top: 100, left: 50, width: 200, height: 24 });
 
     const pos = calculateHandlePosition(mockElem);
     expect(pos.left).toBe(50);
-    expect(pos.top).toBeGreaterThanOrEqual(100);
+    expect(pos.top).toBe(100);
     expect(pos.height).toBe(24);
+
+    // 32px pill height with 24px gutter -> centered at +4px offset
+    const pillLi = document.createElement('li');
+    document.body.appendChild(pillLi);
+    mockRect(pillLi, { top: 200, left: 60, width: 500, height: 32 });
+    const pillPos = calculateHandlePosition(pillLi);
+    expect(pillPos.top).toBe(204);
+
+    // Nested list inside <li> only centers on the parent <li> own line height (excluding sublist)
+    const nestedUl = document.createElement('ul');
+    pillLi.appendChild(nestedUl);
+    mockRect(pillLi, { top: 200, left: 60, width: 500, height: 96 });
+    mockRect(nestedUl, { top: 232, left: 84, width: 476, height: 64 });
+    const nestedPos = calculateHandlePosition(pillLi);
+    expect(nestedPos.top).toBe(204);
   });
 
   it('detects blocks and fires onPositionChange even after delayed DOM reparenting (Vue EditorContent lifecycle) and left-margin hover', () => {

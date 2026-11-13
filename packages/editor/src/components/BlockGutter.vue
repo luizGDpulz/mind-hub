@@ -16,7 +16,7 @@
       data-testid="block-gutter-add-btn"
       @click="emit('addBlock')"
     >
-      <Plus :size="14" />
+      <Plus :size="17" :stroke-width="2" />
     </button>
 
     <!-- Block Grip & Actions Handle (⠿) -->
@@ -36,7 +36,7 @@
         @dragstart="emit('dragStart')"
         @dragend="emit('dragEnd')"
       >
-        <GripVertical :size="14" />
+        <GripVertical :size="17" :stroke-width="2" />
       </button>
 
       <!-- Notion-like Tooltip on Hover -->
@@ -138,7 +138,7 @@
             >
               <div class="section-title">Transformar em</div>
               <button
-                v-for="item in turnIntoOptions"
+                v-for="item in visibleTurnIntoOptions"
                 :key="item.type"
                 type="button"
                 class="popover-item"
@@ -333,6 +333,7 @@ const props = withDefaults(
     nodeType?: string;
     nodeTextColor?: string | null;
     nodeBgColor?: string | null;
+    basicBlocksOnly?: boolean;
   }>(),
   {
     visible: false,
@@ -341,6 +342,7 @@ const props = withDefaults(
     nodeType: 'paragraph',
     nodeTextColor: null,
     nodeBgColor: null,
+    basicBlocksOnly: false,
   }
 );
 
@@ -375,6 +377,12 @@ const turnIntoOptions: Array<{ type: string; label: string; icon: Component }> =
   { type: 'callout', label: 'Callout / Destaque', icon: AlertCircle },
   { type: 'mermaid', label: 'Diagrama Mermaid', icon: GitFork },
 ];
+
+const visibleTurnIntoOptions = computed(() =>
+  props.basicBlocksOnly
+    ? turnIntoOptions.filter((opt) => opt.type !== 'callout' && opt.type !== 'mermaid')
+    : turnIntoOptions
+);
 
 const normalizedTextColor = computed(() => normalizeBlockColorId(props.nodeTextColor));
 const normalizedBgColor = computed(() => normalizeBlockColorId(props.nodeBgColor));
@@ -415,7 +423,7 @@ const filteredEntries = computed<FilteredActionEntry[]>(() => {
   if (!q) return [];
 
   const entries: FilteredActionEntry[] = [
-    ...turnIntoOptions.map((opt) => ({
+    ...visibleTurnIntoOptions.value.map((opt) => ({
       key: `turn-${opt.type}`,
       kind: 'turnInto' as const,
       label: `Transformar em ${opt.label}`,
@@ -577,13 +585,14 @@ onBeforeUnmount(() => {
 <style scoped>
 .mind-block-gutter-shell {
   position: absolute;
-  left: -48px;
+  left: -66px;
+  height: 24px;
   display: flex;
   align-items: center;
   gap: 2px;
   z-index: 50;
-  padding-right: 6px;
-  margin-right: -6px;
+  padding-right: 14px;
+  margin-right: -14px;
   user-select: none;
 }
 
@@ -591,12 +600,12 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 20px;
-  height: 20px;
-  border-radius: 4px;
+  width: 24px;
+  height: 24px;
+  border-radius: 5px;
   background: transparent;
   border: none;
-  color: #9b9a97;
+  color: #868e96;
   cursor: pointer;
   transition: background-color 0.15s ease, color 0.15s ease;
   padding: 0;

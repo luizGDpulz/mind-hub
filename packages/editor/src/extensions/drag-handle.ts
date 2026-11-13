@@ -44,11 +44,13 @@ const DEFAULT_BLOCK_SELECTORS = [
   '.mind-block-node',
 ];
 
-const LEFT_GUTTER_HIT_WIDTH = 110;
+const LEFT_GUTTER_HIT_WIDTH = 120;
 const RIGHT_GUTTER_HIT_WIDTH = 32;
 const LEFT_DROP_HIT_WIDTH = 140;
 const RIGHT_DROP_HIT_WIDTH = 48;
 const VERTICAL_GAP_TOLERANCE = 28;
+const GUTTER_HANDLE_SIZE = 24;
+const PILL_CENTER_MAX_HEIGHT = 112;
 
 function collectBlockCandidates(viewDom: HTMLElement): Element[] {
   const candidates: Element[] = [];
@@ -304,6 +306,21 @@ export function findBlockDOMAtCoords(
   return findClosestBlockByVerticalScan(coords.y, view.dom);
 }
 
+function resolveListOwnPillHeight(liElem: Element): number {
+  const liRect = liElem.getBoundingClientRect();
+  const nestedList = Array.from(liElem.children).find(
+    (child) => child.tagName === 'UL' || child.tagName === 'OL'
+  );
+  if (!nestedList) {
+    return liRect.height;
+  }
+  const nestedRect = nestedList.getBoundingClientRect();
+  if (nestedRect.height > 0 && nestedRect.top > liRect.top) {
+    return nestedRect.top - liRect.top;
+  }
+  return liRect.height;
+}
+
 export function calculateHandlePosition(
   nodeElem: Element,
   editorShellElem?: HTMLElement | null
@@ -311,7 +328,7 @@ export function calculateHandlePosition(
   const rect = nodeElem.getBoundingClientRect();
   const shellRect = editorShellElem?.getBoundingClientRect();
 
-  // For NodeViews wrapping inner blocks (e.g. Callout), align with the first line of inner text
+  // For NodeViews wrapping inner blocks (e.g. Callout), align with the first inner text pill
   let alignElem: Element = nodeElem;
   if (nodeElem.hasAttribute('data-node-view-wrapper')) {
     const innerTextBlock = nodeElem.querySelector('p, h1, h2, h3, h4, li');
@@ -326,18 +343,27 @@ export function calculateHandlePosition(
   }
 
   const alignRect = alignElem.getBoundingClientRect();
-  const comp = window.getComputedStyle(alignElem);
-  const parsedLineHeight = parseInt(comp.lineHeight, 10);
-  const lineHeight = isNaN(parsedLineHeight)
-    ? (parseInt(comp.fontSize, 10) || 16) * 1.2
-    : parsedLineHeight;
-  const paddingTop = parseInt(comp.paddingTop, 10) || 0;
+  const pillHeight = alignElem.matches('li')
+    ? resolveListOwnPillHeight(alignElem)
+    : alignRect.height;
 
-  // Align the 20px gutter buttons vertically with first text line (or center on thin <hr>)
-  const topOffset =
-    alignRect.height > 0 && alignRect.height <= 4
-      ? -(20 - alignRect.height) / 2
-      : Math.max(0, (lineHeight - 20) / 2) + paddingTop;
+  let topOffset: number;
+  if (pillHeight > 0 && pillHeight <= 4) {
+    // Thin horizontal divider (<hr>): center vertically across line
+    topOffset = -(GUTTER_HANDLE_SIZE - pillHeight) / 2;
+  } else if (pillHeight > 0 && pillHeight <= PILL_CENTER_MAX_HEIGHT) {
+    // Treat each normal block as a separate pill and center the gutter vertically in it
+    topOffset = Math.max(0, (pillHeight - GUTTER_HANDLE_SIZE) / 2);
+  } else {
+    // Very tall multi-line / code blocks: keep gutter centered on the first line
+    const comp = window.getComputedStyle(alignElem);
+    const parsedLineHeight = parseFloat(comp.lineHeight);
+    const lineHeight = isNaN(parsedLineHeight)
+      ? (parseFloat(comp.fontSize) || 16) * 1.2
+      : parsedLineHeight;
+    const paddingTop = parseFloat(comp.paddingTop) || 0;
+    topOffset = Math.max(0, (lineHeight - GUTTER_HANDLE_SIZE) / 2) + paddingTop;
+  }
 
   if (shellRect) {
     return {
@@ -500,7 +526,7 @@ export const GlobalDragHandle = Extension.create<DragHandleOptions>({
       // Hide when cursor moves over obstructing UI chrome above/outside the prose surface
       if (
         eventTarget?.closest(
-          '[role="dialog"], header, aside, .mind-frontmatter-header, [data-testid="slash-menu-shell"], [data-testid="page-mention-suggest-popover"], [data-testid="bubble-formatting-menu"]'
+          '[role="dialog"], header, aside, .mind-frontmatter-header, .mind-frontmatter-shell, .mind-note-title-bar, [data-testid="slash-menu-shell"], [data-testid="page-mention-suggest-popover"], [data-testid="bubble-formatting-menu"]'
         )
       ) {
         hideHandle();

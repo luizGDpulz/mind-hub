@@ -92,4 +92,18 @@ describe('BlockGutter.vue', () => {
     expect(results.find('[data-testid="text-color-purple"]').exists()).toBe(true);
     expect(results.find('[data-testid="bg-color-purple"]').exists()).toBe(true);
   });
+
+  it('restricts Transformar em submenu to basic markdown blocks when basicBlocksOnly is true', async () => {
+    const wrapper = mount(BlockGutter, {
+      props: { visible: true, basicBlocksOnly: true },
+    });
+
+    await wrapper.find('[data-testid="block-gutter-handle-btn"]').trigger('click');
+    await wrapper.find('[data-testid="menu-trigger-turn-into"]').trigger('click');
+
+    expect(wrapper.find('[data-testid="turn-into-orderedList"]').exists()).toBe(true);
+    expect(wrapper.find('[data-testid="turn-into-blockquote"]').exists()).toBe(true);
+    expect(wrapper.find('[data-testid="turn-into-callout"]').exists()).toBe(false);
+    expect(wrapper.find('[data-testid="turn-into-mermaid"]').exists()).toBe(false);
+  });
 });

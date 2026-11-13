@@ -373,7 +373,7 @@ export function planBulkVaultImport(
       existingByTitleLower.set(existing.title.toLowerCase(), existing);
       if (existing.sourcePath && existing.sourcePath.endsWith('/index.md')) {
         const folderKey = existing.sourcePath.replace(/\/index\.md$/, '');
-        folderMap.set(folderKey, existing);
+        folderMap.set(folderKey, { ...existing, tags: [...existing.tags] });
       }
     }
   }
@@ -462,6 +462,9 @@ export function planBulkVaultImport(
       );
       parentFolder.sourcePath = note.relativePath;
       parentFolder.sourceHash = note.sourceHash;
+      if (!pagesToUpsert.includes(parentFolder)) {
+        pagesToUpsert.push(parentFolder);
+      }
       continue;
     }
 

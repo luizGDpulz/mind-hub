@@ -66,7 +66,7 @@
 </template>
 
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, watch } from 'vue';
+import { onBeforeUnmount, watch } from 'vue';
 
 defineOptions({ inheritAttrs: false });
 

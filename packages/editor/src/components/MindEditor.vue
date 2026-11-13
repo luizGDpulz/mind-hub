@@ -135,7 +135,7 @@ const CalloutConfigured = CalloutNode.extend({
 
 // Track internal edits to prevent resetting selection while typing
 let isInternalUpdate = false;
-let resolveMarqueeLock = () => false;
+const isMarqueeLockActive = ref(false);
 
 const editor = useEditor({
   editable: !props.readOnly,
@@ -257,7 +257,7 @@ const editor = useEditor({
 const gutterCoordinator = useBlockGutterCoordinator({
   editor,
   selectedBlockPositions,
-  isMarqueeLocked: () => resolveMarqueeLock(),
+  isMarqueeLocked: () => isMarqueeLockActive.value,
 });
 
 const {
@@ -286,17 +286,18 @@ const {
   selectedBlockPositions,
 });
 
-const isMarqueeLockActive = computed(
-  () => marqueeState.value.active || isPointerDown.value
+watch(
+  [() => marqueeState.value.active, isPointerDown],
+  ([marqueeActive, pointerDown]) => {
+    const locked = marqueeActive || pointerDown;
+    isMarqueeLockActive.value = locked;
+    if (locked) {
+      gutterState.value.visible = false;
+      isGutterHovered.value = false;
+    }
+  },
+  { immediate: true }
 );
-resolveMarqueeLock = () => isMarqueeLockActive.value;
-
-watch(isMarqueeLockActive, (locked) => {
-  if (locked) {
-    gutterState.value.visible = false;
-    isGutterHovered.value = false;
-  }
-});
 
 // Synchronize external modelValue & readOnly changes
 watch(

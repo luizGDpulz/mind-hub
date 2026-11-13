@@ -12,6 +12,9 @@ import MindWorkspaceMenu from './MindWorkspaceMenu.vue';
 import MindSidebarAppsMenu from './MindSidebarAppsMenu.vue';
 import MindHelpVersionsMenu from './MindHelpVersionsMenu.vue';
 import MindVersionHistoryModal from './MindVersionHistoryModal.vue';
+import MindModal from './MindModal.vue';
+import MindPopover from './MindPopover.vue';
+import MindSettingsModal from './MindSettingsModal.vue';
 import type { ActionMenuItem } from './types.js';
 import type { MindPage } from '@mind-hub/shared';
 
@@ -447,5 +450,76 @@ describe('@mind-hub/web — Atomic UI Components (Refs #27, #30, #31, #32, #33)'
     await allReleasesRow.trigger('click');
     expect(wrapper.emitted('open-all-releases')).toHaveLength(1);
     expect(wrapper.emitted('update:modelValue')?.[0]?.[0]).toBe(false);
+  });
+
+  it('MindModal supports hideHeader, flush body, and header-actions slot (refs #76)', () => {
+    const wrapper = mount(MindModal, {
+      props: {
+        modelValue: true,
+        hideHeader: true,
+        flush: true,
+      },
+      slots: {
+        default: '<div data-testid="flush-slot">Conteúdo limpo</div>',
+      },
+      global: {
+        stubs: {
+          Teleport: true,
+          Transition: false,
+        },
+      },
+    });
+
+    expect(wrapper.find('[data-testid="mind-modal-header"]').exists()).toBe(false);
+    expect(wrapper.find('[data-testid="flush-slot"]').exists()).toBe(true);
+    const body = wrapper.find('[data-testid="mind-modal-body"]');
+    expect((body.element as HTMLElement).style.padding).toBe('0px');
+  });
+
+  it('MindPopover dismisses via Escape and backdrop click (refs #76)', async () => {
+    const wrapper = mount(MindPopover, {
+      props: {
+        modelValue: true,
+        top: 24,
+        left: 16,
+      },
+      slots: {
+        default: '<span>Conteúdo do popover</span>',
+      },
+    });
+
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+    await wrapper.vm.$nextTick();
+    expect(wrapper.emitted('update:modelValue')?.[0]?.[0]).toBe(false);
+
+    await wrapper.find('[data-testid="mind-popover-backdrop"]').trigger('click');
+    expect(wrapper.emitted('update:modelValue')?.length).toBe(2);
+    wrapper.unmount();
+  });
+
+  it('MindSettingsModal switches cleanly across modularized settings tabs (refs #77)', async () => {
+    const wrapper = mount(MindSettingsModal, {
+      props: {
+        modelValue: true,
+        activePagesCount: 12,
+        deletedPagesCount: 2,
+        databaseTasksCount: 5,
+      },
+      global: {
+        stubs: {
+          Teleport: true,
+          Transition: false,
+        },
+      },
+    });
+
+    expect(wrapper.text()).toContain('Perfil & Workspace');
+
+    await wrapper.find('[data-testid="settings-tab-appearance"]').trigger('click');
+    expect(wrapper.text()).toContain('Densidade da Interface');
+
+    await wrapper.find('[data-testid="settings-tab-storage"]').trigger('click');
+    expect(wrapper.text()).toContain('Páginas Ativas');
+    expect(wrapper.text()).toContain('12');
   });
 });

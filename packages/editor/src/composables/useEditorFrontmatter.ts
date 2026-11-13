@@ -58,6 +58,16 @@ export function useEditorFrontmatter(options: UseEditorFrontmatterOptions) {
   }
 
   watch(
+    () => options.enableFrontmatterHeader(),
+    (enabled) => {
+      if (!enabled) {
+        localShowProperties.value = false;
+        frontmatterInitialCollapsed.value = true;
+      }
+    }
+  );
+
+  watch(
     () => options.showProperties(),
     async (nextVal, prevVal) => {
       if (nextVal && !prevVal) {

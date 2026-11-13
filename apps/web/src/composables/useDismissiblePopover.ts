@@ -1,4 +1,4 @@
-import { onBeforeUnmount, onMounted, watch, type Ref } from 'vue';
+import { onBeforeUnmount, onMounted, type Ref } from 'vue';
 
 export interface DismissiblePopoverOptions {
   /** Reactive open state or getter returning whether the popover is currently open */
@@ -26,7 +26,6 @@ export function useDismissiblePopover(options: DismissiblePopoverOptions): void 
     typeof options.isOpen === 'function' ? options.isOpen() : options.isOpen.value;
 
   let attachTimer: ReturnType<typeof setTimeout> | null = null;
-  let listenersAttached = false;
 
   function handleKeydown(event: KeyboardEvent): void {
     if (!getIsOpen()) return;
@@ -39,20 +38,24 @@ export function useDismissiblePopover(options: DismissiblePopoverOptions): void 
   function handleOutsidePointer(event: MouseEvent): void {
     if (!getIsOpen()) return;
     const container = options.containerRef?.value;
-    if (container && !container.contains(event.target as Node)) {
+    const target = event.target as Node | null;
+    if (container && target && !container.contains(target)) {
       options.onClose();
     }
   }
 
   function attachOutsideListeners(): void {
-    if (listenersAttached) return;
-    listenersAttached = true;
     if (options.closeOnOutsideMousedown) {
       window.addEventListener('mousedown', handleOutsidePointer);
     }
     if (options.closeOnOutsideClick) {
       document.addEventListener('click', handleOutsidePointer);
     }
+  }
+
+  function detachOutsideListeners(): void {
+    window.removeEventListener('mousedown', handleOutsidePointer);
+    document.removeEventListener('click', handleOutsidePointer);
   }
 
   onMounted(() => {
@@ -73,16 +76,6 @@ export function useDismissiblePopover(options: DismissiblePopoverOptions): void 
       clearTimeout(attachTimer);
       attachTimer = null;
     }
-    if (listenersAttached) {
-      window.removeEventListener('mousedown', handleOutsidePointer);
-      document.removeEventListener('click', handleOutsidePointer);
-      listenersAttached = false;
-    }
+    detachOutsideListeners();
   });
-
-  if (typeof options.isOpen !== 'function') {
-    watch(options.isOpen, () => {
-      // Keeps open-state subscription lightweight when reactive ref is provided
-    });
-  }
 }

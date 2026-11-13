@@ -302,7 +302,13 @@ describe('MindEditor.vue', () => {
 
     // Clean note starts without YAML Propriedades
     expect(wrapper.find('[data-testid="mind-frontmatter-header"]').exists()).toBe(false);
-    expect(wrapper.find('[data-testid="mind-note-title-input"]').exists()).toBe(true);
+    const blankTitleInput = wrapper.find('[data-testid="mind-note-title-input"]');
+    expect(blankTitleInput.exists()).toBe(true);
+
+    // Typing DB/filename Note Title keeps YAML frontmatter clean (does not inject title into YAML)
+    await blankTitleInput.setValue('Nota Sem Yaml');
+    expect(wrapper.emitted('update:title')?.at(-1)).toEqual(['Nota Sem Yaml']);
+    expect(wrapper.emitted('update:frontmatter')).toBeUndefined();
 
     // Triggering openProperties reveals expanded Propriedades ABOVE the title bar
     await (wrapper.vm as unknown as { openProperties: (focus?: boolean) => Promise<void> }).openProperties(false);

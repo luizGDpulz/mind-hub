@@ -18,7 +18,6 @@ const todayIso = new Date().toISOString().slice(0, 10);
 const basicSampleTitle = 'Blocos Básicos de Markdown';
 
 const basicSampleFrontmatter: EditorFrontmatter = {
-  title: basicSampleTitle,
   tags: ['estudo', 'referencia'],
   status: 'ativo',
   project: 'Mind Hub',

@@ -120,8 +120,7 @@ function handleRemoveProperties(): void {
   localShowProperties.value = false;
   frontmatterInitialCollapsed.value = true;
   emit('update:showProperties', false);
-  const preservedTitle = props.title ?? props.frontmatter?.title;
-  emit('update:frontmatter', preservedTitle ? { title: preservedTitle } : {});
+  emit('update:frontmatter', {});
 }
 
 watch(
@@ -741,11 +740,11 @@ function closePageMention(): void {
   pageMentionState.value.visible = false;
 }
 
-// Note title handlers (kept strictly independent from block nodes)
+// Note title handlers (kept strictly independent from block nodes; DB Page.title owns note identity)
 function handleTitleInput(event: Event): void {
   const nextTitle = (event.target as HTMLInputElement).value;
   emit('update:title', nextTitle);
-  if (props.frontmatter) {
+  if (props.frontmatter && props.frontmatter.title !== undefined) {
     emit('update:frontmatter', { ...props.frontmatter, title: nextTitle });
   }
 }
@@ -885,7 +884,7 @@ defineExpose({
   padding: 28px 76px 80px;
   background-color: #ffffff;
   color: #111827;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
   box-sizing: border-box;
 }
 

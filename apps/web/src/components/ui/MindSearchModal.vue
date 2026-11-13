@@ -74,7 +74,9 @@
               @mouseenter="activeIndex = idx"
               @click="handleSelect(item.page.id)"
             >
-              <span class="search-item-emoji">{{ item.page.icon || '📄' }}</span>
+              <span class="search-item-emoji">
+                <MindPageIcon :icon="item.page.icon" :size="15" />
+              </span>
               <div class="search-item-body">
                 <div class="search-item-title-row">
                   <span class="search-item-title">{{ item.page.title }}</span>
@@ -109,7 +111,9 @@
                   @mouseenter="setActivePageId(page.id)"
                   @click="handleSelect(page.id)"
                 >
-                  <span class="search-item-emoji">{{ page.icon || '📄' }}</span>
+                  <span class="search-item-emoji">
+                    <MindPageIcon :icon="page.icon" :size="15" />
+                  </span>
                   <div class="search-item-body">
                     <div class="search-item-title-row">
                       <span class="search-item-title">{{ page.title }}</span>
@@ -132,7 +136,9 @@
 
             <div class="preview-header-row">
               <div class="preview-title-block">
-                <span class="preview-page-icon">{{ previewPage.icon || '📄' }}</span>
+                <span class="preview-page-icon">
+                  <MindPageIcon :icon="previewPage.icon" :size="20" />
+                </span>
                 <h3 class="preview-page-title">{{ previewPage.title }}</h3>
               </div>
               <button
@@ -180,7 +186,7 @@
                   class="preview-subpage-item"
                   @click="handleSelect(child.id)"
                 >
-                  <span>{{ child.icon || '📄' }}</span>
+                  <MindPageIcon :icon="child.icon" :size="14" />
                   <span class="ellipsis">{{ child.title }}</span>
                 </div>
               </div>
@@ -226,6 +232,7 @@ import { computed, nextTick, ref, watch } from 'vue';
 import { Search, User, FileText, ExternalLink } from 'lucide-vue-next';
 import type { MindPage, SearchResultItem } from '@mind-hub/shared';
 import MindModal from './MindModal.vue';
+import MindPageIcon from './MindPageIcon.vue';
 
 const props = defineProps<{
   modelValue: boolean;

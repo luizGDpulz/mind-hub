@@ -12,13 +12,7 @@
   >
     <!-- Leading Icon (Emoji or Custom URL) -->
     <span class="fav-icon">
-      <img
-        v-if="page.icon && isImageUrl(page.icon)"
-        :src="page.icon"
-        class="fav-custom-img-icon"
-        alt=""
-      />
-      <span v-else>{{ page.icon || '📄' }}</span>
+      <MindPageIcon :icon="page.icon" :size="15" />
     </span>
 
     <!-- Inline Rename Input or Title -->
@@ -66,6 +60,7 @@
 import { computed, nextTick, ref, watch } from 'vue';
 import { MoreHorizontal, Plus } from 'lucide-vue-next';
 import type { MindPage } from '@mind-hub/shared';
+import MindPageIcon from './MindPageIcon.vue';
 
 const props = withDefaults(
   defineProps<{

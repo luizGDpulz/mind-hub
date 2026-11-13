@@ -90,8 +90,17 @@ describe('Gatekeeper UI — Validação Rigorosa mind-light-style (Veto ao Azul 
 
   it('verifica presença dos componentes obrigatórios: Left Gutter Handles (+ / ⠿), Menus / e @, Database, Diagramas e Login Clean', () => {
     const appVue = fs.readFileSync(path.join(currentDir, 'App.vue'), 'utf-8');
-    expect(appVue).toContain("from '@mind-hub/editor'");
-    expect(appVue).toContain('<MindEditor');
+    expect(appVue).toContain('<MindTopbar');
+    expect(appVue).toContain('<MindSidebar');
+    expect(appVue).toContain('<MindRightDrawer');
+    expect(appVue).toContain('<MindPageWorkspace');
+
+    const workspaceVue = fs.readFileSync(
+      path.join(currentDir, 'components', 'shell', 'MindPageWorkspace.vue'),
+      'utf-8',
+    );
+    expect(workspaceVue).toContain("from '@mind-hub/editor'");
+    expect(workspaceVue).toContain('<MindEditor');
 
     const editorDir = path.resolve(currentDir, '../../../packages/editor/src/components');
     const gutterVue = fs.readFileSync(path.join(editorDir, 'BlockGutter.vue'), 'utf-8');

@@ -501,6 +501,13 @@ body.body--dark,
   margin: 6px 0 8px;
 }
 
+.comment-body-text {
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--mind-text-primary);
+  margin: 6px 0;
+}
+
 /* Copy Button Pattern (modern-web-guidance: copy-button) */
 .copyable {
   display: flex;

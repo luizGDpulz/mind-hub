@@ -104,10 +104,14 @@ describe('Gatekeeper UI — Validação Rigorosa mind-light-style (Veto ao Azul 
 
     const editorDir = path.resolve(currentDir, '../../../packages/editor/src/components');
     const gutterVue = fs.readFileSync(path.join(editorDir, 'BlockGutter.vue'), 'utf-8');
+    const gutterMenuVue = fs.readFileSync(
+      path.join(editorDir, 'gutter/BlockActionsMenu.vue'),
+      'utf-8'
+    );
     expect(gutterVue).toContain('data-testid="block-gutter-add-btn"');
     expect(gutterVue).toContain('data-testid="block-gutter-handle-btn"');
-    expect(gutterVue).toContain('data-testid="action-move-up"');
-    expect(gutterVue).toContain('data-testid="action-move-down"');
+    expect(gutterMenuVue).toContain('data-testid="action-move-up"');
+    expect(gutterMenuVue).toContain('data-testid="action-move-down"');
 
     const slashVue = fs.readFileSync(path.join(editorDir, 'SlashMenu.vue'), 'utf-8');
     expect(slashVue).toContain('data-testid="slash-command-menu"');

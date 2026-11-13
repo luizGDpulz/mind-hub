@@ -34,6 +34,16 @@ export {
   type UseMarqueeSelectionOptions,
 } from './composables/useMarqueeSelection.js';
 export {
+  useEditorFrontmatter,
+  hasFrontmatterProperties,
+  type UseEditorFrontmatterOptions,
+} from './composables/useEditorFrontmatter.js';
+export {
+  useBlockGutterCoordinator,
+  type GutterState,
+  type UseBlockGutterCoordinatorOptions,
+} from './composables/useBlockGutterCoordinator.js';
+export {
   BlockSelection,
   BlockSelectionPluginKey,
   getSelectedBlockPositions,

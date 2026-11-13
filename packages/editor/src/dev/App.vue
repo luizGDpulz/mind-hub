@@ -12,100 +12,57 @@ import {
 import MindEditor from '../components/MindEditor.vue';
 import type { EditorFrontmatter, PageReference } from '../types.js';
 
-const initialFrontmatter: EditorFrontmatter = {
-  title: 'Mind Editor — Demonstração Interativa',
-  tags: ['notion-like', 'blocos', 'open-source', 'tiptap', 'vue3'],
+const todayIso = new Date().toISOString().slice(0, 10);
+
+const basicSampleTitle = 'Blocos Básicos de Markdown';
+
+const basicSampleFrontmatter: EditorFrontmatter = {
+  title: basicSampleTitle,
+  tags: ['estudo', 'referencia'],
   status: 'ativo',
   project: 'Mind Hub',
-  created: '2026-11-12',
-  updated: '2026-11-12',
+  created: todayIso,
+  updated: todayIso,
 };
 
-const initialContent = `
-<h1>Bem-vindo ao Mind Editor!</h1>
-<p>Este é o <strong>motor autoral de blocos Notion-like</strong> desenvolvido 100% open-source para o <strong>Mind Hub</strong>. Você pode digitar texto livremente, formatar seleções e usar comandos rápidos.</p>
+const basicSampleContent = `
+<h2>Títulos e Parágrafos</h2>
+<p>Cada bloco é tratado como uma pílula independente — passe o mouse na margem esquerda para usar <strong>+</strong> e <strong>⠿</strong> ou digite <code>/</code> para inserir blocos básicos.</p>
 
-<div data-type="callout" data-callout-type="tip">
-  <p><strong>Dica de Produtividade:</strong> Digite <code>/</code> no início de uma linha para inserir títulos, listas, tabelas, callouts e diagramas Mermaid. Experimente também selecionar qualquer palavra para abrir a toolbar flutuante!</p>
-</div>
+<h3>Lista Numerada com Cores em Pílula</h3>
+<ol>
+  <li data-block-bg="green" data-block-color="green"><p>Item 1 com fundo pastel e numeração colorida</p></li>
+  <li data-block-bg="green" data-block-color="green"><p>Item 2 em pílula separada com gutter alinhado ao meio</p></li>
+  <li><p>Item 3 no estilo padrão neutro</p></li>
+</ol>
 
-<h2>Destaques Visuais (Callouts / Admonitions)</h2>
-<p>Os callouts usam a paleta pastel sóbria do <code>mind-light-style</code> e são totalmente interoperáveis com GitHub e Obsidian:</p>
-
-<div data-type="callout" data-callout-type="note">
-  <p><strong>Nota Informativa:</strong> Este é um callout do tipo Nota (azul pastel sóbrio). Clique no rótulo no topo para alterar seu tipo dinamicamente.</p>
-</div>
-
-<div data-type="callout" data-callout-type="important">
-  <p><strong>Importante:</strong> Todo o documento permanece interoperável como Markdown puro no backend Fastify.</p>
-</div>
-
-<div data-type="callout" data-callout-type="warning">
-  <p><strong>Aviso de Segurança:</strong> As imagens Docker de produção nunca rodam como root.</p>
-</div>
-
-<div data-type="callout" data-callout-type="caution">
-  <p><strong>Cuidado:</strong> Alterações diretas no banco de dados sem migração podem causar inconsistências.</p>
-</div>
-
-<h2>Diagrama Interativo Mermaid</h2>
-<p>Diagramas são renderizados nativamente em tempo real com Mermaid.js e possuem alternância direta para o editor de código:</p>
-
-<div data-type="mermaid" data-code="flowchart TD
-    Client[&quot;Navegador / Web App&quot;] --&gt; NPM[&quot;Nginx Proxy Manager&quot;]
-    NPM --&gt; Fastify[&quot;Fastify Backend (TypeScript)&quot;]
-    Fastify --&gt; DB[(&quot;PostgreSQL / Second Brain&quot;)]
-    Fastify --&gt; Docker[&quot;Preview Deployments&quot;]" data-title="Fluxo da Arquitetura do Mind Hub">
-  <pre class="mermaid-code-hidden">flowchart TD
-    Client[&quot;Navegador / Web App&quot;] --&gt; NPM[&quot;Nginx Proxy Manager&quot;]
-    NPM --&gt; Fastify[&quot;Fastify Backend (TypeScript)&quot;]
-    Fastify --&gt; DB[(&quot;PostgreSQL / Second Brain&quot;)]
-    Fastify --&gt; Docker[&quot;Preview Deployments&quot;]</pre>
-</div>
-
-<h2>Lista de Tarefas Interativa</h2>
-<ul data-type="taskList">
-  <li data-type="taskItem" data-checked="true"><label><input type="checkbox" checked="checked"><span></span></label><div><p>Criar pacote desacoplado @mind-hub/editor</p></div></li>
-  <li data-type="taskItem" data-checked="true"><label><input type="checkbox" checked="checked"><span></span></label><div><p>Implementar nó Mermaid nativo com toggle de código</p></div></li>
-  <li data-type="taskItem" data-checked="true"><label><input type="checkbox" checked="checked"><span></span></label><div><p>Implementar Callouts pastéis com suporte a > [!NOTE]</p></div></li>
-  <li data-type="taskItem" data-checked="false"><label><input type="checkbox"><span></span></label><div><p>Validar em ambiente Live Preview isolado</p></div></li>
+<h3>Lista com Marcadores &amp; Checklist</h3>
+<ul>
+  <li data-block-bg="blue"><p>Marcador também participa da pílula azul</p></li>
+  <li><p>Item normal com atalho <code>- </code></p></li>
 </ul>
 
-<h2>Tabelas Integradas</h2>
-<table>
-  <thead>
-    <tr>
-      <th>Recurso</th>
-      <th>Status</th>
-      <th>Engine</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td>Painel Frontmatter YAML</td>
-      <td>Concluído</td>
-      <td>Dual Mode (Visual / Raw)</td>
-    </tr>
-    <tr>
-      <td>Gutter + e ⠿ lateral</td>
-      <td>Concluído</td>
-      <td>ProseMirror DND Autoral</td>
-    </tr>
-    <tr>
-      <td>Bubble Menu Flutuante</td>
-      <td>Concluído</td>
-      <td>Tiptap BubbleMenu</td>
-    </tr>
-  </tbody>
-</table>
+<ul data-type="taskList">
+  <li data-type="taskItem" data-checked="true"><label><input type="checkbox" checked="checked"><span></span></label><div><p>Digitar [] ou [ ] + espaço cria tarefa</p></div></li>
+  <li data-type="taskItem" data-checked="false"><label><input type="checkbox"><span></span></label><div><p>Arrastar blocos pela margem esquerda</p></div></li>
+</ul>
 
 <blockquote>
   <p>“Simplicidade é pré-requisito para confiabilidade.” — Edsger W. Dijkstra</p>
 </blockquote>
+
+<pre><code class="language-typescript">const editorMode = 'basic-markdown';</code></pre>
+<hr>
 `.trim();
 
-const frontmatter = ref<EditorFrontmatter>({ ...initialFrontmatter });
-const content = ref<string>(initialContent);
+const noteTitle = ref<string>('');
+const frontmatter = ref<EditorFrontmatter>({
+  title: '',
+  tags: [],
+  status: 'rascunho',
+  created: todayIso,
+});
+const content = ref<string>('<p></p>');
 const showRawPanel = ref(false);
 const copySuccess = ref(false);
 const toastMessage = ref<string | null>(null);
@@ -134,14 +91,28 @@ const samplePages: PageReference[] = [
   },
 ];
 
-function resetDemo(): void {
-  frontmatter.value = { ...initialFrontmatter };
-  content.value = initialContent;
-  showToast('Demonstração recarregada!');
+function handleFrontmatterUpdate(nextMeta: EditorFrontmatter): void {
+  frontmatter.value = nextMeta;
+  if (typeof nextMeta.title === 'string' && nextMeta.title !== noteTitle.value) {
+    noteTitle.value = nextMeta.title;
+  }
+}
+
+function loadBasicSample(): void {
+  noteTitle.value = basicSampleTitle;
+  frontmatter.value = { ...basicSampleFrontmatter, tags: [...(basicSampleFrontmatter.tags ?? [])] };
+  content.value = basicSampleContent;
+  showToast('Exemplo de blocos básicos carregado!');
 }
 
 function clearEditor(): void {
-  frontmatter.value = { title: 'Nova Página' };
+  noteTitle.value = '';
+  frontmatter.value = {
+    title: '',
+    tags: [],
+    status: 'rascunho',
+    created: todayIso,
+  };
   content.value = '<p></p>';
   showToast('Documento limpo!');
 }
@@ -190,11 +161,11 @@ function handleSave(): void {
         <button
           type="button"
           class="header-btn"
-          title="Recarregar conteúdo de teste"
-          @click="resetDemo"
+          title="Carregar exemplo apenas com blocos básicos de Markdown"
+          @click="loadBasicSample"
         >
           <RefreshCw class="btn-icon" />
-          <span>Recarregar Demo</span>
+          <span>Exemplo Básico</span>
         </button>
 
         <button
@@ -238,10 +209,13 @@ function handleSave(): void {
         <div class="editor-paper-card">
           <MindEditor
             v-model="content"
+            v-model:title="noteTitle"
+            :show-title="true"
+            :basic-blocks-only="true"
             :frontmatter="frontmatter"
             :pages="samplePages"
-            placeholder="Pressione '/' para comandos ou comece a digitar..."
-            @update:frontmatter="frontmatter = $event"
+            placeholder="Pressione '/' para blocos básicos ou comece a digitar..."
+            @update:frontmatter="handleFrontmatterUpdate"
             @save="handleSave"
           />
         </div>

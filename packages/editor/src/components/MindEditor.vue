@@ -20,6 +20,7 @@ import {
   Heading3,
   Heading4,
   List,
+  ListOrdered,
   ListTodo,
   Quote,
   AlertCircle,
@@ -33,12 +34,13 @@ import {
   CodeXml,
 } from 'lucide-vue-next';
 
-import type {
-  MindEditorProps,
-  MindEditorEmits,
-  SlashMenuItem,
-  PageReference,
-  BlockColorUpdate,
+import {
+  DEFAULT_NOTE_TAGS,
+  type MindEditorProps,
+  type MindEditorEmits,
+  type SlashMenuItem,
+  type PageReference,
+  type BlockColorUpdate,
 } from '../types.js';
 import FrontmatterHeader from './FrontmatterHeader.vue';
 import BlockGutter from './BlockGutter.vue';
@@ -49,7 +51,11 @@ import MermaidBlockView from './MermaidBlockView.vue';
 import CalloutBlockView from './CalloutBlockView.vue';
 
 import { GlobalDragHandle } from '../extensions/drag-handle.js';
-import { BlockColor, applyBlockColorAtPos } from '../extensions/block-color.js';
+import {
+  BlockColor,
+  applyBlockColorAtPos,
+  syncBlockColorsAtSelection,
+} from '../extensions/block-color.js';
 import { SlashCommand, executeSlashItem } from '../extensions/slash-command.js';
 import { PageMention } from '../extensions/page-mention.js';
 import { MermaidNode } from '../extensions/mermaid-node.js';
@@ -58,7 +64,12 @@ import { MarkdownShortcuts } from '../extensions/markdown-shortcuts.js';
 
 const props = withDefaults(defineProps<MindEditorProps>(), {
   modelValue: '',
+  title: undefined,
+  showTitle: false,
+  titlePlaceholder: 'Sem título',
   frontmatter: () => ({}),
+  defaultTags: () => [...DEFAULT_NOTE_TAGS],
+  basicBlocksOnly: false,
   readOnly: false,
   placeholder: "Pressione '/' para comandos ou comece a digitar...",
   pages: () => [],
@@ -215,6 +226,16 @@ const defaultSlashItems: SlashMenuItem[] = [
     action: (editor) => editor.chain().focus().toggleBulletList().run(),
   },
   {
+    id: 'ordered-list',
+    title: 'Lista numerada',
+    shortcut: '1.',
+    description: 'Lista sequencial numerada',
+    category: 'basic',
+    icon: markRaw(ListOrdered),
+    keywords: ['lista', 'numerada', 'ordenada', 'ordered', 'ol', 'numeros'],
+    action: (editor) => editor.chain().focus().toggleOrderedList().run(),
+  },
+  {
     id: 'task-list',
     title: 'Lista de tarefas',
     shortcut: '[]',
@@ -233,6 +254,16 @@ const defaultSlashItems: SlashMenuItem[] = [
     icon: markRaw(Quote),
     keywords: ['citacao', 'quote'],
     action: (editor) => editor.chain().focus().toggleBlockquote().run(),
+  },
+  {
+    id: 'code-block',
+    title: 'Bloco de código',
+    shortcut: '```',
+    description: 'Trecho de código com formatação monoespaçada',
+    category: 'basic',
+    icon: markRaw(Code),
+    keywords: ['codigo', 'code', 'snippet'],
+    action: (editor) => editor.chain().focus().toggleCodeBlock().run(),
   },
   {
     id: 'divider',
@@ -266,16 +297,6 @@ const defaultSlashItems: SlashMenuItem[] = [
       editor.chain().focus().insertContent({ type: 'mermaid' }).run(),
   },
   {
-    id: 'code-block',
-    title: 'Bloco de código',
-    shortcut: '```',
-    description: 'Trecho de código com formatação monoespaçada',
-    category: 'advanced',
-    icon: markRaw(Code),
-    keywords: ['codigo', 'code', 'snippet'],
-    action: (editor) => editor.chain().focus().toggleCodeBlock().run(),
-  },
-  {
     id: 'table',
     title: 'Tabela',
     description: 'Tabela simples com linhas e colunas',
@@ -305,10 +326,12 @@ const defaultSlashItems: SlashMenuItem[] = [
   },
 ];
 
-const activeSlashItems = computed(() => [
-  ...defaultSlashItems,
-  ...(props.customSlashItems ?? []),
-]);
+const activeSlashItems = computed(() => {
+  const base = props.basicBlocksOnly
+    ? defaultSlashItems.filter((item) => item.category === 'basic')
+    : defaultSlashItems;
+  return [...base, ...(props.customSlashItems ?? [])];
+});
 
 const MermaidConfigured = MermaidNode.extend({
   addNodeView() {
@@ -560,6 +583,11 @@ function handleGutterTurnInto(type: string): void {
   if (!editor.value) return;
   const pos = gutterState.value.nodePos;
   const node = editor.value.state.doc.nodeAt(pos);
+  const savedColors: BlockColorUpdate = {
+    textColor: (node?.attrs?.blockTextColor as BlockColorUpdate['textColor']) ?? null,
+    backgroundColor:
+      (node?.attrs?.blockBackgroundColor as BlockColorUpdate['backgroundColor']) ?? null,
+  };
 
   let textOffset = pos;
   let cur: PmNode | null = node ?? null;
@@ -600,6 +628,10 @@ function handleGutterTurnInto(type: string): void {
   } else if (type === 'callout') editor.value.chain().focus().setCallout().run();
   else if (type === 'mermaid') editor.value.chain().focus().insertContent({ type: 'mermaid' }).run();
   else editor.value.chain().focus().setParagraph().run();
+
+  if (type !== 'mermaid' && (savedColors.textColor || savedColors.backgroundColor)) {
+    syncBlockColorsAtSelection(editor.value, savedColors);
+  }
 }
 
 // Slash menu actions
@@ -638,6 +670,19 @@ function closePageMention(): void {
   pageMentionState.value.visible = false;
 }
 
+// Note title handlers (kept strictly independent from block nodes)
+function handleTitleInput(event: Event): void {
+  const nextTitle = (event.target as HTMLInputElement).value;
+  emit('update:title', nextTitle);
+  if (props.frontmatter) {
+    emit('update:frontmatter', { ...props.frontmatter, title: nextTitle });
+  }
+}
+
+function focusEditorStart(): void {
+  editor.value?.chain().focus('start').run();
+}
+
 // Global Save Keyboard Shortcut (Ctrl+S / Cmd+S)
 function handleKeydown(event: KeyboardEvent): void {
   if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') {
@@ -657,10 +702,27 @@ onBeforeUnmount(() => {
     data-testid="mind-editor-root"
     @keydown="handleKeydown"
   >
-    <!-- Frontmatter Header (Visual & Raw YAML modes) -->
+    <!-- Separate Note Title Header (outside ProseMirror block canvas) -->
+    <div v-if="showTitle" class="mind-note-title-bar" data-testid="mind-note-title-bar">
+      <input
+        :value="title ?? frontmatter?.title ?? ''"
+        type="text"
+        class="mind-note-title-input"
+        data-testid="mind-note-title-input"
+        :placeholder="titlePlaceholder"
+        :readonly="readOnly"
+        aria-label="Título da nota"
+        @input="handleTitleInput"
+        @keydown.enter.prevent="focusEditorStart"
+        @keydown.down.prevent="focusEditorStart"
+      >
+    </div>
+
+    <!-- Frontmatter Header (Collapsed by default; Visual & Raw YAML modes) -->
     <FrontmatterHeader
       v-if="enableFrontmatterHeader && frontmatter"
       :model-value="frontmatter"
+      :default-tags="defaultTags"
       :read-only="readOnly"
       @update:model-value="emit('update:frontmatter', $event)"
     />
@@ -678,6 +740,7 @@ onBeforeUnmount(() => {
         :node-type="gutterState.nodeType"
         :node-text-color="gutterState.textColor"
         :node-bg-color="gutterState.bgColor"
+        :basic-blocks-only="basicBlocksOnly"
         @add-block="handleAddBlockBelow"
         @action="handleGutterAction"
         @turn-into="handleGutterTurnInto"
@@ -740,11 +803,34 @@ onBeforeUnmount(() => {
   width: 100%;
   max-width: 820px;
   margin: 0 auto;
-  padding: 24px 64px 80px;
+  padding: 28px 76px 80px;
   background-color: #ffffff;
   color: #111827;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
   box-sizing: border-box;
+}
+
+.mind-note-title-bar {
+  margin-bottom: 10px;
+}
+
+.mind-note-title-input {
+  width: 100%;
+  border: none;
+  outline: none;
+  background: transparent;
+  font-size: 34px;
+  font-weight: 700;
+  line-height: 1.25;
+  letter-spacing: -0.02em;
+  color: #111827;
+  padding: 2px 0;
+  margin: 0;
+  font-family: inherit;
+}
+
+.mind-note-title-input::placeholder {
+  color: #ced4da;
 }
 
 .mind-editor-canvas-container {
@@ -761,41 +847,64 @@ onBeforeUnmount(() => {
 :deep(.ProseMirror) {
   outline: none;
   min-height: 320px;
-  line-height: 1.65;
+  line-height: 1.6;
   font-size: 15px;
   color: #111827;
 }
 
-:deep(.ProseMirror p) {
-  margin: 0 0 8px 0;
+/* Each basic block treated as a clean individual pill row (no shift when colored) */
+:deep(.ProseMirror > p) {
+  margin: 2px -10px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  line-height: 1.6;
+  min-height: 32px;
+  box-sizing: border-box;
+  transition: background-color 0.12s ease;
 }
 
-:deep(.ProseMirror h1) {
+:deep(.ProseMirror > h1) {
   font-size: 28px;
+  line-height: 1.3;
   font-weight: 700;
   color: #111827;
-  margin: 24px 0 8px 0;
+  margin: 14px -10px 4px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  transition: background-color 0.12s ease;
 }
 
-:deep(.ProseMirror h2) {
+:deep(.ProseMirror > h2) {
   font-size: 22px;
+  line-height: 1.35;
   font-weight: 600;
   color: #111827;
-  margin: 20px 0 6px 0;
+  margin: 12px -10px 3px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  transition: background-color 0.12s ease;
 }
 
-:deep(.ProseMirror h3) {
+:deep(.ProseMirror > h3) {
   font-size: 18px;
+  line-height: 1.4;
   font-weight: 600;
   color: #111827;
-  margin: 16px 0 4px 0;
+  margin: 10px -10px 2px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  transition: background-color 0.12s ease;
 }
 
-:deep(.ProseMirror h4) {
+:deep(.ProseMirror > h4) {
   font-size: 16px;
+  line-height: 1.45;
   font-weight: 600;
   color: #111827;
-  margin: 14px 0 4px 0;
+  margin: 8px -10px 2px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  transition: background-color 0.12s ease;
 }
 
 :deep(.slash-ghost-hint) {
@@ -810,9 +919,15 @@ onBeforeUnmount(() => {
 :deep(.ProseMirror blockquote) {
   border-left: 3px solid #dee2e6;
   color: #495057;
-  padding-left: 14px;
-  margin: 12px 0;
+  padding: 6px 12px 6px 14px;
+  margin: 6px -10px;
+  border-radius: 0 6px 6px 0;
   font-style: normal;
+  transition: background-color 0.12s ease;
+}
+
+:deep(.ProseMirror blockquote[data-block-color]) {
+  border-left-color: currentColor;
 }
 
 :deep(.ProseMirror pre) {
@@ -822,32 +937,120 @@ onBeforeUnmount(() => {
   padding: 12px 14px;
   font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   font-size: 13px;
-  margin: 12px 0;
+  margin: 8px -10px;
   overflow-x: auto;
+  transition: background-color 0.12s ease;
 }
 
+/* List items rendered as independent full-row rounded pills (including marker 1. / 2. / •) */
 :deep(.ProseMirror ul),
 :deep(.ProseMirror ol) {
-  padding-left: 22px;
-  margin: 8px 0;
+  list-style: none;
+  padding-left: 0;
+  margin: 2px 0;
+}
+
+:deep(.ProseMirror li > ul),
+:deep(.ProseMirror li > ol) {
+  padding-left: 24px;
+  margin: 2px 0 0;
+}
+
+:deep(.ProseMirror ol) {
+  counter-reset: mind-ol;
+}
+
+:deep(.ProseMirror ol > li),
+:deep(.ProseMirror ul:not([data-type="taskList"]) > li) {
+  position: relative;
+  margin: 2px -10px;
+  padding: 4px 10px 4px 34px;
+  border-radius: 6px;
+  line-height: 1.6;
+  min-height: 32px;
+  box-sizing: border-box;
+  transition: background-color 0.12s ease;
+}
+
+:deep(.ProseMirror ol > li) {
+  counter-increment: mind-ol;
+}
+
+:deep(.ProseMirror ol > li::before) {
+  content: counter(mind-ol) ".";
+  position: absolute;
+  left: 10px;
+  top: 4px;
+  width: 20px;
+  line-height: 1.6;
+  font-variant-numeric: tabular-nums;
+  color: inherit;
+  user-select: none;
+  pointer-events: none;
+}
+
+:deep(.ProseMirror ul:not([data-type="taskList"]) > li::before) {
+  content: "•";
+  position: absolute;
+  left: 12px;
+  top: 4px;
+  width: 16px;
+  font-size: 16px;
+  line-height: 1.5;
+  color: inherit;
+  user-select: none;
+  pointer-events: none;
+}
+
+:deep(.ProseMirror li > p),
+:deep(.ProseMirror li > div > p),
+:deep(.ProseMirror blockquote > p),
+:deep(.ProseMirror td > p),
+:deep(.ProseMirror th > p) {
+  margin: 0;
+  padding: 0;
+  border-radius: 0;
+  min-height: 0;
 }
 
 :deep(.ProseMirror ul[data-type="taskList"]) {
   list-style: none;
-  padding-left: 4px;
+  padding-left: 0;
+  margin: 2px 0;
 }
 
 :deep(.ProseMirror li[data-type="taskItem"]) {
   display: flex;
   align-items: flex-start;
   gap: 8px;
-  margin-bottom: 4px;
+  margin: 2px -10px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  line-height: 1.6;
+  min-height: 32px;
+  box-sizing: border-box;
+  transition: background-color 0.12s ease;
+}
+
+:deep(.ProseMirror li[data-type="taskItem"] > label) {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  height: 24px;
+  user-select: none;
 }
 
 :deep(.ProseMirror li[data-type="taskItem"] input[type="checkbox"]) {
-  margin-top: 5px;
+  margin: 0;
+  width: 15px;
+  height: 15px;
   accent-color: #1971c2;
   cursor: pointer;
+}
+
+:deep(.ProseMirror li[data-type="taskItem"] > div) {
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 :deep(.ProseMirror hr) {
@@ -892,8 +1095,8 @@ onBeforeUnmount(() => {
 /* Ergonomic Left-Expanded Drop Indicator */
 .mind-drop-indicator {
   position: absolute;
-  left: -28px;
-  right: 0;
+  left: -20px;
+  right: -10px;
   height: 3px;
   background-color: #1971c2;
   border-radius: 2px;
@@ -920,25 +1123,7 @@ onBeforeUnmount(() => {
   display: none !important;
 }
 
-/* Mind Light Style Block Colors (Text + Full-Row Pastel Background) */
-:deep(.ProseMirror [data-block-bg]) {
-  border-radius: 5px;
-  padding: 4px 8px;
-  margin-left: -8px;
-  margin-right: -8px;
-  transition: background-color 0.12s ease;
-}
-
-:deep(.ProseMirror blockquote[data-block-bg]) {
-  padding: 6px 14px;
-}
-
-:deep(.ProseMirror pre[data-block-bg]) {
-  padding: 12px 14px;
-  margin-left: 0;
-  margin-right: 0;
-}
-
+/* Mind Light Style Block Colors (Text + Pill Pastel Background) */
 :deep(.ProseMirror [data-block-color="gray"]) { color: #6b7280; }
 :deep(.ProseMirror [data-block-color="brown"]) { color: #8d5b4c; }
 :deep(.ProseMirror [data-block-color="orange"]) { color: #d9480f; }

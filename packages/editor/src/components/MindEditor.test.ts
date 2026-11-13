@@ -28,7 +28,7 @@ describe('MindEditor.vue', () => {
     document.body.innerHTML = '';
   });
 
-  it('renders editor canvas and frontmatter header', () => {
+  it('renders editor canvas and collapsed frontmatter header, expanding to show tags', async () => {
     const wrapper = mount(MindEditor, {
       props: {
         modelValue: '<p>Olá mundo do Mind Hub</p>',
@@ -52,8 +52,13 @@ describe('MindEditor.vue', () => {
 
     expect(wrapper.find('[data-testid="mind-editor-root"]').exists()).toBe(true);
     expect(wrapper.find('[data-testid="mind-frontmatter-header"]').exists()).toBe(true);
-    expect(wrapper.text()).toContain('editor');
+    expect(wrapper.find('[data-testid="frontmatter-content"]').exists()).toBe(false);
     expect(wrapper.text()).toContain('ativo');
+
+    await wrapper.find('[data-testid="toggle-frontmatter-collapse"]').trigger('click');
+
+    expect(wrapper.find('[data-testid="frontmatter-content"]').exists()).toBe(true);
+    expect(wrapper.text()).toContain('editor');
   });
 
   it('emits save event on Ctrl+S keydown', async () => {
@@ -264,6 +269,75 @@ describe('MindEditor.vue', () => {
     const firstChild = wrapper.find('.ProseMirror').element.firstElementChild;
     expect(firstChild?.tagName.toLowerCase()).toBe('p');
     expect(firstChild?.textContent).toBe('Bloco colorido');
+
+    wrapper.unmount();
+  });
+
+  it('keeps separate Note Title above collapsed YAML and preserves pill color across list transformations', async () => {
+    const host = document.createElement('div');
+    document.body.appendChild(host);
+
+    const wrapper = mount(MindEditor, {
+      attachTo: host,
+      props: {
+        modelValue: '<p>Item colorido</p>',
+        title: 'Nota Limpa',
+        showTitle: true,
+        basicBlocksOnly: true,
+        frontmatter: {
+          title: 'Nota Limpa',
+          tags: [],
+          status: 'rascunho',
+        },
+      },
+      global: {
+        stubs: {
+          BubbleFormattingMenu: true,
+        },
+      },
+    });
+
+    await nextTick();
+    await nextTick();
+
+    // Title is rendered separately above collapsed frontmatter
+    const titleInput = wrapper.find('[data-testid="mind-note-title-input"]');
+    expect(titleInput.exists()).toBe(true);
+    expect((titleInput.element as HTMLInputElement).value).toBe('Nota Limpa');
+    expect(wrapper.find('[data-testid="frontmatter-content"]').exists()).toBe(false);
+
+    await titleInput.setValue('Novo Título');
+    expect(wrapper.emitted('update:title')?.at(-1)).toEqual(['Novo Título']);
+
+    // Hovering paragraph -> apply green pill bg -> turn into ordered list -> color transfers onto <li> pill!
+    const canvas = wrapper.find('.mind-editor-canvas-container').element;
+    const proseMirror = wrapper.find('.ProseMirror').element;
+    const p = proseMirror.querySelector('p')!;
+    setRect(canvas, { top: 150, left: 200, width: 680, height: 180 });
+    setRect(proseMirror, { top: 150, left: 200, width: 680, height: 180 });
+    setRect(p, { top: 152, left: 200, width: 680, height: 32 });
+
+    window.dispatchEvent(
+      new MouseEvent('mousemove', { clientX: 160, clientY: 164, bubbles: true })
+    );
+    await nextTick();
+
+    await wrapper.find('[data-testid="block-gutter-handle-btn"]').trigger('click');
+    await wrapper.find('[data-testid="menu-trigger-color"]').trigger('click');
+    await wrapper.find('[data-testid="bg-color-green"]').trigger('click');
+    await nextTick();
+
+    expect(wrapper.find('.ProseMirror p').attributes('data-block-bg')).toBe('green');
+
+    await wrapper.find('[data-testid="block-gutter-handle-btn"]').trigger('click');
+    await wrapper.find('[data-testid="menu-trigger-turn-into"]').trigger('click');
+    await wrapper.find('[data-testid="turn-into-orderedList"]').trigger('click');
+    await nextTick();
+
+    const li = wrapper.find('.ProseMirror ol > li');
+    expect(li.exists()).toBe(true);
+    expect(li.attributes('data-block-bg')).toBe('green');
+    expect(li.find('p').attributes('data-block-bg')).toBeUndefined();
 
     wrapper.unmount();
   });

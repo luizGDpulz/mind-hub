@@ -1,6 +1,20 @@
 import type { Component } from 'vue';
 import type { Editor, JSONContent } from '@tiptap/core';
 
+export const DEFAULT_NOTE_TAGS = [
+  'projeto',
+  'estudo',
+  'adr',
+  'documentacao',
+  'ideia',
+  'referencia',
+  'trabalho',
+  'pessoal',
+  'moc',
+  'daily',
+  'brainstorm',
+] as const;
+
 export interface EditorFrontmatter {
   title?: string;
   tags?: string[];
@@ -69,7 +83,12 @@ export interface SlashMenuItem {
 
 export interface MindEditorProps {
   modelValue?: string | JSONContent;
+  title?: string;
+  showTitle?: boolean;
+  titlePlaceholder?: string;
   frontmatter?: EditorFrontmatter;
+  defaultTags?: string[];
+  basicBlocksOnly?: boolean;
   readOnly?: boolean;
   placeholder?: string;
   pages?: PageReference[];
@@ -80,6 +99,7 @@ export interface MindEditorProps {
 export interface MindEditorEmits {
   (e: 'update:modelValue', value: string): void;
   (e: 'update:json', value: JSONContent): void;
+  (e: 'update:title', value: string): void;
   (e: 'update:frontmatter', value: EditorFrontmatter): void;
   (e: 'selectPage', pageId: string): void;
   (e: 'createSubpage'): void;

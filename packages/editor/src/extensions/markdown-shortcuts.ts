@@ -1,6 +1,7 @@
 import { Extension, wrappingInputRule } from '@tiptap/core';
 
 export const TASK_EMPTY_BRACKETS_REGEX = /^\s*\[\]\s$/;
+export const TASK_SPACED_BRACKETS_REGEX = /^\s*\[\s\]\s$/;
 
 export const MarkdownShortcuts = Extension.create({
   name: 'markdownShortcuts',
@@ -8,11 +9,15 @@ export const MarkdownShortcuts = Extension.create({
   addInputRules() {
     const rules = [];
 
-    // Rule: '[] ' transforms to taskList with taskItem
+    // Rule: '[] ' or '[ ] ' transforms to taskList with taskItem
     if (this.editor.schema.nodes.taskList && this.editor.schema.nodes.taskItem) {
       rules.push(
         wrappingInputRule({
           find: TASK_EMPTY_BRACKETS_REGEX,
+          type: this.editor.schema.nodes.taskList,
+        }),
+        wrappingInputRule({
+          find: TASK_SPACED_BRACKETS_REGEX,
           type: this.editor.schema.nodes.taskList,
         })
       );

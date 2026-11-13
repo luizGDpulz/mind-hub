@@ -65,4 +65,18 @@ describe('BlockColor Extension', () => {
     expect(cleared?.blockBackgroundColor).toBeNull();
     expect(cleared?.blockTextColor).toBeNull();
   });
+
+  it('applies colors to outer listItem pill (covering marker + text) when cursor is inside a list item', () => {
+    const editor = new Editor({
+      extensions: [StarterKit, BlockColor],
+      content: '<ol><li><p>Primeiro</p></li><li><p>Segundo</p></li></ol>',
+    });
+    editors.push(editor);
+
+    // Cursor inside first <li><p>Primeiro</p></li>
+    editor.chain().setTextSelection(4).setBlockBackgroundColor('green').setBlockTextColor('green').run();
+
+    const html = editor.getHTML();
+    expect(html).toContain('<li data-block-color="green" data-block-bg="green"><p>Primeiro</p></li>');
+  });
 });

@@ -70,6 +70,72 @@ export function applyBlockColorAtPos(
   return true;
 }
 
+const CONTAINER_PRIORITY_TYPES = new Set(['listItem', 'taskItem', 'callout', 'blockquote']);
+
+function resolveSelectionColorTarget(editorState: Editor['state']): {
+  pos: number;
+  node: NonNullable<ReturnType<Editor['state']['doc']['nodeAt']>>;
+} | null {
+  const { $from } = editorState.selection;
+  let fallback: { pos: number; node: NonNullable<ReturnType<Editor['state']['doc']['nodeAt']>> } | null = null;
+
+  for (let d = $from.depth; d >= 1; d--) {
+    const node = $from.node(d);
+    if ((BLOCK_COLORABLE_TYPES as readonly string[]).includes(node.type.name)) {
+      const pos = $from.before(d);
+      if (CONTAINER_PRIORITY_TYPES.has(node.type.name)) {
+        return { pos, node };
+      }
+      if (!fallback) {
+        fallback = { pos, node };
+      }
+    }
+  }
+  return fallback;
+}
+
+/**
+ * After transforming a block via Turn Into, ensures saved block colors sit on the
+ * outer block owner (e.g., listItem/taskItem) rather than an inner wrapped paragraph.
+ */
+export function syncBlockColorsAtSelection(editor: Editor, update: BlockColorUpdate): boolean {
+  const target = resolveSelectionColorTarget(editor.state);
+  if (!target) return false;
+
+  const { state, view } = editor;
+  const tr = state.tr;
+  const nextAttrs: Record<string, unknown> = { ...target.node.attrs };
+
+  if (update.textColor !== undefined) {
+    nextAttrs.blockTextColor = normalizeBlockColorId(update.textColor);
+  }
+  if (update.backgroundColor !== undefined) {
+    nextAttrs.blockBackgroundColor = normalizeBlockColorId(update.backgroundColor);
+  }
+
+  tr.setNodeMarkup(target.pos, undefined, nextAttrs);
+
+  if (target.node.type.name === 'listItem' || target.node.type.name === 'taskItem') {
+    target.node.descendants((child, relPos) => {
+      if (
+        child.type.name === 'paragraph' &&
+        (child.attrs?.blockTextColor || child.attrs?.blockBackgroundColor)
+      ) {
+        const childPos = target.pos + 1 + relPos;
+        tr.setNodeMarkup(childPos, undefined, {
+          ...child.attrs,
+          blockTextColor: null,
+          blockBackgroundColor: null,
+        });
+      }
+      return true;
+    });
+  }
+
+  view.dispatch(tr);
+  return true;
+}
+
 declare module '@tiptap/core' {
   interface Commands<ReturnType> {
     blockColor: {
@@ -118,62 +184,44 @@ export const BlockColor = Extension.create({
       setBlockTextColor:
         (color) =>
         ({ state, tr, dispatch }) => {
-          const { $from } = state.selection;
-          for (let d = $from.depth; d >= 1; d--) {
-            const node = $from.node(d);
-            if ((BLOCK_COLORABLE_TYPES as readonly string[]).includes(node.type.name)) {
-              const pos = $from.before(d);
-              if (dispatch) {
-                tr.setNodeMarkup(pos, undefined, {
-                  ...node.attrs,
-                  blockTextColor: normalizeBlockColorId(color),
-                });
-              }
-              return true;
-            }
+          const target = resolveSelectionColorTarget(state);
+          if (!target) return false;
+          if (dispatch) {
+            tr.setNodeMarkup(target.pos, undefined, {
+              ...target.node.attrs,
+              blockTextColor: normalizeBlockColorId(color),
+            });
           }
-          return false;
+          return true;
         },
 
       setBlockBackgroundColor:
         (color) =>
         ({ state, tr, dispatch }) => {
-          const { $from } = state.selection;
-          for (let d = $from.depth; d >= 1; d--) {
-            const node = $from.node(d);
-            if ((BLOCK_COLORABLE_TYPES as readonly string[]).includes(node.type.name)) {
-              const pos = $from.before(d);
-              if (dispatch) {
-                tr.setNodeMarkup(pos, undefined, {
-                  ...node.attrs,
-                  blockBackgroundColor: normalizeBlockColorId(color),
-                });
-              }
-              return true;
-            }
+          const target = resolveSelectionColorTarget(state);
+          if (!target) return false;
+          if (dispatch) {
+            tr.setNodeMarkup(target.pos, undefined, {
+              ...target.node.attrs,
+              blockBackgroundColor: normalizeBlockColorId(color),
+            });
           }
-          return false;
+          return true;
         },
 
       unsetBlockColors:
         () =>
         ({ state, tr, dispatch }) => {
-          const { $from } = state.selection;
-          for (let d = $from.depth; d >= 1; d--) {
-            const node = $from.node(d);
-            if ((BLOCK_COLORABLE_TYPES as readonly string[]).includes(node.type.name)) {
-              const pos = $from.before(d);
-              if (dispatch) {
-                tr.setNodeMarkup(pos, undefined, {
-                  ...node.attrs,
-                  blockTextColor: null,
-                  blockBackgroundColor: null,
-                });
-              }
-              return true;
-            }
+          const target = resolveSelectionColorTarget(state);
+          if (!target) return false;
+          if (dispatch) {
+            tr.setNodeMarkup(target.pos, undefined, {
+              ...target.node.attrs,
+              blockTextColor: null,
+              blockBackgroundColor: null,
+            });
           }
-          return false;
+          return true;
         },
     };
   },

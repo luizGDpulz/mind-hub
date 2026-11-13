@@ -4,7 +4,7 @@ import FrontmatterHeader from './FrontmatterHeader.vue';
 import type { EditorFrontmatter } from '../types.js';
 
 describe('FrontmatterHeader.vue', () => {
-  it('renders properties in visual mode with tags and status', () => {
+  it('starts collapsed by default and reveals properties with default & custom tags on expand', async () => {
     const meta: EditorFrontmatter = {
       title: 'Nota Arquitetural',
       tags: ['vue3', 'tiptap'],
@@ -19,9 +19,15 @@ describe('FrontmatterHeader.vue', () => {
     });
 
     expect(wrapper.find('[data-testid="mind-frontmatter-header"]').exists()).toBe(true);
+    // YAML properties drawer starts closed by default
+    expect(wrapper.find('[data-testid="frontmatter-content"]').exists()).toBe(false);
+
+    await wrapper.find('[data-testid="toggle-frontmatter-collapse"]').trigger('click');
+    expect(wrapper.find('[data-testid="frontmatter-content"]').exists()).toBe(true);
     expect(wrapper.find('[data-testid="tag-pill-vue3"]').text()).toContain('#vue3');
     expect(wrapper.find('[data-testid="tag-pill-tiptap"]').text()).toContain('#tiptap');
     expect((wrapper.find('[data-testid="status-property-select"]').element as HTMLSelectElement).value).toBe('ativo');
+    expect(wrapper.find('[data-testid="default-tag-projeto"]').exists()).toBe(true);
   });
 
   it('toggles collapse and expand', async () => {
@@ -41,7 +47,7 @@ describe('FrontmatterHeader.vue', () => {
     expect(wrapper.find('[data-testid="frontmatter-content"]').exists()).toBe(true);
   });
 
-  it('adds and removes tags visually and emits update:modelValue', async () => {
+  it('adds standard & custom tags visually, removes tags, and emits update:modelValue', async () => {
     const meta: EditorFrontmatter = {
       tags: ['original'],
     };
@@ -49,20 +55,28 @@ describe('FrontmatterHeader.vue', () => {
     const wrapper = mount(FrontmatterHeader, {
       props: {
         modelValue: meta,
+        initialCollapsed: false,
       },
     });
 
+    // Click a default tag chip
+    await wrapper.find('[data-testid="default-tag-projeto"]').trigger('click');
+    expect(wrapper.emitted('update:modelValue')![0]![0]).toMatchObject({
+      tags: ['original', 'projeto'],
+    });
+
+    // Create a brand-new custom tag via Enter
     const input = wrapper.find('[data-testid="new-tag-input"]');
     await input.setValue('nova-tag');
+    expect(wrapper.find('[data-testid="create-custom-tag-btn"]').exists()).toBe(true);
     await input.trigger('keydown', { key: 'Enter' });
 
-    expect(wrapper.emitted('update:modelValue')).toBeTruthy();
-    const emitted = wrapper.emitted('update:modelValue')![0]![0] as EditorFrontmatter;
-    expect(emitted.tags).toEqual(['original', 'nova-tag']);
+    const secondEmit = wrapper.emitted('update:modelValue')![1]![0] as EditorFrontmatter;
+    expect(secondEmit.tags).toEqual(['original', 'nova-tag']);
 
     // Remove tag
     await wrapper.find('[data-testid="tag-pill-original"] .remove-tag-btn').trigger('click');
-    const lastEmitted = wrapper.emitted('update:modelValue')![1]![0] as EditorFrontmatter;
+    const lastEmitted = wrapper.emitted('update:modelValue')![2]![0] as EditorFrontmatter;
     expect(lastEmitted.tags).toEqual([]);
   });
 
@@ -75,6 +89,7 @@ describe('FrontmatterHeader.vue', () => {
     const wrapper = mount(FrontmatterHeader, {
       props: {
         modelValue: meta,
+        initialCollapsed: false,
       },
     });
 

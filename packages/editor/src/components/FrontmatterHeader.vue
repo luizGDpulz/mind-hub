@@ -15,7 +15,7 @@
       >
         <span class="chevron-indicator" :class="{ 'is-open': !isCollapsed }">▸</span>
         <span class="bar-title">Propriedades da Nota</span>
-        <span v-if="tagCount > 0" class="property-counter-pill">{{ tagCount }} tags</span>
+        <span class="property-counter-pill">{{ tagCount > 0 ? `${tagCount} tags` : 'sem tags' }}</span>
         <span v-if="props.modelValue.status" class="property-status-pill">{{ props.modelValue.status }}</span>
       </button>
 
@@ -93,37 +93,68 @@
           </div>
         </div>
 
-        <!-- Tags Property (Pastel Pills with Add/Remove) -->
-        <div class="property-row">
+        <!-- Tags Property (Pastel Pills + Default Presets + Create Custom) -->
+        <div class="property-row tags-property-row">
           <div class="property-label">
             <span class="prop-icon">🏷️</span>
             <span>Tags</span>
           </div>
-          <div class="property-value tags-container" data-testid="tags-container">
-            <span
-              v-for="tag in currentTags"
-              :key="tag"
-              class="tag-pastel-pill"
-              :data-testid="`tag-pill-${tag}`"
-            >
-              #{{ tag }}
-              <button
-                type="button"
-                class="remove-tag-btn"
-                title="Remover tag"
-                @click="removeTag(tag)"
-              >×</button>
-            </span>
-
-            <div class="add-tag-box">
-              <input
-                v-model="newTagInput"
-                type="text"
-                class="new-tag-input"
-                data-testid="new-tag-input"
-                placeholder="+ tag"
-                @keydown.enter.prevent="addTag"
+          <div class="property-value-stack">
+            <div class="property-value tags-container" data-testid="tags-container">
+              <span
+                v-for="tag in currentTags"
+                :key="tag"
+                class="tag-pastel-pill"
+                :data-testid="`tag-pill-${tag}`"
               >
+                #{{ tag }}
+                <button
+                  v-if="!readOnly"
+                  type="button"
+                  class="remove-tag-btn"
+                  title="Remover tag"
+                  @click="removeTag(tag)"
+                >×</button>
+              </span>
+
+              <div v-if="!readOnly" class="add-tag-box">
+                <input
+                  v-model="newTagInput"
+                  type="text"
+                  class="new-tag-input"
+                  data-testid="new-tag-input"
+                  placeholder="+ criar tag"
+                  @keydown.enter.prevent="addTag"
+                  @keydown.,.prevent="addTag"
+                >
+              </div>
+            </div>
+
+            <div
+              v-if="!readOnly && (filteredDefaultTags.length > 0 || canCreateCustomTag)"
+              class="default-tags-bar"
+              data-testid="default-tags-suggestions"
+            >
+              <span class="default-tags-label">Padrões:</span>
+              <button
+                v-if="canCreateCustomTag"
+                type="button"
+                class="default-tag-chip is-create"
+                data-testid="create-custom-tag-btn"
+                @click="addTag"
+              >
+                + criar "#{{ normalizedInputTag }}"
+              </button>
+              <button
+                v-for="tag in filteredDefaultTags"
+                :key="tag"
+                type="button"
+                class="default-tag-chip"
+                :data-testid="`default-tag-${tag}`"
+                @click="addSpecificTag(tag)"
+              >
+                + {{ tag }}
+              </button>
             </div>
           </div>
         </div>
@@ -147,15 +178,19 @@
 
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue';
-import type { EditorFrontmatter } from '../types.js';
+import { DEFAULT_NOTE_TAGS, type EditorFrontmatter } from '../types.js';
 
 const props = withDefaults(
   defineProps<{
     modelValue: EditorFrontmatter;
     initialCollapsed?: boolean;
+    defaultTags?: string[];
+    readOnly?: boolean;
   }>(),
   {
-    initialCollapsed: false,
+    initialCollapsed: true,
+    defaultTags: () => [...DEFAULT_NOTE_TAGS],
+    readOnly: false,
   }
 );
 
@@ -175,10 +210,33 @@ const currentTags = computed<string[]>(() => {
 
 const tagCount = computed(() => currentTags.value.length);
 
+function normalizeTag(raw: string): string {
+  return raw.trim().replace(/^#+/, '').replace(/,+$/, '').trim().toLowerCase();
+}
+
+const normalizedInputTag = computed(() => normalizeTag(newTagInput.value));
+
+const filteredDefaultTags = computed<string[]>(() => {
+  const pool = props.defaultTags?.length ? props.defaultTags : [...DEFAULT_NOTE_TAGS];
+  const available = pool.filter((tag) => !currentTags.value.includes(tag));
+  const query = normalizedInputTag.value;
+  if (!query) return available;
+  return available.filter((tag) => tag.toLowerCase().includes(query));
+});
+
+const canCreateCustomTag = computed<boolean>(() => {
+  const candidate = normalizedInputTag.value;
+  if (!candidate) return false;
+  return (
+    !currentTags.value.includes(candidate) &&
+    !filteredDefaultTags.value.some((tag) => tag.toLowerCase() === candidate)
+  );
+});
+
 function serializeToYaml(data: EditorFrontmatter): string {
   const lines: string[] = ['---'];
   if (data.title) lines.push(`title: ${data.title}`);
-  if (Array.isArray(data.tags) && data.tags.length > 0) {
+  if (Array.isArray(data.tags)) {
     lines.push(`tags: [${data.tags.join(', ')}]`);
   }
   if (data.status) lines.push(`status: ${data.status}`);
@@ -251,8 +309,8 @@ function updateStatus(newStatus: string) {
   });
 }
 
-function addTag() {
-  const tag = newTagInput.value.trim().replace(/^#/, '');
+function addSpecificTag(rawTag: string) {
+  const tag = normalizeTag(rawTag);
   if (!tag) return;
   const existing = currentTags.value;
   if (!existing.includes(tag)) {
@@ -261,6 +319,12 @@ function addTag() {
       tags: [...existing, tag],
     });
   }
+}
+
+function addTag() {
+  const tag = normalizedInputTag.value;
+  if (!tag) return;
+  addSpecificTag(tag);
   newTagInput.value = '';
 }
 
@@ -466,18 +530,71 @@ watch(
 }
 
 .new-tag-input {
-  border: none;
-  background: none;
-  padding: 0.15rem 0.35rem;
+  border: 1px dashed #dee2e6;
+  border-radius: 999px;
+  background: #ffffff;
+  padding: 0.14rem 0.55rem;
   font-size: 0.75rem;
-  color: #787774;
+  color: #495057;
   outline: none;
-  width: 60px;
+  width: 96px;
+  transition: all 0.15s ease;
 }
 
 .new-tag-input:focus {
-  width: 90px;
-  color: #37352f;
+  width: 132px;
+  border-color: #1971c2;
+  color: #111827;
+}
+
+.tags-property-row {
+  align-items: flex-start;
+  padding-top: 2px;
+}
+
+.property-value-stack {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.default-tags-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+
+.default-tags-label {
+  font-size: 0.7rem;
+  color: #868e96;
+  font-weight: 500;
+  margin-right: 2px;
+}
+
+.default-tag-chip {
+  border: 1px solid #e9ecef;
+  background-color: #f8f9fa;
+  color: #495057;
+  border-radius: 999px;
+  padding: 0.1rem 0.48rem;
+  font-size: 0.7rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.12s ease;
+}
+
+.default-tag-chip:hover {
+  background-color: #f1f3f5;
+  border-color: #dee2e6;
+  color: #111827;
+}
+
+.default-tag-chip.is-create {
+  background-color: #e7f5ff;
+  border-color: #d0ebff;
+  color: #1971c2;
 }
 
 .metadata-row {

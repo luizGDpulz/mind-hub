@@ -7,11 +7,13 @@ describe('@mind-hub/web — Pinia Store, Page Tree, Quick Insight & Search Engin
     setActivePinia(createPinia());
   });
 
-  it('initializes with RFC seed pages, hierarchical pageTree and breadcrumbs', () => {
+  it('initializes with RFC seed pages, hierarchical pageTree and breadcrumbs, with right drawers closed by default', () => {
     const store = useMindStore();
     expect(store.activePages.length).toBe(4);
     expect(store.pageTree.length).toBe(2);
     expect(store.activePage?.id).toBe('page-manifesto');
+    expect(store.isCommentsDrawerOpen).toBe(false);
+    expect(store.isAiDrawerOpen).toBe(false);
 
     store.selectPage('page-adr-stack');
     expect(store.breadcrumbs.map((b) => b.id)).toEqual([

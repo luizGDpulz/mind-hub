@@ -52,7 +52,7 @@ export const useMindStore = defineStore('mindHub', () => {
   const activeSurface = ref<'editor' | 'database' | 'login'>('editor');
   const editorReadMode = ref<boolean>(false);
   const rightDrawerMode = ref<'comments' | 'ai'>('comments');
-  const isCommentsDrawerOpen = ref<boolean>(true);
+  const isCommentsDrawerOpen = ref<boolean>(false);
   const showEmbeddedDatabase = ref<boolean>(false);
   const showEmbeddedDiagrams = ref<boolean>(false);
   const activeDiagramKind = ref<DiagramKind>('mermaid');

@@ -670,3 +670,68 @@ body.body--dark,
   color: #c92a2a;
 }
 
+/* Shared Shell & Modal Utility Buttons */
+.sidebar-mini-btn {
+  min-inline-size: 22px;
+  min-block-size: 22px;
+  border: none;
+  background: transparent;
+  color: var(--mind-text-muted);
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 13px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.12s ease;
+}
+
+.sidebar-mini-btn:hover {
+  background: var(--mind-bg-hover);
+  color: var(--mind-text-primary);
+}
+
+.primary-blue-btn {
+  height: 32px;
+  padding: 0 12px;
+  background: var(--mind-accent-solid);
+  color: #ffffff;
+  border: none;
+  border-radius: 6px;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  transition: background-color 0.12s ease;
+}
+
+.primary-blue-btn:hover {
+  background: var(--mind-accent-hover);
+}
+
+.topbar-text-btn {
+  height: 32px;
+  padding: 0 12px;
+  background: var(--mind-bg-canvas);
+  color: var(--mind-text-secondary);
+  border: 1px solid var(--mind-border-control);
+  border-radius: 6px;
+  font-size: 12.5px;
+  font-weight: 500;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  transition: background-color 0.12s ease, color 0.12s ease;
+}
+
+.topbar-text-btn:hover {
+  background: var(--mind-bg-hover);
+  color: var(--mind-text-primary);
+}
+
+

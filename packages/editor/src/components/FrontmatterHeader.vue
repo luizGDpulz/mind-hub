@@ -1045,24 +1045,22 @@ defineExpose({
 
 <style scoped>
 .mind-frontmatter-shell {
-  margin-bottom: 14px;
-  padding-bottom: 10px;
-  border-bottom: 1px solid #f1f3f5;
-  font-family: 'Inter', 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, Helvetica, Arial, sans-serif;
+  margin-bottom: 12px;
+  padding-bottom: 2px;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
   color: #37352f;
 }
 
 .mind-frontmatter-shell.is-collapsed {
-  border-bottom-color: transparent;
-  padding-bottom: 2px;
-  margin-bottom: 8px;
+  padding-bottom: 0;
+  margin-bottom: 6px;
 }
 
 .frontmatter-top-bar {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  min-height: 28px;
+  min-height: 26px;
 }
 
 .frontmatter-toggle-btn {
@@ -1072,21 +1070,21 @@ defineExpose({
   background: none;
   border: none;
   cursor: pointer;
-  padding: 2px 6px 2px 22px;
-  margin-left: -22px;
+  padding: 2px 6px 2px 20px;
+  margin-left: -20px;
   border-radius: 5px;
   color: #111827;
-  font-family: ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Inter', sans-serif;
-  font-size: 18px;
+  font-family: inherit;
+  font-size: 15.5px;
   font-weight: 600;
-  line-height: 1.35;
-  letter-spacing: -0.015em;
+  line-height: 1.4;
+  letter-spacing: -0.01em;
   transition: color 0.12s ease;
 }
 
 .chevron-indicator {
   position: absolute;
-  left: 3px;
+  left: 2px;
   top: 50%;
   color: #868e96;
   opacity: 0;
@@ -1111,7 +1109,7 @@ defineExpose({
 .frontmatter-actions {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 2px;
 }
 
 .mode-switch-btn,
@@ -1119,53 +1117,60 @@ defineExpose({
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  background: #ffffff;
-  border: 1px solid #e9ecef;
+  background: transparent;
+  border: 1px solid transparent;
   border-radius: 5px;
-  padding: 3px 8px;
-  font-size: 12px;
+  padding: 3px 7px;
+  font-size: 11.5px;
   font-weight: 500;
-  color: #495057;
+  color: #868e96;
+  opacity: 0.78;
   cursor: pointer;
-  transition: all 0.12s ease;
+  font-family: inherit;
+  transition: background-color 0.12s ease, color 0.12s ease, opacity 0.12s ease;
 }
 
 .remove-frontmatter-btn {
-  padding: 4px 5px;
-  color: #868e96;
+  padding: 3px 5px;
+}
+
+.frontmatter-top-bar:hover .mode-switch-btn,
+.frontmatter-top-bar:hover .remove-frontmatter-btn,
+.mode-switch-btn:hover,
+.mode-switch-btn.is-active {
+  opacity: 1;
 }
 
 .mode-switch-btn:hover,
 .mode-switch-btn.is-active {
-  background-color: #f8f9fa;
+  background-color: #f1f3f5;
   color: #111827;
-  border-color: #dee2e6;
 }
 
 .remove-frontmatter-btn:hover {
+  opacity: 1;
   background-color: #fff5f5;
   color: #c92a2a;
-  border-color: #ffc9c9;
 }
 
 .frontmatter-body {
-  margin-top: 6px;
+  margin-top: 4px;
 }
 
 .obsidian-properties-list {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 1px;
 }
 
 .property-row {
   position: relative;
   display: flex;
   align-items: flex-start;
-  min-height: 30px;
-  padding: 2px 6px;
+  min-height: 28px;
+  padding: 1px 6px;
   margin: 0 -6px;
-  border-radius: 6px;
+  border-radius: 5px;
   border: 1px solid transparent;
   transition: background-color 0.1s ease, border-color 0.1s ease;
 }
@@ -1185,7 +1190,7 @@ defineExpose({
   display: flex;
   align-items: center;
   gap: 6px;
-  width: 156px;
+  width: 152px;
   min-height: 26px;
   flex-shrink: 0;
   padding-right: 8px;
@@ -1195,8 +1200,9 @@ defineExpose({
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 22px;
-  height: 22px;
+  width: 20px;
+  height: 20px;
+  margin-left: -3px;
   border: none;
   background: transparent;
   border-radius: 4px;
@@ -1221,10 +1227,11 @@ defineExpose({
   min-width: 0;
   border: none;
   background: transparent;
-  color: #495057;
+  color: #6b7280;
   font-size: 13px;
-  font-weight: 500;
+  font-weight: 400;
   padding: 2px 4px;
+  margin-left: -4px;
   border-radius: 4px;
   outline: none;
   font-family: inherit;
@@ -1294,7 +1301,7 @@ defineExpose({
   flex-wrap: wrap;
   gap: 5px;
   width: 100%;
-  padding: 2px 4px;
+  padding: 2px 6px;
 }
 
 .list-item-chip {
@@ -1343,7 +1350,7 @@ defineExpose({
   background: transparent;
   font-size: 13px;
   color: #111827;
-  padding: 2px 4px;
+  padding: 2px 0;
   outline: none;
   font-family: inherit;
 }
@@ -1549,22 +1556,23 @@ defineExpose({
 }
 
 .properties-footer {
-  margin-top: 4px;
+  margin-top: 2px;
 }
 
 .add-property-btn {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 9px;
   border: none;
   background: transparent;
-  color: #868e96;
-  font-size: 12.5px;
-  font-weight: 500;
-  padding: 4px 6px;
-  margin-left: -2px;
+  color: #6b7280;
+  font-size: 13px;
+  font-weight: 400;
+  padding: 4px 8px 4px 6px;
+  margin-left: -6px;
   border-radius: 5px;
   cursor: pointer;
+  font-family: inherit;
   transition: background-color 0.12s ease, color 0.12s ease;
 }
 

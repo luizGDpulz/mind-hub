@@ -315,4 +315,91 @@ describe('GlobalDragHandle Extension', () => {
     expect(editor.view.dom.querySelector('[data-drop-placement]')).toBeNull();
     expect(editor.state.doc.firstChild?.textContent).toBe('Arrastar');
   });
+
+  it('preserves hoveredNodePos across mousedown + mousemove (buttons=1) on gutter grip before dragstart (refs #92)', () => {
+    const root = document.createElement('div');
+    root.className = 'mind-editor-root';
+    const canvas = document.createElement('div');
+    canvas.className = 'mind-editor-canvas-container';
+    const gutterShell = document.createElement('div');
+    gutterShell.className = 'mind-block-gutter-shell';
+    const gripBtn = document.createElement('button');
+    gripBtn.className = 'gutter-grip-btn';
+    gutterShell.appendChild(gripBtn);
+    canvas.appendChild(gutterShell);
+    root.appendChild(canvas);
+    document.body.appendChild(root);
+
+    const onPositionChange = vi.fn();
+    const editor = new Editor({
+      element: canvas,
+      extensions: [
+        StarterKit,
+        GlobalDragHandle.configure({
+          onPositionChange,
+        }),
+      ],
+      content: '<h1>Primeiro</h1><p>Arrastar</p>',
+    });
+    createdEditors.push(editor);
+
+    mockRect(canvas, { top: 100, left: 200, width: 680, height: 200 });
+    mockRect(editor.view.dom, { top: 100, left: 200, width: 680, height: 200 });
+
+    const h1 = editor.view.dom.querySelector('h1')!;
+    const p = editor.view.dom.querySelector('p')!;
+    mockRect(h1, { top: 100, left: 200, width: 680, height: 34 });
+    mockRect(p, { top: 142, left: 200, width: 680, height: 24 });
+
+    // 1. Hover paragraph to lock hoveredNodePos
+    window.dispatchEvent(new MouseEvent('mousemove', { clientX: 160, clientY: 150, bubbles: true }));
+    expect(onPositionChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({ nodeType: 'paragraph' })
+    );
+    onPositionChange.mockClear();
+
+    // 2. Press mouse down on gutter grip and nudge pointer (buttons=1) before dragstart fires
+    gripBtn.dispatchEvent(
+      new MouseEvent('mousedown', { button: 0, buttons: 1, clientX: 150, clientY: 150, bubbles: true })
+    );
+    window.dispatchEvent(
+      new MouseEvent('mousemove', { buttons: 1, clientX: 153, clientY: 148, bubbles: true })
+    );
+    expect(onPositionChange).not.toHaveBeenCalledWith(null);
+
+    // 3. dragstart still succeeds and moves block on drop
+    const mockTransfer = {
+      effectAllowed: 'none',
+      dropEffect: 'none',
+      clearData: vi.fn(),
+      setData: vi.fn(),
+      setDragImage: vi.fn(),
+    };
+    const dragStart = new Event('dragstart', { bubbles: true, cancelable: true });
+    Object.defineProperty(dragStart, 'dataTransfer', { value: mockTransfer });
+    gripBtn.dispatchEvent(dragStart);
+    expect(p.classList.contains('mind-block-dragging-source')).toBe(true);
+
+    const drop = new MouseEvent('drop', {
+      clientX: 120,
+      clientY: 106,
+      bubbles: true,
+      cancelable: true,
+    });
+    Object.defineProperty(drop, 'dataTransfer', { value: mockTransfer });
+    window.dispatchEvent(drop);
+    expect(editor.state.doc.firstChild?.textContent).toBe('Arrastar');
+
+    // 4. Dragging with buttons=1 inside ProseMirror (not gutter) still hides the handle
+    const liveBlock = editor.view.dom.querySelector('h1')!;
+    mockRect(liveBlock, { top: 142, left: 200, width: 680, height: 24 });
+    liveBlock.dispatchEvent(
+      new MouseEvent('mousemove', { clientX: 160, clientY: 150, bubbles: true })
+    );
+    onPositionChange.mockClear();
+    liveBlock.dispatchEvent(
+      new MouseEvent('mousemove', { buttons: 1, clientX: 260, clientY: 150, bubbles: true })
+    );
+    expect(onPositionChange).toHaveBeenCalledWith(null);
+  });
 });

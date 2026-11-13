@@ -795,6 +795,10 @@ export const GlobalDragHandle = Extension.create<DragHandleOptions>({
         return;
 
       const editorRoot = view.dom.closest('.mind-editor-root');
+      if (editorRoot?.classList.contains('is-marquee-selecting')) {
+        hideHandle();
+        return;
+      }
 
       // Keep the active block locked while hovering the gutter controls or an open popover
       const gutterOrPopover = eventTarget?.closest(
@@ -882,6 +886,12 @@ export const GlobalDragHandle = Extension.create<DragHandleOptions>({
           // @tiptap/vue-3 constructs EditorView inside a temporary detached div
           // before <EditorContent> reparents .ProseMirror into the DOM.
           const onWindowMouseMove = (event: MouseEvent) => {
+            const editorRoot = editorView.dom.closest('.mind-editor-root');
+            if (event.buttons !== 0 || editorRoot?.classList.contains('is-marquee-selecting')) {
+              hoveredNodePos = null;
+              hideHandle();
+              return;
+            }
             if (
               suppressedByTyping &&
               event.clientX === lastMouseX &&

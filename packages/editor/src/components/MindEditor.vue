@@ -276,6 +276,10 @@ const editor = useEditor({
     }),
     GlobalDragHandle.configure({
       onPositionChange: (pos) => {
+        if (isMarqueeLockActive.value) {
+          gutterState.value.visible = false;
+          return;
+        }
         if (isGutterMenuOpen.value) {
           return;
         }
@@ -577,6 +581,17 @@ const {
   selectedBlockPositions,
 });
 
+const isMarqueeLockActive = computed(
+  () => marqueeState.value.active || isPointerDown.value
+);
+
+watch(isMarqueeLockActive, (locked) => {
+  if (locked) {
+    gutterState.value.visible = false;
+    isGutterHovered.value = false;
+  }
+});
+
 // Global Save & Group Block Keyboard Shortcuts
 function handleKeydown(event: KeyboardEvent): void {
   if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') {
@@ -664,10 +679,10 @@ defineExpose({
         'is-canvas-focused': isEditorFocused && !marqueeState.active && selectedBlockPositions.length === 0,
       }"
     >
-      <!-- Block Gutter (+ and ⠿) on Left Margin -->
+      <!-- Block Gutter (+ and ⠿) on Left Margin (suppressed while dragging marquee) -->
       <BlockGutter
         v-if="editor && !readOnly"
-        :visible="gutterState.visible"
+        :visible="gutterState.visible && !isMarqueeLockActive"
         :top="gutterState.top"
         :node-type="gutterState.nodeType"
         :node-text-color="gutterState.textColor"
@@ -748,6 +763,9 @@ defineExpose({
 }
 
 :deep(.ProseMirror) {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
   outline: none;
   min-height: 320px;
   line-height: 1.6;
@@ -755,9 +773,9 @@ defineExpose({
   color: #111827;
 }
 
-/* Each basic block treated as a clean individual pill row (no shift when colored) */
+/* Each basic block treated as a clean individual pill row with Notion-like breathing room */
 :deep(.ProseMirror > p) {
-  margin: 2px -10px;
+  margin: 0 -10px;
   padding: 4px 10px;
   border-radius: 6px;
   line-height: 1.6;
@@ -771,7 +789,7 @@ defineExpose({
   line-height: 1.3;
   font-weight: 700;
   color: #111827;
-  margin: 14px -10px 4px;
+  margin: 8px -10px 0;
   padding: 4px 10px;
   border-radius: 6px;
   transition: background-color 0.12s ease;
@@ -782,7 +800,7 @@ defineExpose({
   line-height: 1.35;
   font-weight: 600;
   color: #111827;
-  margin: 12px -10px 3px;
+  margin: 6px -10px 0;
   padding: 4px 10px;
   border-radius: 6px;
   transition: background-color 0.12s ease;
@@ -793,7 +811,7 @@ defineExpose({
   line-height: 1.4;
   font-weight: 600;
   color: #111827;
-  margin: 10px -10px 2px;
+  margin: 4px -10px 0;
   padding: 4px 10px;
   border-radius: 6px;
   transition: background-color 0.12s ease;
@@ -804,7 +822,7 @@ defineExpose({
   line-height: 1.45;
   font-weight: 600;
   color: #111827;
-  margin: 8px -10px 2px;
+  margin: 2px -10px 0;
   padding: 4px 10px;
   border-radius: 6px;
   transition: background-color 0.12s ease;
@@ -823,7 +841,7 @@ defineExpose({
   border-left: 3px solid #dee2e6;
   color: #495057;
   padding: 6px 12px 6px 14px;
-  margin: 6px -10px;
+  margin: 2px -10px;
   border-radius: 0 6px 6px 0;
   font-style: normal;
   transition: background-color 0.12s ease;
@@ -840,7 +858,7 @@ defineExpose({
   padding: 12px 14px;
   font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   font-size: 13px;
-  margin: 8px -10px;
+  margin: 2px -10px;
   overflow-x: auto;
   transition: background-color 0.12s ease;
 }
@@ -848,15 +866,18 @@ defineExpose({
 /* List items rendered as independent full-row rounded pills (including marker 1. / 2. / •) */
 :deep(.ProseMirror ul),
 :deep(.ProseMirror ol) {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
   list-style: none;
   padding-left: 0;
-  margin: 2px 0;
+  margin: 0;
 }
 
 :deep(.ProseMirror li > ul),
 :deep(.ProseMirror li > ol) {
   padding-left: 24px;
-  margin: 2px 0 0;
+  margin: 6px 0 0;
 }
 
 :deep(.ProseMirror ol) {
@@ -866,7 +887,7 @@ defineExpose({
 :deep(.ProseMirror ol > li),
 :deep(.ProseMirror ul:not([data-type="taskList"]) > li) {
   position: relative;
-  margin: 2px -10px;
+  margin: 0 -10px;
   padding: 4px 10px 4px 34px;
   border-radius: 6px;
   line-height: 1.6;
@@ -926,16 +947,19 @@ defineExpose({
 }
 
 :deep(.ProseMirror ul[data-type="taskList"]) {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
   list-style: none;
   padding-left: 0;
-  margin: 2px 0;
+  margin: 0;
 }
 
 :deep(.ProseMirror li[data-type="taskItem"]) {
   display: flex;
   align-items: flex-start;
   gap: 8px;
-  margin: 2px -10px;
+  margin: 0 -10px;
   padding: 4px 10px;
   border-radius: 6px;
   line-height: 1.6;
@@ -966,9 +990,10 @@ defineExpose({
 }
 
 :deep(.ProseMirror hr) {
+  width: 100%;
   border: none;
   border-top: 1px solid #e9ecef;
-  margin: 20px 0;
+  margin: 14px 0;
 }
 
 :deep(.mind-link) {
@@ -1058,7 +1083,7 @@ defineExpose({
 
 :deep(.ProseMirror .mind-block-selected),
 :deep(.ProseMirror .mind-block-dragging-source) {
-  box-shadow: inset 0 0 0 999px rgba(25, 113, 194, 0.11), 0 0 0 1px rgba(25, 113, 194, 0.28);
+  box-shadow: inset 0 0 0 999px rgba(25, 113, 194, 0.13), inset 0 0 0 1px rgba(25, 113, 194, 0.16);
   border-radius: 6px;
 }
 

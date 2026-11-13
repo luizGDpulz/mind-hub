@@ -256,7 +256,7 @@ onBeforeUnmount(() => {
   border-style: solid;
   border-radius: 8px;
   padding: 12px 14px;
-  margin: 6px -10px;
+  margin: 0 -10px;
   box-sizing: border-box;
   transition: border-color 0.15s ease, background-color 0.15s ease;
 }

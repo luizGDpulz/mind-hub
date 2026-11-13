@@ -16,7 +16,8 @@ export interface UseMarqueeSelectionOptions {
 }
 
 const INTERACTIVE_OR_CHROME_SELECTOR = [
-  '.mind-block-gutter-shell',
+  '.mind-block-gutter-shell button',
+  '.gutter-tooltip',
   '.block-actions-popover',
   '.mind-color-picker-shell',
   '.mind-icon-picker-shell',

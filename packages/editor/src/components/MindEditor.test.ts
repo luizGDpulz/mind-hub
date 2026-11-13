@@ -587,6 +587,13 @@ describe('MindEditor.vue', () => {
     setRect(paragraphs[0]!, { top: 104, left: 200, width: 680, height: 28 });
     setRect(paragraphs[1]!, { top: 138, left: 200, width: 680, height: 28 });
 
+    // Hover gutter before marquee -> visible initially
+    window.dispatchEvent(
+      new MouseEvent('mousemove', { clientX: 156, clientY: 112, buttons: 0, bubbles: true })
+    );
+    await nextTick();
+    expect(wrapper.find('[data-testid="block-gutter-shell"]').exists()).toBe(true);
+
     const mdEvent = new MouseEvent('mousedown', {
       clientX: 140,
       clientY: 108,
@@ -599,16 +606,25 @@ describe('MindEditor.vue', () => {
 
     expect(mdEvent.defaultPrevented).toBe(true);
     expect(root.classList.contains('is-marquee-selecting')).toBe(true);
+    // Pressing down hides gutter immediately
+    expect(wrapper.find('[data-testid="block-gutter-shell"]').exists()).toBe(false);
     expect(wrapper.find('[data-testid="bubble-formatting-stub"]').attributes('data-disabled')).toBe(
       'true'
     );
 
-    // Drag across letters: selects blocks without native browser selection or bubble menu
+    // Drag across the gutter lane and letters: gutter stays hidden throughout marquee drag
     window.dispatchEvent(
-      new MouseEvent('mousemove', { clientX: 280, clientY: 150, bubbles: true })
+      new MouseEvent('mousemove', { clientX: 158, clientY: 144, buttons: 1, bubbles: true })
+    );
+    await nextTick();
+    expect(wrapper.find('[data-testid="block-gutter-shell"]').exists()).toBe(false);
+
+    window.dispatchEvent(
+      new MouseEvent('mousemove', { clientX: 280, clientY: 150, buttons: 1, bubbles: true })
     );
     await nextTick();
 
+    expect(wrapper.find('[data-testid="block-gutter-shell"]').exists()).toBe(false);
     expect(proseMirror.querySelectorAll('.mind-block-selected')).toHaveLength(2);
     expect(wrapper.find('[data-testid="bubble-formatting-stub"]').attributes('data-disabled')).toBe(
       'true'
@@ -622,6 +638,13 @@ describe('MindEditor.vue', () => {
     expect(wrapper.find('[data-testid="bubble-formatting-stub"]').attributes('data-disabled')).toBe(
       'true'
     );
+
+    // Only after mouse button is released and user hovers block/gutter does gutter return
+    window.dispatchEvent(
+      new MouseEvent('mousemove', { clientX: 158, clientY: 144, buttons: 0, bubbles: true })
+    );
+    await nextTick();
+    expect(wrapper.find('[data-testid="block-gutter-shell"]').exists()).toBe(true);
 
     // Clicking empty margin without dragging clears block selection and places caret without marquee
     const emptyClickDown = new MouseEvent('mousedown', {

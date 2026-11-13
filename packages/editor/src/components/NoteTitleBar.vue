@@ -59,6 +59,13 @@ function handleInput(event: Event): void {
   font-family: inherit;
 }
 
+.mind-note-title-input:focus,
+.mind-note-title-input:focus-visible {
+  outline: none;
+  border: none;
+  box-shadow: none;
+}
+
 .mind-note-title-input::placeholder {
   color: #ced4da;
 }

@@ -56,4 +56,33 @@ describe('useEditorFrontmatter', () => {
     expect(wrapper.vm.isFrontmatterVisible).toBe(false);
     expect(wrapper.vm.frontmatterInitialCollapsed).toBe(true);
   });
+
+  it('keeps controlled showProperties=false hidden even when frontmatter has properties (refs #83)', async () => {
+    const showProperties = ref<boolean>(false);
+    const frontmatter = ref<EditorFrontmatter>({ tags: ['adr'], status: 'active' });
+    const emitUpdateShowProperties = vi.fn((val: boolean) => {
+      showProperties.value = val;
+    });
+
+    const Harness = defineComponent({
+      setup() {
+        return useEditorFrontmatter({
+          enableFrontmatterHeader: () => true,
+          readOnly: () => false,
+          showProperties: () => showProperties.value,
+          frontmatter: () => frontmatter.value,
+          emitUpdateShowProperties,
+          emitUpdateFrontmatter: vi.fn(),
+        });
+      },
+      template: '<div />',
+    });
+
+    const wrapper = mount(Harness);
+    expect(wrapper.vm.isFrontmatterVisible).toBe(false);
+
+    await wrapper.vm.openProperties(false);
+    expect(emitUpdateShowProperties).toHaveBeenCalledWith(true);
+    expect(wrapper.vm.isFrontmatterVisible).toBe(true);
+  });
 });

@@ -25,6 +25,11 @@ import {
   type DatabaseStatus,
   type DatabaseTaskRow,
   type DiagramKind,
+  type GitHubSyncConfigInput,
+  type GitHubSyncResult,
+  type GitHubSyncStatus,
+  type GitHubTestConnectionInput,
+  type GitHubTestConnectionResult,
   type GitSyncSnapshot,
   type MindAsset,
   type MindPage,
@@ -72,8 +77,24 @@ export const useMindStore = defineStore('mindHub', () => {
   const isQuickInsightOpen = ref<boolean>(false);
   const isAiDrawerOpen = ref<boolean>(false);
   const isMcpModalOpen = ref<boolean>(false);
+  const settingsActiveTab = ref<'general' | 'appearance' | 'sync' | 'shortcuts' | 'storage'>('general');
   const isImportModalOpen = ref<boolean>(false);
   const isVersionHistoryModalOpen = ref<boolean>(false);
+  const gitHubSyncStatus = ref<GitHubSyncStatus>({
+    state: 'disconnected',
+    configured: false,
+    repository: null,
+    branch: 'main',
+    autoSyncEnabled: true,
+    debounceSeconds: 120,
+    pendingChangesCount: 0,
+    lastSyncAt: null,
+    lastCommitSha: null,
+    lastError: null,
+    history: [],
+  });
+  const lastGitHubSyncResult = ref<GitHubSyncResult | null>(null);
+  const isGitHubSyncBusy = ref<boolean>(false);
   const currentVersion = ref<string>(CURRENT_MIND_VERSION);
   const repoUrl = ref<string>(MIND_REPO_URL);
   const versionHistory = ref<MindVersionEntry[]>(MIND_VERSION_HISTORY);
@@ -173,6 +194,9 @@ export const useMindStore = defineStore('mindHub', () => {
     } finally {
       isBootstrapping.value = false;
       lastLatencyMs.value = Number((performance.now() - t0).toFixed(2));
+      if (backendConnected.value) {
+        void fetchGitHubSyncStatus();
+      }
     }
   }
 
@@ -960,6 +984,181 @@ export const useMindStore = defineStore('mindHub', () => {
     return importMarkdownBulk([], { useSampleSecondBrain: true });
   }
 
+  async function reloadPagesFromServer(): Promise<void> {
+    try {
+      const res = await fetch('/api/pages?includeDeleted=true');
+      if (res.ok) {
+        const data = (await res.json()) as { pages?: MindPage[] };
+        if (Array.isArray(data.pages)) {
+          pages.value = data.pages;
+          const activeExists = data.pages.some((p) => p.id === activePageId.value && p.deletedAt === null);
+          if (!activeExists) {
+            activePageId.value = data.pages.find((p) => p.deletedAt === null)?.id ?? '';
+          }
+        }
+      }
+    } catch {
+      // Offline resilient
+    }
+  }
+
+  async function fetchGitHubSyncStatus(): Promise<GitHubSyncStatus> {
+    try {
+      const res = await fetch('/api/sync/github/status');
+      if (res.ok) {
+        const body = (await res.json()) as { status?: GitHubSyncStatus };
+        if (body.status) {
+          gitHubSyncStatus.value = body.status;
+        }
+      }
+    } catch {
+      // Offline resilient
+    }
+    return gitHubSyncStatus.value;
+  }
+
+  async function testGitHubConnection(
+    input: GitHubTestConnectionInput,
+  ): Promise<GitHubTestConnectionResult> {
+    const res = await fetch('/api/sync/github/test-connection', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(input),
+    });
+    const data = (await res.json()) as GitHubTestConnectionResult & { error?: string };
+    if (!res.ok) {
+      return {
+        ok: false,
+        repository: input.repository,
+        branch: input.branch || 'main',
+        message: data.error || data.message || 'Falha ao testar conexão com o repositório.',
+      };
+    }
+    return data;
+  }
+
+  async function configureGitHubSync(
+    input: GitHubSyncConfigInput,
+  ): Promise<{ status: GitHubSyncStatus; initialSync?: GitHubSyncResult; error?: string }> {
+    isGitHubSyncBusy.value = true;
+    try {
+      const res = await fetch('/api/sync/github/configure', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(input),
+      });
+      const body = (await res.json()) as {
+        status?: GitHubSyncStatus;
+        initialSync?: GitHubSyncResult;
+        error?: string;
+      };
+      if (!res.ok) {
+        return {
+          status: gitHubSyncStatus.value,
+          error: body.error || 'Falha ao configurar sincronização com GitHub.',
+        };
+      }
+      if (body.status) {
+        gitHubSyncStatus.value = body.status;
+      }
+      if (body.initialSync) {
+        lastGitHubSyncResult.value = body.initialSync;
+        if (body.initialSync.pulledFiles.length > 0) {
+          await reloadPagesFromServer();
+        }
+      }
+      return {
+        status: gitHubSyncStatus.value,
+        initialSync: body.initialSync,
+      };
+    } catch (err) {
+      return {
+        status: gitHubSyncStatus.value,
+        error: err instanceof Error ? err.message : 'Erro de rede ao conectar ao servidor.',
+      };
+    } finally {
+      isGitHubSyncBusy.value = false;
+    }
+  }
+
+  async function triggerGitHubSync(): Promise<GitHubSyncResult | null> {
+    isGitHubSyncBusy.value = true;
+    gitHubSyncStatus.value = {
+      ...gitHubSyncStatus.value,
+      state: 'syncing',
+    };
+    try {
+      const res = await fetch('/api/sync/github/sync', {
+        method: 'POST',
+      });
+      const body = (await res.json()) as {
+        result?: GitHubSyncResult;
+        status?: GitHubSyncStatus;
+        error?: string;
+      };
+      if (body.status) {
+        gitHubSyncStatus.value = body.status;
+      }
+      if (!res.ok) {
+        gitHubSyncStatus.value = {
+          ...gitHubSyncStatus.value,
+          state: 'error',
+          lastError: body.error || 'Falha durante sincronização Git.',
+        };
+        return null;
+      }
+      if (body.result) {
+        lastGitHubSyncResult.value = body.result;
+        if (body.result.pulledFiles.length > 0) {
+          await reloadPagesFromServer();
+        }
+      }
+      return body.result ?? null;
+    } catch (err) {
+      gitHubSyncStatus.value = {
+        ...gitHubSyncStatus.value,
+        state: 'error',
+        lastError: err instanceof Error ? err.message : 'Erro de conexão com o backend.',
+      };
+      return null;
+    } finally {
+      isGitHubSyncBusy.value = false;
+    }
+  }
+
+  async function disconnectGitHubSync(): Promise<void> {
+    isGitHubSyncBusy.value = true;
+    try {
+      const res = await fetch('/api/sync/github/disconnect', {
+        method: 'POST',
+      });
+      if (res.ok) {
+        const body = (await res.json()) as { status?: GitHubSyncStatus };
+        if (body.status) {
+          gitHubSyncStatus.value = body.status;
+          return;
+        }
+      }
+    } catch {
+      // Reset locally on offline
+    } finally {
+      isGitHubSyncBusy.value = false;
+    }
+    gitHubSyncStatus.value = {
+      state: 'disconnected',
+      configured: false,
+      repository: null,
+      branch: 'main',
+      autoSyncEnabled: true,
+      debounceSeconds: 120,
+      pendingChangesCount: 0,
+      lastSyncAt: null,
+      lastCommitSha: null,
+      lastError: null,
+      history: [],
+    };
+  }
+
   return {
     isBootstrapping,
     pages,
@@ -985,8 +1184,12 @@ export const useMindStore = defineStore('mindHub', () => {
     isQuickInsightOpen,
     isAiDrawerOpen,
     isMcpModalOpen,
+    settingsActiveTab,
     isImportModalOpen,
     isVersionHistoryModalOpen,
+    gitHubSyncStatus,
+    lastGitHubSyncResult,
+    isGitHubSyncBusy,
     currentVersion,
     repoUrl,
     versionHistory,
@@ -1031,5 +1234,10 @@ export const useMindStore = defineStore('mindHub', () => {
     addCommentReply,
     importMarkdownBulk,
     syncServerSecondBrainDirectory,
+    fetchGitHubSyncStatus,
+    testGitHubConnection,
+    configureGitHubSync,
+    triggerGitHubSync,
+    disconnectGitHubSync,
   };
 });

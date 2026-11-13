@@ -6,10 +6,24 @@ export interface MindVersionEntry {
   highlights: string[];
 }
 
-export const CURRENT_MIND_VERSION = '0.4.0';
+export const CURRENT_MIND_VERSION = '0.5.0';
 export const MIND_REPO_URL = 'https://github.com/luizGDpulz/mind-hub';
 
 export const MIND_VERSION_HISTORY: MindVersionEntry[] = [
+  {
+    version: '0.5.0',
+    releaseDate: '2026-11-13',
+    milestoneTitle: 'M14: Modularização Arquitetural da UI, Padronização & Refino',
+    summary:
+      'Modularização completa do shell principal (App.vue reduzido em 90%), unificação de diálogos em MindModal e MindPopover, fatiamento de blocos pesados e decomposição do MindEditor em subcomponentes e composables coesos.',
+    highlights: [
+      'App.vue fatiado (2160 → 201 linhas) em componentes de shell (MindTopbar, MindSidebar, MindRightDrawer, MindPageWorkspace) e composables dedicados',
+      'Painéis laterais direitos (Comentários e IA) passam a iniciar fechados por padrão para preservar o foco no canvas',
+      '100% dos modais e popovers padronizados em <MindModal> (slots header-actions/hideHeader/flush) e <MindPopover> com useDismissiblePopover',
+      'Blocos de Diagramas, Database e Configurações fatiados em subcomponentes leves (<KeepAlive>, helpers e tabs)',
+      'Refino do pacote @mind-hub/editor: subcomponentes de FrontmatterHeader e BlockGutter + composables useEditorFrontmatter e useBlockGutterCoordinator',
+    ],
+  },
   {
     version: '0.4.0',
     releaseDate: '2026-11-13',

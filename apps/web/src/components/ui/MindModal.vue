@@ -16,10 +16,11 @@
           aria-modal="true"
           :aria-labelledby="title ? 'mind-modal-title' : undefined"
           data-testid="mind-modal-card"
+          v-bind="$attrs"
           @click.stop
         >
           <!-- Header -->
-          <div class="mind-modal-header" data-testid="mind-modal-header">
+          <div v-if="!hideHeader" class="mind-modal-header" data-testid="mind-modal-header">
             <slot name="header">
               <div class="mind-modal-titles">
                 <h3 v-if="title" id="mind-modal-title" class="mind-modal-title">
@@ -30,20 +31,27 @@
                 </p>
               </div>
             </slot>
-            <button
-              type="button"
-              class="mind-modal-close-btn"
-              aria-label="Fechar modal"
-              title="Fechar (Esc)"
-              data-testid="modal-close-btn"
-              @click="close"
-            >
-              ✕
-            </button>
+            <div style="display: flex; align-items: center; gap: 8px; flex-shrink: 0;">
+              <slot name="header-actions" />
+              <button
+                type="button"
+                class="mind-modal-close-btn"
+                aria-label="Fechar modal"
+                title="Fechar (Esc)"
+                data-testid="modal-close-btn"
+                @click="close"
+              >
+                ✕
+              </button>
+            </div>
           </div>
 
           <!-- Body -->
-          <div class="mind-modal-body" data-testid="mind-modal-body">
+          <div
+            class="mind-modal-body"
+            :style="flush ? { padding: '0', display: 'flex', flexDirection: 'column', overflow: 'hidden' } : undefined"
+            data-testid="mind-modal-body"
+          >
             <slot />
           </div>
 
@@ -58,7 +66,9 @@
 </template>
 
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, watch } from 'vue';
+import { onBeforeUnmount, watch } from 'vue';
+
+defineOptions({ inheritAttrs: false });
 
 const props = withDefaults(
   defineProps<{
@@ -68,6 +78,8 @@ const props = withDefaults(
     maxWidth?: string;
     closeOnEsc?: boolean;
     closeOnBackdrop?: boolean;
+    hideHeader?: boolean;
+    flush?: boolean;
   }>(),
   {
     title: '',

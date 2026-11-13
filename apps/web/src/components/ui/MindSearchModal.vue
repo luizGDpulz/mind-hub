@@ -1,10 +1,12 @@
 <template>
-  <q-dialog
+  <MindModal
     :model-value="modelValue"
-    data-testid="clean-search-modal"
+    max-width="900px"
+    hide-header
+    flush
     @update:model-value="$emit('update:modelValue', $event)"
   >
-    <div class="mind-search-modal-container">
+    <div class="mind-search-modal-container" data-testid="clean-search-modal">
       <!-- Search Input Header -->
       <div class="search-modal-header">
         <div class="search-input-wrapper">
@@ -216,13 +218,14 @@
         </div>
       </div>
     </div>
-  </q-dialog>
+  </MindModal>
 </template>
 
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue';
 import { Search, User, FileText, ExternalLink } from 'lucide-vue-next';
 import type { MindPage, SearchResultItem } from '@mind-hub/shared';
+import MindModal from './MindModal.vue';
 
 const props = defineProps<{
   modelValue: boolean;
@@ -414,14 +417,10 @@ function handleKeyDown(e: KeyboardEvent): void {
 
 <style scoped>
 .mind-search-modal-container {
-  width: 900px;
-  max-width: 94vw;
+  width: 100%;
   height: 580px;
-  max-height: 88vh;
+  max-height: 85vh;
   background: var(--mind-bg-canvas);
-  border: 1px solid var(--mind-border-subtle);
-  border-radius: 12px;
-  box-shadow: var(--mind-shadow-popover);
   display: flex;
   flex-direction: column;
   overflow: hidden;

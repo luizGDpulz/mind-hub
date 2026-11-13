@@ -169,10 +169,10 @@ describe('@mind-hub/shared — Markdown <-> Tiptap AST & Domain Engine', () => {
   });
 
   it('exposes versioning configuration, release history and repository URL', () => {
-    expect(CURRENT_MIND_VERSION).toBe('0.4.0');
+    expect(CURRENT_MIND_VERSION).toBe('0.5.0');
     expect(MIND_REPO_URL).toBe('https://github.com/luizGDpulz/mind-hub');
-    expect(MIND_VERSION_HISTORY.length).toBeGreaterThanOrEqual(4);
-    expect(MIND_VERSION_HISTORY[0].version).toBe('0.4.0');
+    expect(MIND_VERSION_HISTORY.length).toBeGreaterThanOrEqual(5);
+    expect(MIND_VERSION_HISTORY[0].version).toBe('0.5.0');
     expect(MIND_VERSION_HISTORY[0].highlights.length).toBeGreaterThan(0);
   });
 });

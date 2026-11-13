@@ -90,15 +90,28 @@ describe('Gatekeeper UI — Validação Rigorosa mind-light-style (Veto ao Azul 
 
   it('verifica presença dos componentes obrigatórios: Left Gutter Handles (+ / ⠿), Menus / e @, Database, Diagramas e Login Clean', () => {
     const appVue = fs.readFileSync(path.join(currentDir, 'App.vue'), 'utf-8');
-    expect(appVue).toContain("from '@mind-hub/editor'");
-    expect(appVue).toContain('<MindEditor');
+    expect(appVue).toContain('<MindTopbar');
+    expect(appVue).toContain('<MindSidebar');
+    expect(appVue).toContain('<MindRightDrawer');
+    expect(appVue).toContain('<MindPageWorkspace');
+
+    const workspaceVue = fs.readFileSync(
+      path.join(currentDir, 'components', 'shell', 'MindPageWorkspace.vue'),
+      'utf-8',
+    );
+    expect(workspaceVue).toContain("from '@mind-hub/editor'");
+    expect(workspaceVue).toContain('<MindEditor');
 
     const editorDir = path.resolve(currentDir, '../../../packages/editor/src/components');
     const gutterVue = fs.readFileSync(path.join(editorDir, 'BlockGutter.vue'), 'utf-8');
+    const gutterMenuVue = fs.readFileSync(
+      path.join(editorDir, 'gutter/BlockActionsMenu.vue'),
+      'utf-8'
+    );
     expect(gutterVue).toContain('data-testid="block-gutter-add-btn"');
     expect(gutterVue).toContain('data-testid="block-gutter-handle-btn"');
-    expect(gutterVue).toContain('data-testid="action-move-up"');
-    expect(gutterVue).toContain('data-testid="action-move-down"');
+    expect(gutterMenuVue).toContain('data-testid="action-move-up"');
+    expect(gutterMenuVue).toContain('data-testid="action-move-down"');
 
     const slashVue = fs.readFileSync(path.join(editorDir, 'SlashMenu.vue'), 'utf-8');
     expect(slashVue).toContain('data-testid="slash-command-menu"');
@@ -113,17 +126,34 @@ describe('Gatekeeper UI — Validação Rigorosa mind-light-style (Veto ao Azul 
       path.join(currentDir, 'components', 'DatabaseViewBlock.vue'),
       'utf-8',
     );
+    const kanbanVue = fs.readFileSync(
+      path.join(currentDir, 'components', 'database', 'DatabaseKanbanBoard.vue'),
+      'utf-8',
+    );
     expect(dbVue).toContain('data-testid="db-tab-table"');
     expect(dbVue).toContain('data-testid="db-tab-board"');
-    expect(dbVue).toContain('data-testid="db-kanban-board"');
+    expect(kanbanVue).toContain('data-testid="db-kanban-board"');
 
     const diagramsVue = fs.readFileSync(
       path.join(currentDir, 'components', 'DiagramEmbedsBlock.vue'),
       'utf-8',
     );
-    expect(diagramsVue).toContain('data-testid="mermaid-diagram-block"');
-    expect(diagramsVue).toContain('data-testid="excalidraw-whiteboard-block"');
-    expect(diagramsVue).toContain('data-testid="drawio-diagram-block"');
+    const mermaidVue = fs.readFileSync(
+      path.join(currentDir, 'components', 'diagrams', 'MermaidEmbedPanel.vue'),
+      'utf-8',
+    );
+    const excalidrawVue = fs.readFileSync(
+      path.join(currentDir, 'components', 'diagrams', 'ExcalidrawEmbedPanel.vue'),
+      'utf-8',
+    );
+    const drawioVue = fs.readFileSync(
+      path.join(currentDir, 'components', 'diagrams', 'DrawioEmbedPanel.vue'),
+      'utf-8',
+    );
+    expect(diagramsVue).toContain('data-testid="diagram-embeds-block"');
+    expect(mermaidVue).toContain('data-testid="mermaid-diagram-block"');
+    expect(excalidrawVue).toContain('data-testid="excalidraw-whiteboard-block"');
+    expect(drawioVue).toContain('data-testid="drawio-diagram-block"');
 
     const loginVue = fs.readFileSync(
       path.join(currentDir, 'components', 'CleanLoginView.vue'),

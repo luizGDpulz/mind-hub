@@ -1,14 +1,14 @@
 <template>
-  <div
-    v-if="modelValue"
-    class="mind-apps-menu-backdrop"
-    @click.self="$emit('update:modelValue', false)"
+  <MindPopover
+    :model-value="modelValue"
+    :top="bottom !== undefined ? undefined : top"
+    :bottom="bottom ?? (top === undefined ? 56 : undefined)"
+    :left="right !== undefined ? undefined : (left ?? 60)"
+    :right="right"
+    width="220px"
+    data-testid="sidebar-apps-popover"
+    @update:model-value="$emit('update:modelValue', $event)"
   >
-    <div
-      class="mind-apps-menu-card"
-      data-testid="sidebar-apps-popover"
-      :style="popoverStyle"
-    >
       <div class="apps-menu-list">
         <!-- Biblioteca -->
         <button
@@ -79,12 +79,11 @@
           <span v-if="trashCount > 0" class="trash-badge">{{ trashCount }}</span>
         </button>
       </div>
-    </div>
-  </div>
+  </MindPopover>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
+import MindPopover from './MindPopover.vue';
 import {
   Library,
   Sparkles,
@@ -119,26 +118,6 @@ const emit = defineEmits<{
   (e: 'open-tasks'): void;
 }>();
 
-const popoverStyle = computed(() => {
-  const style: Record<string, string> = {};
-  if (props.bottom !== undefined) {
-    style.bottom = `${props.bottom}px`;
-  } else if (props.top !== undefined) {
-    style.top = `${props.top}px`;
-  } else {
-    style.bottom = '56px';
-  }
-
-  if (props.right !== undefined) {
-    style.right = `${props.right}px`;
-  } else if (props.left !== undefined) {
-    style.left = `${props.left}px`;
-  } else {
-    style.left = '60px';
-  }
-  return style;
-});
-
 function handleAction(action: 'trash' | 'ai-notes' | 'tasks'): void {
   emit('update:modelValue', false);
   if (action === 'trash') {
@@ -152,38 +131,6 @@ function handleAction(action: 'trash' | 'ai-notes' | 'tasks'): void {
 </script>
 
 <style scoped>
-.mind-apps-menu-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 9999;
-  background: transparent;
-}
-
-.mind-apps-menu-card {
-  position: absolute;
-  width: 220px;
-  background: var(--mind-bg-canvas, #ffffff);
-  border: 1px solid var(--mind-border-subtle, #e9ecef);
-  border-radius: 8px;
-  box-shadow: var(--mind-shadow-popover, 0 8px 24px rgba(0, 0, 0, 0.12));
-  padding: 6px;
-  display: flex;
-  flex-direction: column;
-  animation: mindMenuFadeIn 0.12s cubic-bezier(0.16, 1, 0.3, 1);
-  font-family: inherit;
-}
-
-@keyframes mindMenuFadeIn {
-  from {
-    opacity: 0;
-    transform: translateY(-4px) scale(0.98);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
-}
-
 .apps-menu-list {
   display: flex;
   flex-direction: column;

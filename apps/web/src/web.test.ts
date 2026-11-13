@@ -7,11 +7,13 @@ describe('@mind-hub/web — Pinia Store, Page Tree, Quick Insight & Search Engin
     setActivePinia(createPinia());
   });
 
-  it('initializes with RFC seed pages, hierarchical pageTree and breadcrumbs', () => {
+  it('initializes with RFC seed pages, hierarchical pageTree and breadcrumbs, with right drawers closed by default', () => {
     const store = useMindStore();
     expect(store.activePages.length).toBe(4);
     expect(store.pageTree.length).toBe(2);
     expect(store.activePage?.id).toBe('page-manifesto');
+    expect(store.isCommentsDrawerOpen).toBe(false);
+    expect(store.isAiDrawerOpen).toBe(false);
 
     store.selectPage('page-adr-stack');
     expect(store.breadcrumbs.map((b) => b.id)).toEqual([
@@ -129,10 +131,10 @@ describe('@mind-hub/web — Pinia Store, Page Tree, Quick Insight & Search Engin
 
   it('supports permanent delete (purge), empty trash and version evolution tracking (Issue #46)', async () => {
     const store = useMindStore();
-    expect(store.currentVersion).toBe('0.4.0');
+    expect(store.currentVersion).toBe('0.5.0');
     expect(store.repoUrl).toBe('https://github.com/luizGDpulz/mind-hub');
-    expect(store.versionHistory.length).toBeGreaterThanOrEqual(4);
-    expect(store.versionHistory[0]?.version).toBe('0.4.0');
+    expect(store.versionHistory.length).toBeGreaterThanOrEqual(5);
+    expect(store.versionHistory[0]?.version).toBe('0.5.0');
 
     // Create a page and soft delete it
     const page = await store.createPage({ title: 'Nota Para Purge' });

@@ -107,7 +107,7 @@ const props = withDefaults(
     top?: number;
   }>(),
   {
-    currentVersion: '0.4.0',
+    currentVersion: '0.5.0',
     versionHistory: () => [],
     repoUrl: 'https://github.com/luizGDpulz/mind-hub',
     bottom: 56,

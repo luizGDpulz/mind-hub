@@ -12,6 +12,31 @@ O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.
 
 ---
 
+## [0.5.0] - 2026-11-13 — Milestone M14: Modularização Arquitetural da UI, Padronização & Refino
+
+### 🔄 Modificado
+- **Fatiamento Arquitetural do Shell Principal (`App.vue` 2160 → 201 linhas)** (#72, #73, #74):
+  - Extraídos componentes de layout coesos: `MindTopbar`, `MindSidebar`, `MindRightDrawer`, `MindPageWorkspace` e `MindBulkImportModal`.
+  - Extraídos composables `useSidebarResizer` e `usePageFrontmatter`, além de utilitário de mídia `utils/media.ts`.
+  - Painéis laterais direitos (`Comentários` e `IA`) passam a iniciar fechados por padrão (`isCommentsDrawerOpen = false`) (#73).
+- **Padronização de Modais e Popovers (`MindModal` & `MindPopover`)** (#75, #76):
+  - Eliminado 100% do uso direto de `<q-dialog>` em `apps/web` com migração de `MindSearchModal`, `MindTrashModal` e `MindVersionHistoryModal` para `<MindModal>` (suporte a `hideHeader`, `flush` e slot `#header-actions`).
+  - Criado `<MindPopover>` + `useDismissiblePopover` unificando `MindWorkspaceMenu`, `MindHelpVersionsMenu`, `MindSidebarAppsMenu` e `MindActionMenu`.
+- **Decomposição de Blocos Pesados da Web UI** (#77):
+  - `DiagramEmbedsBlock` fatiado em `MermaidEmbedPanel`, `ExcalidrawEmbedPanel` e `DrawioEmbedPanel` com `<KeepAlive>`.
+  - `DatabaseViewBlock` fatiado em `database-helpers.ts`, `DatabaseTableView` e `DatabaseKanbanBoard`.
+  - `MindSettingsModal` fatiado em 5 abas independentes (`SettingsGeneralTab`, `SettingsAppearanceTab`, `SettingsSyncTab`, `SettingsShortcutsTab`, `SettingsStorageTab`) e CSS compartilhado.
+- **Refino Modular do `@mind-hub/editor`** (#78, #79, #80):
+  - `FrontmatterHeader` decomposto em `frontmatter/frontmatter-helpers.ts`, `RawYamlEditor`, `PropertyContextMenu` e `PropertyRow`.
+  - `BlockGutter` decomposto em `gutter/gutter-helpers.ts`, `gutter-menu.css`, `BlockColorSubmenu` e `BlockActionsMenu`.
+  - `MindEditor` enxugado via `useEditorFrontmatter`, `useBlockGutterCoordinator` e folha `mind-editor-canvas.css`.
+
+### 🧪 Testes & Auditoria
+- Adicionada cobertura unitária dedicada para `useEditorFrontmatter`, `useBlockGutterCoordinator`, `MindModal`, `MindPopover` e navegação em abas do `MindSettingsModal` (#81).
+- Código auditado via NVIDIA NIM (`poolside/laguna-xs-2.1`) garantindo limpeza de event listeners, estados reativos seguros e conformidade estrita com `mind-light-style` (#81).
+
+---
+
 ## [0.4.0] - 2026-11-13 — Milestone M10: Mind Editor (@mind-hub/editor Beta)
 
 ### 🚀 Adicionado
@@ -105,7 +130,8 @@ O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.
   - Servidor Model Context Protocol nativo com ferramentas para notas e banco de dados (#15).
   - Chat lateral com assistente BYOK (OpenAI, Anthropic, Gemini, Ollama) (#15, #16).
 
-[Não lançado]: https://github.com/luizGDpulz/mind-hub/compare/v0.4.0...HEAD
+[Não lançado]: https://github.com/luizGDpulz/mind-hub/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/luizGDpulz/mind-hub/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/luizGDpulz/mind-hub/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/luizGDpulz/mind-hub/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/luizGDpulz/mind-hub/compare/v0.1.0...v0.2.0

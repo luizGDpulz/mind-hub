@@ -1,6 +1,6 @@
 {
   "name": "@mind-hub/editor",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "Mind Editor - Extensible, open-source Notion-like block editor for Vue 3 and Tiptap v2",
   "license": "AGPL-3.0-only",
   "type": "module",

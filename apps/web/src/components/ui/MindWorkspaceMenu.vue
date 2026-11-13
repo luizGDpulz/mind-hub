@@ -167,7 +167,7 @@ const props = withDefaults(
   {
     workspaceName: 'Mind de Luiz Gustavo Dias Pulz',
     userEmail: 'luizg.pulz@gmail.com',
-    currentVersion: '0.4.0',
+    currentVersion: '0.5.0',
     repoUrl: 'https://github.com/luizGDpulz/mind-hub',
     bottom: 56,
     left: 10,

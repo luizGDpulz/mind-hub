@@ -28,6 +28,7 @@ import PageMentionPopover from './PageMentionPopover.vue';
 import BubbleFormattingMenu from './BubbleFormattingMenu.vue';
 import MermaidBlockView from './MermaidBlockView.vue';
 import CalloutBlockView from './CalloutBlockView.vue';
+import SubpageBlockView from './SubpageBlockView.vue';
 
 import { useEditorFrontmatter } from '../composables/useEditorFrontmatter.js';
 import { useBlockGutterCoordinator } from '../composables/useBlockGutterCoordinator.js';
@@ -46,6 +47,7 @@ import { createDefaultSlashItems } from '../extensions/slash-items.js';
 import { PageMention } from '../extensions/page-mention.js';
 import { MermaidNode } from '../extensions/mermaid-node.js';
 import { CalloutNode } from '../extensions/callout-node.js';
+import { SubpageBlockNode, type SubpageBlockAttrs } from '../extensions/subpage-block-node.js';
 import { MarkdownShortcuts } from '../extensions/markdown-shortcuts.js';
 
 const props = withDefaults(defineProps<MindEditorProps>(), {
@@ -130,6 +132,12 @@ const MermaidConfigured = MermaidNode.extend({
 const CalloutConfigured = CalloutNode.extend({
   addNodeView() {
     return VueNodeViewRenderer(CalloutBlockView as unknown as Component<NodeViewProps>);
+  },
+});
+
+const SubpageBlockConfigured = SubpageBlockNode.extend({
+  addNodeView() {
+    return VueNodeViewRenderer(SubpageBlockView as unknown as Component<NodeViewProps>);
   },
 });
 
@@ -223,6 +231,10 @@ const editor = useEditor({
     }),
     MermaidConfigured,
     CalloutConfigured,
+    SubpageBlockConfigured.configure({
+      getPages: () => props.pages,
+      onNavigate: (pageId) => emit('selectPage', pageId),
+    }),
     BlockColor,
     MarkdownShortcuts.configure({
       shouldTriggerFrontmatter: () =>
@@ -412,9 +424,14 @@ onBeforeUnmount(() => {
   editor.value?.destroy();
 });
 
+function insertSubpageBlock(attrs: Partial<SubpageBlockAttrs>): void {
+  editor.value?.chain().focus().insertSubpageBlock(attrs).run();
+}
+
 defineExpose({
   openProperties,
   handleRootMouseDown,
+  insertSubpageBlock,
 });
 </script>
 

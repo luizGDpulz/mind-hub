@@ -49,6 +49,8 @@ export {
   MarkdownShortcuts,
   TASK_EMPTY_BRACKETS_REGEX,
   TASK_SPACED_BRACKETS_REGEX,
+  FRONTMATTER_TRIGGER_REGEX,
+  type MarkdownShortcutsOptions,
 } from './extensions/markdown-shortcuts.js';
 export {
   BlockColor,
@@ -58,6 +60,7 @@ export {
   getBlockColorOption,
   applyBlockColorAtPos,
   syncBlockColorsAtSelection,
+  normalizeContainerBlockColors,
 } from './extensions/block-color.js';
 
 

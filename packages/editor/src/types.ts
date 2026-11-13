@@ -15,6 +15,39 @@ export const DEFAULT_NOTE_TAGS = [
   'brainstorm',
 ] as const;
 
+export type ObsidianPropertyType =
+  | 'auto'
+  | 'checkbox'
+  | 'date'
+  | 'datetime'
+  | 'list'
+  | 'number'
+  | 'text';
+
+export interface NotePropertyPreset {
+  key: string;
+  label: string;
+  type: ObsidianPropertyType;
+  defaultValue: unknown;
+}
+
+export const DEFAULT_NOTE_PROPERTY_PRESETS: NotePropertyPreset[] = [
+  { key: 'tags', label: 'tags', type: 'list', defaultValue: [] },
+  { key: 'status', label: 'status', type: 'text', defaultValue: 'rascunho' },
+  { key: 'project', label: 'project', type: 'text', defaultValue: '' },
+  { key: 'area', label: 'area', type: 'text', defaultValue: '' },
+  { key: 'created', label: 'created', type: 'date', defaultValue: '' },
+  { key: 'updated', label: 'updated', type: 'date', defaultValue: '' },
+];
+
+export const DEFAULT_STATUS_OPTIONS = [
+  'ativo',
+  'rascunho',
+  'em-progresso',
+  'concluído',
+  'arquivado',
+] as const;
+
 export interface EditorFrontmatter {
   title?: string;
   tags?: string[];
@@ -93,6 +126,7 @@ export interface MindEditorProps {
   placeholder?: string;
   pages?: PageReference[];
   enableFrontmatterHeader?: boolean;
+  showProperties?: boolean;
   customSlashItems?: SlashMenuItem[];
 }
 
@@ -101,6 +135,7 @@ export interface MindEditorEmits {
   (e: 'update:json', value: JSONContent): void;
   (e: 'update:title', value: string): void;
   (e: 'update:frontmatter', value: EditorFrontmatter): void;
+  (e: 'update:showProperties', value: boolean): void;
   (e: 'selectPage', pageId: string): void;
   (e: 'createSubpage'): void;
   (e: 'insertDatabaseBlock'): void;

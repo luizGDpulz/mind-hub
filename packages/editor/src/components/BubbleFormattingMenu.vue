@@ -7,6 +7,7 @@ import '@tiptap/extension-link';
 import '@tiptap/extension-underline';
 import '@tiptap/extension-task-list';
 import '../extensions/callout-node.js';
+import { BlockSelectionPluginKey } from '../extensions/block-selection.js';
 import {
   Bold,
   Italic,
@@ -30,10 +31,12 @@ import {
 
 interface BubbleFormattingMenuProps {
   editor: Editor;
+  disabled?: boolean;
   tippyOptions?: Record<string, unknown>;
 }
 
 const props = withDefaults(defineProps<BubbleFormattingMenuProps>(), {
+  disabled: false,
   tippyOptions: () => ({
     duration: 100,
     placement: 'top',
@@ -47,8 +50,10 @@ const linkUrl = ref('');
 const linkInputRef = ref<HTMLInputElement | null>(null);
 
 function shouldShow({ editor }: { editor: Editor }): boolean {
-  if (!editor || !editor.isEditable) return false;
+  if (props.disabled || !editor || !editor.isEditable) return false;
   const { state } = editor;
+  const selectedBlocks = BlockSelectionPluginKey.getState(state)?.positions ?? [];
+  if (selectedBlocks.length > 0) return false;
   const { selection } = state;
   // Non-empty text selection
   return !selection.empty && isTextSelection(selection);
@@ -62,7 +67,7 @@ const currentBlockLabel = computed(() => {
   if (props.editor.isActive('bulletList')) return 'Marcadores';
   if (props.editor.isActive('taskList')) return 'Tarefas';
   if (props.editor.isActive('blockquote')) return 'Citação';
-  if (props.editor.isActive('callout')) return 'Destaque';
+  if (props.editor.isActive('callout')) return 'Frase de destaque';
   if (props.editor.isActive('codeBlock')) return 'Código';
   return 'Texto';
 });

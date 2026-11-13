@@ -113,4 +113,34 @@ describe('BubbleFormattingMenu.vue', () => {
     expect(mockEditor._chainMock.setLink).toHaveBeenCalledWith({ href: 'https://pulz.dev.br' });
     expect(wrapper.find('[data-testid="inline-link-popover"]').exists()).toBe(false);
   });
+
+  it('blocks BubbleMenu shouldShow when disabled (e.g. during marquee block selection)', async () => {
+    const BubbleMenuPropSpy = {
+      name: 'BubbleMenu',
+      props: ['editor', 'shouldShow', 'tippyOptions'],
+      template: '<div data-testid="bubble-menu-spy"><slot /></div>',
+    };
+    const mockEditor = createMockEditor();
+    const wrapper = mount(BubbleFormattingMenu, {
+      props: {
+        editor: mockEditor as unknown as Editor,
+        disabled: true,
+      },
+      global: {
+        stubs: {
+          BubbleMenu: BubbleMenuPropSpy,
+        },
+      },
+    });
+
+    const shouldShowFn = wrapper
+      .findComponent({ name: 'BubbleMenu' })
+      .props('shouldShow') as (ctx: { editor: Editor }) => boolean;
+
+    expect(shouldShowFn({ editor: mockEditor as unknown as Editor })).toBe(false);
+
+    await wrapper.setProps({ disabled: false });
+    // Non-text / mock empty check still returns false safely unless text selection
+    expect(shouldShowFn({ editor: mockEditor as unknown as Editor })).toBe(false);
+  });
 });

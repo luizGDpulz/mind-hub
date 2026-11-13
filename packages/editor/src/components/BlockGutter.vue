@@ -607,13 +607,13 @@ const turnIntoOptions: Array<{ type: string; label: string; icon: Component }> =
   { type: 'taskList', label: 'Lista de tarefas', icon: CheckSquare },
   { type: 'blockquote', label: 'Citação', icon: Quote },
   { type: 'codeBlock', label: 'Bloco de código', icon: Code },
-  { type: 'callout', label: 'Callout / Destaque', icon: AlertCircle },
+  { type: 'callout', label: 'Frase de destaque', icon: AlertCircle },
   { type: 'mermaid', label: 'Diagrama Mermaid', icon: GitFork },
 ];
 
 const visibleTurnIntoOptions = computed(() =>
   props.basicBlocksOnly
-    ? turnIntoOptions.filter((opt) => opt.type !== 'callout' && opt.type !== 'mermaid')
+    ? turnIntoOptions.filter((opt) => opt.type !== 'mermaid')
     : turnIntoOptions
 );
 

@@ -147,7 +147,8 @@ describe('BlockGutter.vue', () => {
 
     expect(wrapper.find('[data-testid="turn-into-orderedList"]').exists()).toBe(true);
     expect(wrapper.find('[data-testid="turn-into-blockquote"]').exists()).toBe(true);
-    expect(wrapper.find('[data-testid="turn-into-callout"]').exists()).toBe(false);
+    expect(wrapper.find('[data-testid="turn-into-callout"]').exists()).toBe(true);
+    expect(wrapper.find('[data-testid="turn-into-callout"]').text()).toContain('Frase de destaque');
     expect(wrapper.find('[data-testid="turn-into-mermaid"]').exists()).toBe(false);
   });
 });

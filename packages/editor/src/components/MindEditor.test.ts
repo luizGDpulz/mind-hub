@@ -280,7 +280,13 @@ describe('MindEditor.vue', () => {
     window.dispatchEvent(dragOverEvent);
     await nextTick();
 
-    expect(wrapper.find('[data-testid="block-drop-indicator"]').exists()).toBe(true);
+    expect(wrapper.find('[data-testid="block-drop-indicator"]').exists()).toBe(false);
+    expect(wrapper.find('.ProseMirror p[data-block-dragging="true"]').classes()).toContain(
+      'mind-block-dragging-source'
+    );
+    expect(wrapper.find('.ProseMirror h1[data-drop-placement="before"]').classes()).toContain(
+      'mind-block-drop-before'
+    );
 
     const dropEvent = new MouseEvent('drop', {
       clientX: 110,
@@ -293,6 +299,8 @@ describe('MindEditor.vue', () => {
     await nextTick();
 
     expect(wrapper.find('[data-testid="block-drop-indicator"]').exists()).toBe(false);
+    expect(wrapper.find('.ProseMirror [data-block-dragging="true"]').exists()).toBe(false);
+    expect(wrapper.find('.ProseMirror [data-drop-placement]').exists()).toBe(false);
     const firstChild = wrapper.find('.ProseMirror').element.firstElementChild;
     expect(firstChild?.tagName.toLowerCase()).toBe('p');
     expect(firstChild?.textContent).toBe('Bloco colorido');
@@ -539,6 +547,189 @@ describe('MindEditor.vue', () => {
     const remaining = Array.from(proseMirror.querySelectorAll('p')).map((el) => el.textContent);
     expect(remaining).toEqual(['Bloco C']);
     expect(proseMirror.querySelectorAll('.mind-block-selected')).toHaveLength(0);
+
+    wrapper.unmount();
+  });
+
+  it('prevents native text selection during marquee drag, keeps BubbleFormattingMenu disabled, and focuses on empty click', async () => {
+    const host = document.createElement('div');
+    document.body.appendChild(host);
+
+    const wrapper = mount(MindEditor, {
+      attachTo: host,
+      props: {
+        modelValue: '<p>Teste</p><p>Linha 2</p>',
+        enableFrontmatterHeader: false,
+      },
+      global: {
+        stubs: {
+          BubbleFormattingMenu: {
+            name: 'BubbleFormattingMenu',
+            props: ['editor', 'disabled'],
+            template:
+              '<div data-testid="bubble-formatting-stub" :data-disabled="String(Boolean(disabled))" />',
+          },
+        },
+      },
+    });
+
+    await nextTick();
+    await nextTick();
+
+    const root = wrapper.find('[data-testid="mind-editor-root"]').element;
+    const canvas = wrapper.find('.mind-editor-canvas-container').element;
+    const proseMirror = wrapper.find('.ProseMirror').element;
+    const paragraphs = Array.from(proseMirror.querySelectorAll('p'));
+
+    setRect(root, { top: 80, left: 100, width: 880, height: 300 });
+    setRect(canvas, { top: 100, left: 200, width: 680, height: 220 });
+    setRect(proseMirror, { top: 100, left: 200, width: 680, height: 220 });
+    setRect(paragraphs[0]!, { top: 104, left: 200, width: 680, height: 28 });
+    setRect(paragraphs[1]!, { top: 138, left: 200, width: 680, height: 28 });
+
+    const mdEvent = new MouseEvent('mousedown', {
+      clientX: 140,
+      clientY: 108,
+      button: 0,
+      bubbles: true,
+      cancelable: true,
+    });
+    root.dispatchEvent(mdEvent);
+    await nextTick();
+
+    expect(mdEvent.defaultPrevented).toBe(true);
+    expect(root.classList.contains('is-marquee-selecting')).toBe(true);
+    expect(wrapper.find('[data-testid="bubble-formatting-stub"]').attributes('data-disabled')).toBe(
+      'true'
+    );
+
+    // Drag across letters: selects blocks without native browser selection or bubble menu
+    window.dispatchEvent(
+      new MouseEvent('mousemove', { clientX: 280, clientY: 150, bubbles: true })
+    );
+    await nextTick();
+
+    expect(proseMirror.querySelectorAll('.mind-block-selected')).toHaveLength(2);
+    expect(wrapper.find('[data-testid="bubble-formatting-stub"]').attributes('data-disabled')).toBe(
+      'true'
+    );
+    expect(window.getSelection()?.toString() ?? '').toBe('');
+
+    window.dispatchEvent(new MouseEvent('mouseup', { clientX: 280, clientY: 150, bubbles: true }));
+    await nextTick();
+    expect(root.classList.contains('is-marquee-selecting')).toBe(false);
+    // Remains disabled while block group selection is active
+    expect(wrapper.find('[data-testid="bubble-formatting-stub"]').attributes('data-disabled')).toBe(
+      'true'
+    );
+
+    // Clicking empty margin without dragging clears block selection and places caret without marquee
+    const emptyClickDown = new MouseEvent('mousedown', {
+      clientX: 140,
+      clientY: 148,
+      button: 0,
+      bubbles: true,
+      cancelable: true,
+    });
+    root.dispatchEvent(emptyClickDown);
+    expect(emptyClickDown.defaultPrevented).toBe(true);
+
+    window.dispatchEvent(new MouseEvent('mouseup', { clientX: 141, clientY: 148, bubbles: true }));
+    await nextTick();
+
+    expect(proseMirror.querySelectorAll('.mind-block-selected')).toHaveLength(0);
+    expect(wrapper.find('[data-testid="mind-marquee-box"]').exists()).toBe(false);
+    expect(wrapper.find('[data-testid="bubble-formatting-stub"]').attributes('data-disabled')).toBe(
+      'false'
+    );
+
+    wrapper.unmount();
+  });
+
+  it('includes Frase de destaque under Blocos básicos in / slash menu and inserts a callout', async () => {
+    const host = document.createElement('div');
+    document.body.appendChild(host);
+
+    const wrapper = mount(MindEditor, {
+      attachTo: host,
+      props: {
+        modelValue: '<p></p>',
+        basicBlocksOnly: true,
+        enableFrontmatterHeader: false,
+      },
+      global: {
+        stubs: {
+          BubbleFormattingMenu: true,
+        },
+      },
+    });
+
+    await nextTick();
+    await nextTick();
+
+    const editor = wrapper.findComponent({ name: 'EditorContent' }).props('editor');
+    editor.view.coordsAtPos = () => ({ top: 120, left: 200, bottom: 140, right: 205 });
+
+    editor.view.someProp('handleTextInput', (fn: (...args: unknown[]) => unknown) => {
+      fn(editor.view, 1, 1, '/');
+      return false;
+    });
+    editor.view.dispatch(editor.view.state.tr.insertText('/', 1));
+    await nextTick();
+
+    const slashShell = wrapper.find('[data-testid="slash-menu-shell"]');
+    expect(slashShell.exists()).toBe(true);
+    expect(slashShell.text()).toContain('Blocos básicos');
+    expect(slashShell.text()).toContain('Frase de destaque');
+
+    await wrapper.find('[data-testid="slash-item"][data-item-id="callout"]').trigger('click');
+    await nextTick();
+
+    const calloutEl = wrapper.find('.ProseMirror .mind-callout-wrapper');
+    expect(calloutEl.exists()).toBe(true);
+    expect(calloutEl.attributes('data-callout-type')).toBe('note');
+    expect(calloutEl.find('[data-testid="callout-type-btn"]').text()).toContain('💡');
+
+    wrapper.unmount();
+  });
+
+  it('renders empty block placeholder only when focused and hides it when blurred or block-selected', async () => {
+    const host = document.createElement('div');
+    document.body.appendChild(host);
+
+    const wrapper = mount(MindEditor, {
+      attachTo: host,
+      props: {
+        modelValue: '',
+        enableFrontmatterHeader: false,
+      },
+      global: {
+        stubs: {
+          BubbleFormattingMenu: true,
+        },
+      },
+    });
+
+    await nextTick();
+    await nextTick();
+
+    const canvas = wrapper.find('.mind-editor-canvas-container').element;
+    const proseMirror = wrapper.find('.ProseMirror').element as HTMLElement;
+
+    expect(canvas.classList.contains('is-canvas-focused')).toBe(false);
+
+    proseMirror.dispatchEvent(new FocusEvent('focusin', { bubbles: true }));
+    await nextTick();
+
+    expect(canvas.classList.contains('is-canvas-focused')).toBe(true);
+    const emptyP = proseMirror.querySelector('p.is-empty');
+    expect(emptyP).toBeTruthy();
+    expect(emptyP?.getAttribute('data-placeholder')).toBe('Pressione / para inserir blocos');
+
+    // Blur hides placeholder
+    proseMirror.dispatchEvent(new FocusEvent('focusout', { bubbles: true, relatedTarget: document.body }));
+    await nextTick();
+    expect(canvas.classList.contains('is-canvas-focused')).toBe(false);
 
     wrapper.unmount();
   });

@@ -1,8 +1,7 @@
 <script setup lang="ts">
-import { computed, markRaw, nextTick, onBeforeUnmount, ref, watch, type Component } from 'vue';
+import { computed, nextTick, onBeforeUnmount, ref, watch, type Component } from 'vue';
 import { useEditor, EditorContent, VueNodeViewRenderer } from '@tiptap/vue-3';
 import type { NodeViewProps } from '@tiptap/core';
-import type { Node as PmNode } from '@tiptap/pm/model';
 import StarterKit from '@tiptap/starter-kit';
 import TaskList from '@tiptap/extension-task-list';
 import TaskItem from '@tiptap/extension-task-item';
@@ -13,37 +12,18 @@ import TableCell from '@tiptap/extension-table-cell';
 import Underline from '@tiptap/extension-underline';
 import Link from '@tiptap/extension-link';
 import Placeholder from '@tiptap/extension-placeholder';
-import {
-  Type,
-  Heading1,
-  Heading2,
-  Heading3,
-  Heading4,
-  List,
-  ListOrdered,
-  ListTodo,
-  Quote,
-  AlertCircle,
-  Code,
-  Workflow,
-  Table as TableIcon,
-  Minus,
-  LayoutGrid,
-  FilePlus,
-  Sparkles,
-  CodeXml,
-} from 'lucide-vue-next';
 
 import {
   DEFAULT_NOTE_TAGS,
   type EditorFrontmatter,
   type MindEditorProps,
   type MindEditorEmits,
-  type SlashMenuItem,
   type PageReference,
+  type SlashMenuItem,
   type BlockColorUpdate,
 } from '../types.js';
 import FrontmatterHeader from './FrontmatterHeader.vue';
+import NoteTitleBar from './NoteTitleBar.vue';
 import BlockGutter from './BlockGutter.vue';
 import SlashMenu from './SlashMenu.vue';
 import PageMentionPopover from './PageMentionPopover.vue';
@@ -51,16 +31,15 @@ import BubbleFormattingMenu from './BubbleFormattingMenu.vue';
 import MermaidBlockView from './MermaidBlockView.vue';
 import CalloutBlockView from './CalloutBlockView.vue';
 
+import { useMarqueeSelection } from '../composables/useMarqueeSelection.js';
 import { GlobalDragHandle } from '../extensions/drag-handle.js';
 import {
   BlockSelection,
   clearBlockSelection,
   deleteBlocksAtPositions,
   duplicateBlocksAtPositions,
-  findBlocksIntersectingRect,
   moveSelectedBlocksStep,
   setBlockSelection,
-  shouldStartMarqueeFromPoint,
   turnIntoBlocksAtPositions,
 } from '../extensions/block-selection.js';
 import {
@@ -69,6 +48,7 @@ import {
   normalizeContainerBlockColors,
 } from '../extensions/block-color.js';
 import { SlashCommand, executeSlashItem } from '../extensions/slash-command.js';
+import { createDefaultSlashItems } from '../extensions/slash-items.js';
 import { PageMention } from '../extensions/page-mention.js';
 import { MermaidNode } from '../extensions/mermaid-node.js';
 import { CalloutNode } from '../extensions/callout-node.js';
@@ -83,7 +63,7 @@ const props = withDefaults(defineProps<MindEditorProps>(), {
   defaultTags: () => [...DEFAULT_NOTE_TAGS],
   basicBlocksOnly: false,
   readOnly: false,
-  placeholder: "Pressione '/' para comandos ou comece a digitar...",
+  placeholder: 'Pressione / para inserir blocos',
   pages: () => [],
   enableFrontmatterHeader: true,
   showProperties: undefined,
@@ -164,45 +144,10 @@ const gutterState = ref<{
   bgColor: null,
 });
 
-const dropIndicatorState = ref<{
-  visible: boolean;
-  top: number;
-}>({
-  visible: false,
-  top: 0,
-});
-
 const isGutterHovered = ref(false);
 const isGutterMenuOpen = ref(false);
+const isEditorFocused = ref(false);
 const selectedBlockPositions = ref<number[]>([]);
-
-const marqueeState = ref<{
-  active: boolean;
-  startX: number;
-  startY: number;
-  currentX: number;
-  currentY: number;
-}>({
-  active: false,
-  startX: 0,
-  startY: 0,
-  currentX: 0,
-  currentY: 0,
-});
-
-const marqueeRectStyle = computed(() => {
-  if (!marqueeState.value.active) return null;
-  const left = Math.min(marqueeState.value.startX, marqueeState.value.currentX);
-  const top = Math.min(marqueeState.value.startY, marqueeState.value.currentY);
-  const width = Math.abs(marqueeState.value.currentX - marqueeState.value.startX);
-  const height = Math.abs(marqueeState.value.currentY - marqueeState.value.startY);
-  return {
-    left: `${left}px`,
-    top: `${top}px`,
-    width: `${width}px`,
-    height: `${height}px`,
-  };
-});
 
 const activeGutterSelectedCount = computed(() =>
   selectedBlockPositions.value.includes(gutterState.value.nodePos)
@@ -254,191 +199,12 @@ const pageMentionState = ref<{
   range: { from: 0, to: 0 },
 });
 
-// Default Slash Menu Items matching Docmost & Notion design
-const defaultSlashItems: SlashMenuItem[] = [
-  // Sugestões
-  {
-    id: 'ai-notes',
-    title: 'Anotações IA',
-    description: 'Gerar notas inteligentes ou transcrição',
-    category: 'suggestions',
-    icon: markRaw(Sparkles),
-    keywords: ['ia', 'ai', 'anotacoes', 'resumo', 'smart'],
-    action: () => emit('generateAiNotes'),
-  },
-  {
-    id: 'html-embed',
-    title: 'HTML',
-    subtitle: 'Integrações',
-    badge: 'Novo',
-    description: 'Inserir widget HTML ou integração externa',
-    category: 'suggestions',
-    icon: markRaw(CodeXml),
-    keywords: ['html', 'embed', 'integracao', 'iframe', 'widget'],
-    action: (editor) =>
-      editor.chain().focus().insertContent({ type: 'codeBlock', attrs: { language: 'html' } }).run(),
-  },
-
-  // Blocos básicos
-  {
-    id: 'paragraph',
-    title: 'Texto',
-    description: 'Comece a escrever texto puro',
-    category: 'basic',
-    icon: markRaw(Type),
-    keywords: ['texto', 'p', 'paragraph'],
-    action: (editor) => editor.chain().focus().setParagraph().run(),
-  },
-  {
-    id: 'h1',
-    title: 'Título 1',
-    shortcut: '#',
-    description: 'Título de seção principal',
-    category: 'basic',
-    icon: markRaw(Heading1),
-    keywords: ['h1', 'heading', 'titulo'],
-    action: (editor) => editor.chain().focus().toggleHeading({ level: 1 }).run(),
-  },
-  {
-    id: 'h2',
-    title: 'Título 2',
-    shortcut: '##',
-    description: 'Subtítulo de seção',
-    category: 'basic',
-    icon: markRaw(Heading2),
-    keywords: ['h2', 'heading', 'subtitulo'],
-    action: (editor) => editor.chain().focus().toggleHeading({ level: 2 }).run(),
-  },
-  {
-    id: 'h3',
-    title: 'Título 3',
-    shortcut: '###',
-    description: 'Subtítulo menor',
-    category: 'basic',
-    icon: markRaw(Heading3),
-    keywords: ['h3', 'heading'],
-    action: (editor) => editor.chain().focus().toggleHeading({ level: 3 }).run(),
-  },
-  {
-    id: 'h4',
-    title: 'Título 4',
-    shortcut: '####',
-    description: 'Subtítulo nível 4',
-    category: 'basic',
-    icon: markRaw(Heading4),
-    keywords: ['h4', 'heading'],
-    action: (editor) => editor.chain().focus().toggleHeading({ level: 4 }).run(),
-  },
-  {
-    id: 'bullet-list',
-    title: 'Lista com marcadores',
-    shortcut: '-',
-    description: 'Lista com bullets simples',
-    category: 'basic',
-    icon: markRaw(List),
-    keywords: ['lista', 'bullet', 'ul'],
-    action: (editor) => editor.chain().focus().toggleBulletList().run(),
-  },
-  {
-    id: 'ordered-list',
-    title: 'Lista numerada',
-    shortcut: '1.',
-    description: 'Lista sequencial numerada',
-    category: 'basic',
-    icon: markRaw(ListOrdered),
-    keywords: ['lista', 'numerada', 'ordenada', 'ordered', 'ol', 'numeros'],
-    action: (editor) => editor.chain().focus().toggleOrderedList().run(),
-  },
-  {
-    id: 'task-list',
-    title: 'Lista de tarefas',
-    shortcut: '[]',
-    description: 'Checklist interativo com caixas de seleção',
-    category: 'basic',
-    icon: markRaw(ListTodo),
-    keywords: ['tarefa', 'task', 'todo', 'check'],
-    action: (editor) => editor.chain().focus().toggleTaskList().run(),
-  },
-  {
-    id: 'blockquote',
-    title: 'Citação',
-    shortcut: '>',
-    description: 'Destacar uma citação em bloco',
-    category: 'basic',
-    icon: markRaw(Quote),
-    keywords: ['citacao', 'quote'],
-    action: (editor) => editor.chain().focus().toggleBlockquote().run(),
-  },
-  {
-    id: 'code-block',
-    title: 'Bloco de código',
-    shortcut: '```',
-    description: 'Trecho de código com formatação monoespaçada',
-    category: 'basic',
-    icon: markRaw(Code),
-    keywords: ['codigo', 'code', 'snippet'],
-    action: (editor) => editor.chain().focus().toggleCodeBlock().run(),
-  },
-  {
-    id: 'divider',
-    title: 'Divisor',
-    shortcut: '---',
-    description: 'Linha horizontal divisória',
-    category: 'basic',
-    icon: markRaw(Minus),
-    keywords: ['divisor', 'linha', 'hr', 'separador'],
-    action: (editor) => editor.chain().focus().setHorizontalRule().run(),
-  },
-
-  // Mídia e Avançado
-  {
-    id: 'callout',
-    title: 'Destaque / Callout',
-    description: 'Caixa de alerta, dica ou nota pastel',
-    category: 'highlight',
-    icon: markRaw(AlertCircle),
-    keywords: ['callout', 'nota', 'dica', 'alerta', 'aviso'],
-    action: (editor) => editor.chain().focus().setCallout().run(),
-  },
-  {
-    id: 'mermaid',
-    title: 'Diagrama Mermaid',
-    description: 'Fluxogramas e diagramas interativos SVG',
-    category: 'media',
-    icon: markRaw(Workflow),
-    keywords: ['mermaid', 'diagrama', 'fluxo', 'chart'],
-    action: (editor) =>
-      editor.chain().focus().insertContent({ type: 'mermaid' }).run(),
-  },
-  {
-    id: 'table',
-    title: 'Tabela',
-    description: 'Tabela simples com linhas e colunas',
-    category: 'advanced',
-    icon: markRaw(TableIcon),
-    keywords: ['tabela', 'table', 'grid'],
-    action: (editor) =>
-      editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run(),
-  },
-  {
-    id: 'database',
-    title: 'Banco de Dados',
-    description: 'Inserir visualização de tarefas em tabela e kanban',
-    category: 'advanced',
-    icon: markRaw(LayoutGrid),
-    keywords: ['banco', 'database', 'tarefas', 'kanban', 'tasks'],
-    action: () => emit('insertDatabaseBlock'),
-  },
-  {
-    id: 'subpage',
-    title: 'Subpágina',
-    description: 'Criar uma nova subpágina aninhada',
-    category: 'advanced',
-    icon: markRaw(FilePlus),
-    keywords: ['subpagina', 'subpage', 'pagina', 'nota'],
-    action: () => emit('createSubpage'),
-  },
-];
+// Modular Default Slash Menu Items
+const defaultSlashItems = createDefaultSlashItems({
+  onGenerateAiNotes: () => emit('generateAiNotes'),
+  onInsertDatabaseBlock: () => emit('insertDatabaseBlock'),
+  onCreateSubpage: () => emit('createSubpage'),
+});
 
 const activeSlashItems = computed(() => {
   const base = props.basicBlocksOnly
@@ -502,7 +268,11 @@ const editor = useEditor({
       },
     }),
     Placeholder.configure({
-      placeholder: props.placeholder,
+      placeholder: ({ node }) =>
+        node.type.name === 'paragraph' || node.type.name === 'heading' ? props.placeholder : '',
+      showOnlyCurrent: true,
+      showOnlyWhenEditable: true,
+      includeChildren: true,
     }),
     GlobalDragHandle.configure({
       onPositionChange: (pos) => {
@@ -523,9 +293,6 @@ const editor = useEditor({
           textColor: pos.textColor ?? null,
           bgColor: pos.bgColor ?? null,
         };
-      },
-      onDropIndicatorChange: (indicator) => {
-        dropIndicatorState.value = indicator ?? { visible: false, top: 0 };
       },
       getSelectedPositions: () => selectedBlockPositions.value,
       onGroupMoved: (newPositions) => {
@@ -589,6 +356,12 @@ const editor = useEditor({
   ],
   onCreate: ({ editor: ed }) => {
     normalizeContainerBlockColors(ed);
+  },
+  onFocus: () => {
+    isEditorFocused.value = true;
+  },
+  onBlur: () => {
+    isEditorFocused.value = false;
   },
   onUpdate: ({ editor: ed }) => {
     isInternalUpdate = true;
@@ -771,8 +544,7 @@ function closePageMention(): void {
 }
 
 // Note title handlers (kept strictly independent from block nodes; DB Page.title owns note identity)
-function handleTitleInput(event: Event): void {
-  const nextTitle = (event.target as HTMLInputElement).value;
+function handleTitleUpdate(nextTitle: string): void {
   emit('update:title', nextTitle);
   if (props.frontmatter && props.frontmatter.title !== undefined) {
     emit('update:frontmatter', { ...props.frontmatter, title: nextTitle });
@@ -783,84 +555,27 @@ function focusEditorStart(): void {
   editor.value?.chain().focus('start').run();
 }
 
+function handleEditorFocusOut(event: FocusEvent): void {
+  const nextTarget = event.relatedTarget as Node | null;
+  const pmDom = editor.value?.view?.dom;
+  if (pmDom && nextTarget && pmDom.contains(nextTarget)) {
+    return;
+  }
+  isEditorFocused.value = false;
+}
+
 // Notion-style External Marquee Box Selection vs Internal Text Selection
-let pendingMarqueeStart: { x: number; y: number } | null = null;
-
-function onMarqueeMouseMove(event: MouseEvent): void {
-  if (!pendingMarqueeStart || !editor.value) return;
-  const dx = event.clientX - pendingMarqueeStart.x;
-  const dy = event.clientY - pendingMarqueeStart.y;
-
-  if (!marqueeState.value.active) {
-    if (Math.hypot(dx, dy) < 5) return;
-    marqueeState.value = {
-      active: true,
-      startX: pendingMarqueeStart.x,
-      startY: pendingMarqueeStart.y,
-      currentX: event.clientX,
-      currentY: event.clientY,
-    };
-    window.getSelection()?.removeAllRanges();
-  } else {
-    marqueeState.value.currentX = event.clientX;
-    marqueeState.value.currentY = event.clientY;
-  }
-
-  const left = Math.min(marqueeState.value.startX, marqueeState.value.currentX);
-  const top = Math.min(marqueeState.value.startY, marqueeState.value.currentY);
-  const right = Math.max(marqueeState.value.startX, marqueeState.value.currentX);
-  const bottom = Math.max(marqueeState.value.startY, marqueeState.value.currentY);
-
-  const hits = findBlocksIntersectingRect(editor.value.view, { left, top, right, bottom });
-  setBlockSelection(editor.value.view, hits);
-}
-
-function cleanupMarqueeListeners(): void {
-  window.removeEventListener('mousemove', onMarqueeMouseMove);
-  window.removeEventListener('mouseup', onMarqueeMouseUp);
-}
-
-function onMarqueeMouseUp(): void {
-  cleanupMarqueeListeners();
-  const wasActive = marqueeState.value.active;
-  marqueeState.value.active = false;
-  pendingMarqueeStart = null;
-
-  if (!editor.value) return;
-
-  if (wasActive && selectedBlockPositions.value.length > 0) {
-    window.getSelection()?.removeAllRanges();
-    editor.value.view.dom.focus({ preventScroll: true });
-  }
-}
-
-function handleRootMouseDown(event: MouseEvent): void {
-  if (props.readOnly || !editor.value || event.button !== 0) return;
-
-  const targetEl = event.target instanceof Element ? event.target : null;
-
-  // Keep current group selection intact while interacting with gutter handle/menu
-  if (
-    targetEl?.closest('.mind-block-gutter-shell, .block-actions-popover, .mind-color-picker-shell')
-  ) {
-    return;
-  }
-
-  if (!shouldStartMarqueeFromPoint(editor.value.view, targetEl, event.clientX, event.clientY)) {
-    if (selectedBlockPositions.value.length > 0) {
-      clearBlockSelection(editor.value.view);
-    }
-    return;
-  }
-
-  if (selectedBlockPositions.value.length > 0) {
-    clearBlockSelection(editor.value.view);
-  }
-
-  pendingMarqueeStart = { x: event.clientX, y: event.clientY };
-  window.addEventListener('mousemove', onMarqueeMouseMove);
-  window.addEventListener('mouseup', onMarqueeMouseUp);
-}
+const {
+  isPointerDown,
+  marqueeState,
+  marqueeRectStyle,
+  handleRootMouseDown,
+  cleanupListeners: cleanupMarqueeListeners,
+} = useMarqueeSelection({
+  editor,
+  readOnly: () => props.readOnly,
+  selectedBlockPositions,
+});
 
 // Global Save & Group Block Keyboard Shortcuts
 function handleKeydown(event: KeyboardEvent): void {
@@ -903,7 +618,10 @@ defineExpose({
 <template>
   <div
     class="mind-editor-root"
-    :class="{ 'is-marquee-selecting': marqueeState.active }"
+    :class="{
+      'is-marquee-selecting': marqueeState.active || isPointerDown,
+      'has-block-selection': selectedBlockPositions.length > 0,
+    }"
     data-testid="mind-editor-root"
     @keydown="handleKeydown"
     @mousedown="handleRootMouseDown"
@@ -929,25 +647,22 @@ defineExpose({
     />
 
     <!-- 2. Separate Note Title Header (below Properties, outside ProseMirror block canvas) -->
-    <div v-if="showTitle" class="mind-note-title-bar" data-testid="mind-note-title-bar">
-      <input
-        :value="title ?? frontmatter?.title ?? ''"
-        type="text"
-        class="mind-note-title-input"
-        data-testid="mind-note-title-input"
-        :placeholder="titlePlaceholder"
-        :readonly="readOnly"
-        aria-label="Título da nota"
-        @input="handleTitleInput"
-        @keydown.enter.prevent="focusEditorStart"
-        @keydown.down.prevent="focusEditorStart"
-      >
-    </div>
+    <NoteTitleBar
+      v-if="showTitle"
+      :model-value="title ?? frontmatter?.title ?? ''"
+      :placeholder="titlePlaceholder"
+      :read-only="readOnly"
+      @update:model-value="handleTitleUpdate"
+      @focus-editor="focusEditorStart"
+    />
 
     <!-- Editor Canvas Surface -->
     <div
       class="mind-editor-canvas-container"
-      :class="{ 'is-readonly': readOnly }"
+      :class="{
+        'is-readonly': readOnly,
+        'is-canvas-focused': isEditorFocused && !marqueeState.active && selectedBlockPositions.length === 0,
+      }"
     >
       <!-- Block Gutter (+ and ⠿) on Left Margin -->
       <BlockGutter
@@ -967,20 +682,11 @@ defineExpose({
         @menu-toggle="handleGutterMenuToggle"
       />
 
-      <!-- Notion-like Horizontal Drop Indicator Bar (expanded left gutter reach) -->
-      <div
-        v-if="dropIndicatorState.visible"
-        class="mind-drop-indicator"
-        data-testid="block-drop-indicator"
-        :style="{ top: `${dropIndicatorState.top}px` }"
-      >
-        <span class="mind-drop-indicator-dot" />
-      </div>
-
       <!-- Bubble Formatting Menu Inline on Text Selection -->
       <BubbleFormattingMenu
         v-if="editor && !readOnly"
         :editor="editor"
+        :disabled="marqueeState.active || isPointerDown || selectedBlockPositions.length > 0"
       />
 
       <!-- Slash Command Menu Popover -->
@@ -1009,6 +715,8 @@ defineExpose({
         :editor="editor"
         class="mind-editor-content"
         data-testid="mind-editor-content"
+        @focusin="isEditorFocused = true"
+        @focusout="handleEditorFocusOut"
       />
     </div>
   </div>
@@ -1026,29 +734,6 @@ defineExpose({
   color: #111827;
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
   box-sizing: border-box;
-}
-
-.mind-note-title-bar {
-  margin-bottom: 10px;
-}
-
-.mind-note-title-input {
-  width: 100%;
-  border: none;
-  outline: none;
-  background: transparent;
-  font-size: 34px;
-  font-weight: 700;
-  line-height: 1.25;
-  letter-spacing: -0.02em;
-  color: #111827;
-  padding: 2px 0;
-  margin: 0;
-  font-family: inherit;
-}
-
-.mind-note-title-input::placeholder {
-  color: #ced4da;
 }
 
 .mind-editor-canvas-container {
@@ -1311,39 +996,22 @@ defineExpose({
   font-weight: 600;
 }
 
-:deep(.ProseMirror p.is-editor-empty:first-child::before) {
+:deep(.ProseMirror .is-empty::before) {
+  display: none;
+}
+
+.is-canvas-focused:not(.is-readonly) :deep(.ProseMirror > p.is-empty::before),
+.is-canvas-focused:not(.is-readonly) :deep(.ProseMirror .mind-callout-content > p.is-empty::before),
+.is-canvas-focused:not(.is-readonly) :deep(.ProseMirror > h1.is-empty::before),
+.is-canvas-focused:not(.is-readonly) :deep(.ProseMirror > h2.is-empty::before),
+.is-canvas-focused:not(.is-readonly) :deep(.ProseMirror > h3.is-empty::before),
+.is-canvas-focused:not(.is-readonly) :deep(.ProseMirror > h4.is-empty::before) {
+  display: inline;
   content: attr(data-placeholder);
   float: left;
-  color: #868e96;
+  color: #adb5bd;
   pointer-events: none;
   height: 0;
-}
-
-/* Ergonomic Left-Expanded Drop Indicator (Clean Gray Scale) */
-.mind-drop-indicator {
-  position: absolute;
-  left: -20px;
-  right: -10px;
-  height: 3px;
-  background-color: #868e96;
-  border-radius: 2px;
-  pointer-events: none;
-  z-index: 40;
-  transform: translateY(-50%);
-  box-shadow: 0 0 0 1px rgba(134, 142, 150, 0.22);
-}
-
-.mind-drop-indicator-dot {
-  position: absolute;
-  left: -4px;
-  top: 50%;
-  width: 8px;
-  height: 8px;
-  border-radius: 999px;
-  background-color: #ffffff;
-  border: 2px solid #868e96;
-  transform: translateY(-50%);
-  box-sizing: border-box;
 }
 
 :deep(.ProseMirror.is-dragging-block .ProseMirror-dropcursor) {
@@ -1371,9 +1039,12 @@ defineExpose({
 :deep(.ProseMirror [data-block-bg="pink"]) { background-color: #fff0f6; }
 :deep(.ProseMirror [data-block-bg="red"]) { background-color: #fff5f5; }
 
-/* Marquee Lasso Box & Selected Block Group Highlight */
-.mind-editor-root.is-marquee-selecting {
-  user-select: none;
+/* Marquee Lasso Box, Dragged Block Highlight & Group Block Selection */
+.mind-editor-root.is-marquee-selecting,
+.mind-editor-root.is-marquee-selecting :deep(.ProseMirror),
+.mind-editor-root.is-marquee-selecting :deep(.ProseMirror *) {
+  user-select: none !important;
+  -webkit-user-select: none !important;
 }
 
 .mind-marquee-box {
@@ -1385,8 +1056,23 @@ defineExpose({
   border-radius: 4px;
 }
 
-:deep(.ProseMirror .mind-block-selected) {
-  box-shadow: inset 0 0 0 999px rgba(25, 113, 194, 0.1), 0 0 0 1px rgba(25, 113, 194, 0.25);
+:deep(.ProseMirror .mind-block-selected),
+:deep(.ProseMirror .mind-block-dragging-source) {
+  box-shadow: inset 0 0 0 999px rgba(25, 113, 194, 0.11), 0 0 0 1px rgba(25, 113, 194, 0.28);
+  border-radius: 6px;
+}
+
+:deep(.ProseMirror .mind-block-dragging-source) {
+  opacity: 0.78;
+}
+
+:deep(.ProseMirror .mind-block-drop-before) {
+  box-shadow: 0 -2.5px 0 0 rgba(25, 113, 194, 0.58), inset 0 1px 0 0 rgba(25, 113, 194, 0.24);
+  border-radius: 6px;
+}
+
+:deep(.ProseMirror .mind-block-drop-after) {
+  box-shadow: 0 2.5px 0 0 rgba(25, 113, 194, 0.58), inset 0 -1px 0 0 rgba(25, 113, 194, 0.24);
   border-radius: 6px;
 }
 </style>

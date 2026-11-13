@@ -235,7 +235,7 @@ function handleSave(): void {
             :basic-blocks-only="true"
             :frontmatter="frontmatter"
             :pages="samplePages"
-            placeholder="Digite '---' no início para propriedades ou '/' para blocos básicos..."
+            placeholder="Pressione / para inserir blocos"
             @update:frontmatter="handleFrontmatterUpdate"
             @save="handleSave"
           />

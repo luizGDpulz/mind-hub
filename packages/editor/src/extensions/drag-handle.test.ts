@@ -8,6 +8,7 @@ import {
   getNodePosAtDOM,
   resolveDropTarget,
   moveBlockAtPos,
+  moveBlocksAtPositions,
 } from './drag-handle.js';
 
 function mockRect(
@@ -211,5 +212,37 @@ describe('GlobalDragHandle Extension', () => {
     expect(lastChild.type.name).toBe('paragraph');
     expect(lastChild.textContent).toBe('Solto');
     expect(liPos).toBeGreaterThan(0);
+  });
+
+  it('moves multiple selected blocks together as an atomic group across positions and list items', () => {
+    const editor = new Editor({
+      extensions: [StarterKit],
+      content: '<p>Um</p><p>Dois</p><ul><li><p>Item A</p></li><li><p>Item B</p></li></ul><p>Fim</p>',
+    });
+    createdEditors.push(editor);
+
+    const ps = Array.from(editor.view.dom.querySelectorAll('.ProseMirror > p'));
+    const p1Pos = getNodePosAtDOM(ps[0]!, editor.view)!;
+    const p2Pos = getNodePosAtDOM(ps[1]!, editor.view)!;
+    const fimPos = getNodePosAtDOM(ps[2]!, editor.view)!;
+
+    expect(moveBlocksAtPositions(editor.view, [p1Pos, p2Pos], fimPos, 'after')).toBe(true);
+    expect(editor.getHTML()).toBe(
+      '<ul><li><p>Item A</p></li><li><p>Item B</p></li></ul><p>Fim</p><p>Um</p><p>Dois</p>'
+    );
+
+    // Move multiple list items out of <ul> before <p>Fim</p>
+    const lis = Array.from(editor.view.dom.querySelectorAll('li'));
+    const li1Pos = getNodePosAtDOM(lis[0]!, editor.view)!;
+    const li2Pos = getNodePosAtDOM(lis[1]!, editor.view)!;
+    const newFimPos = getNodePosAtDOM(
+      editor.view.dom.querySelector('.ProseMirror > p')!,
+      editor.view
+    )!;
+
+    expect(moveBlocksAtPositions(editor.view, [li1Pos, li2Pos], newFimPos, 'after')).toBe(true);
+    expect(editor.getHTML()).toBe(
+      '<p>Fim</p><ul><li><p>Item A</p></li><li><p>Item B</p></li></ul><p>Um</p><p>Dois</p>'
+    );
   });
 });

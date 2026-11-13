@@ -23,6 +23,8 @@ export interface DragHandleOptions {
   customSelectors?: string[];
   onPositionChange?: (pos: DragHandlePositionPayload | null) => void;
   onDropIndicatorChange?: (indicator: DropIndicatorPayload | null) => void;
+  getSelectedPositions?: () => number[];
+  onGroupMoved?: (newPositions: number[]) => void;
 }
 
 const DEFAULT_BLOCK_SELECTORS = [
@@ -52,7 +54,7 @@ const VERTICAL_GAP_TOLERANCE = 28;
 const GUTTER_HANDLE_SIZE = 24;
 const PILL_CENTER_MAX_HEIGHT = 112;
 
-function collectBlockCandidates(viewDom: HTMLElement): Element[] {
+export function collectBlockCandidates(viewDom: HTMLElement): Element[] {
   const candidates: Element[] = [];
   for (const child of Array.from(viewDom.children)) {
     if (child.matches('ul, ol')) {
@@ -190,6 +192,291 @@ export function resolveDropTarget(
   };
 }
 
+export interface MoveBlocksResult {
+  moved: boolean;
+  newPositions: number[];
+}
+
+interface SourceBlockEntry {
+  from: number;
+  to: number;
+  node: PmNode;
+  parentListType: PmNode['type'] | null;
+}
+
+function normalizeSourceEntries(doc: PmNode, sourcePositions: number[]): SourceBlockEntry[] {
+  const uniqueSorted = Array.from(new Set(sourcePositions))
+    .filter((pos) => Number.isInteger(pos) && pos >= 0 && pos < doc.content.size)
+    .sort((a, b) => a - b);
+
+  const entries: SourceBlockEntry[] = [];
+  let coveredEnd = -1;
+
+  for (const pos of uniqueSorted) {
+    if (pos < coveredEnd) continue;
+    const node = doc.nodeAt(pos);
+    if (!node) continue;
+
+    let parentListType: PmNode['type'] | null = null;
+    if (node.type.name === 'listItem' || node.type.name === 'taskItem') {
+      const $pos = doc.resolve(pos);
+      if ($pos.depth >= 1) {
+        parentListType = $pos.parent.type;
+      }
+    }
+
+    const to = pos + node.nodeSize;
+    entries.push({ from: pos, to, node, parentListType });
+    coveredEnd = to;
+  }
+
+  return entries;
+}
+
+function buildInsertionNodes(entries: SourceBlockEntry[], targetInList: boolean): PmNode[] {
+  if (targetInList) {
+    return entries.map((e) => e.node);
+  }
+
+  const out: PmNode[] = [];
+  let i = 0;
+
+  while (i < entries.length) {
+    const entry = entries[i]!;
+    const isList = entry.node.type.name === 'listItem' || entry.node.type.name === 'taskItem';
+
+    if (!isList || !entry.parentListType) {
+      out.push(entry.node);
+      i += 1;
+      continue;
+    }
+
+    const listType = entry.parentListType;
+    const groupNodes: PmNode[] = [entry.node];
+    let j = i + 1;
+
+    while (j < entries.length) {
+      const next = entries[j]!;
+      const nextIsSameList =
+        (next.node.type.name === 'listItem' || next.node.type.name === 'taskItem') &&
+        next.parentListType === listType;
+      if (!nextIsSameList) break;
+      groupNodes.push(next.node);
+      j += 1;
+    }
+
+    out.push(listType.create(null, Fragment.fromArray(groupNodes)));
+    i = j;
+  }
+
+  return out;
+}
+
+const LIST_CONTAINER_NODE_NAMES = new Set(['bulletList', 'orderedList', 'taskList']);
+
+/**
+ * Promotes item-level deletion ranges to their parent list container when every
+ * child item of a list is being deleted, preventing ProseMirror schema auto-healing
+ * from leaving behind a phantom empty `<li><p></p></li>`.
+ */
+export function collapseFullListDeletionRanges(
+  doc: PmNode,
+  rawRanges: Array<{ from: number; to: number }>
+): Array<{ from: number; to: number }> {
+  let current = [...rawRanges].sort((a, b) => a.from - b.from);
+  let changed = true;
+
+  while (changed) {
+    changed = false;
+    const next: Array<{ from: number; to: number }> = [];
+    let i = 0;
+
+    while (i < current.length) {
+      const first = current[i]!;
+      const $first = doc.resolve(first.from);
+      if (
+        $first.depth >= 1 &&
+        LIST_CONTAINER_NODE_NAMES.has($first.parent.type.name) &&
+        $first.parent.childCount > 0
+      ) {
+        const listDepth = $first.depth;
+        const parentFrom = $first.before(listDepth);
+        const parentTo = $first.after(listDepth);
+        const expectedCount = $first.parent.childCount;
+
+        let j = i + 1;
+        while (j < current.length) {
+          const cand = current[j]!;
+          const $cand = doc.resolve(cand.from);
+          if ($cand.depth !== listDepth || $cand.before(listDepth) !== parentFrom) {
+            break;
+          }
+          j += 1;
+        }
+
+        if (j - i === expectedCount) {
+          next.push({ from: parentFrom, to: parentTo });
+          changed = true;
+          i = j;
+          continue;
+        }
+      }
+
+      next.push(first);
+      i += 1;
+    }
+
+    current = next;
+  }
+
+  return current;
+}
+
+/**
+ * Moves one or multiple selected blocks to before/after `targetPos` in a single transaction,
+ * automatically adapting cross-list boundaries and returning the resulting block positions.
+ */
+export function moveBlocksWithResult(
+  view: EditorView,
+  sourcePositions: number[],
+  targetPos: number,
+  placement: 'before' | 'after'
+): MoveBlocksResult {
+  const { state } = view;
+  const { doc } = state;
+
+  const entries = normalizeSourceEntries(doc, sourcePositions);
+  if (entries.length === 0) return { moved: false, newPositions: [] };
+
+  const targetNode = doc.nodeAt(targetPos);
+  if (!targetNode) return { moved: false, newPositions: [] };
+
+  let insertPos = placement === 'before' ? targetPos : targetPos + targetNode.nodeSize;
+
+  // Reject no-op if target edge lies inside or adjacent to a contiguous single range
+  if (entries.some((e) => insertPos > e.from && insertPos < e.to)) {
+    return { moved: false, newPositions: [] };
+  }
+  if (entries.length === 1) {
+    const only = entries[0]!;
+    if (insertPos >= only.from && insertPos <= only.to) {
+      return { moved: false, newPositions: [] };
+    }
+  } else {
+    const isContiguous = entries.every((e, idx) => idx === 0 || e.from === entries[idx - 1]!.to);
+    if (isContiguous) {
+      const firstFrom = entries[0]!.from;
+      const lastTo = entries[entries.length - 1]!.to;
+      if (insertPos >= firstFrom && insertPos <= lastTo) {
+        return { moved: false, newPositions: [] };
+      }
+    }
+  }
+
+  const allSourceListItems = entries.every(
+    (e) => e.node.type.name === 'listItem' || e.node.type.name === 'taskItem'
+  );
+
+  const $rawInsert = doc.resolve(insertPos);
+  if (!allSourceListItems && $rawInsert.depth >= 1) {
+    // Climb out of list container when dropping non-list blocks beside a list item
+    const sampleTopNode = entries.find(
+      (e) => e.node.type.name !== 'listItem' && e.node.type.name !== 'taskItem'
+    )!.node;
+    for (let d = $rawInsert.depth; d >= 1; d--) {
+      if (
+        $rawInsert.parent.canReplace(
+          $rawInsert.index(),
+          $rawInsert.index(),
+          Fragment.from(sampleTopNode)
+        )
+      ) {
+        break;
+      }
+      insertPos = placement === 'before' ? $rawInsert.before(d) : $rawInsert.after(d);
+    }
+  }
+
+  const $adjusted = doc.resolve(insertPos);
+  const targetIsListContainer =
+    $adjusted.depth >= 1 && LIST_CONTAINER_NODE_NAMES.has($adjusted.parent.type.name);
+
+  const nodesToInsert = buildInsertionNodes(entries, allSourceListItems && targetIsListContainer);
+  const insertFragment = Fragment.fromArray(nodesToInsert);
+
+  const tr = state.tr;
+
+  // Delete all source blocks back-to-front (collapsing full lists so no phantom empty items remain)
+  const deletionRanges = collapseFullListDeletionRanges(
+    doc,
+    entries.map((e) => ({ from: e.from, to: e.to }))
+  );
+  for (let idx = deletionRanges.length - 1; idx >= 0; idx -= 1) {
+    const range = deletionRanges[idx]!;
+    tr.delete(range.from, range.to);
+  }
+
+  // Fallback sweep for any empty list wrappers left behind
+  const emptyListRanges: Array<{ from: number; to: number }> = [];
+  let scanOffset = 0;
+  for (let i = 0; i < tr.doc.childCount; i += 1) {
+    const child = tr.doc.child(i);
+    if (child.childCount === 0 && LIST_CONTAINER_NODE_NAMES.has(child.type.name)) {
+      emptyListRanges.push({ from: scanOffset, to: scanOffset + child.nodeSize });
+    }
+    scanOffset += child.nodeSize;
+  }
+  for (let idx = emptyListRanges.length - 1; idx >= 0; idx -= 1) {
+    const range = emptyListRanges[idx]!;
+    tr.delete(range.from, range.to);
+  }
+
+  const mappedInsertPos = tr.mapping.map(insertPos, -1);
+  const $mapped = tr.doc.resolve(mappedInsertPos);
+  const index = $mapped.index();
+
+  if (!$mapped.parent.canReplace(index, index, insertFragment)) {
+    return { moved: false, newPositions: [] };
+  }
+
+  tr.insert(mappedInsertPos, insertFragment);
+
+  // Track final positions of every moved pill/block for preserving group selection
+  const newPositions: number[] = [];
+  let cursor = mappedInsertPos;
+  for (const insertedNode of nodesToInsert) {
+    if (['bulletList', 'orderedList', 'taskList'].includes(insertedNode.type.name)) {
+      let itemOffset = cursor + 1;
+      for (let k = 0; k < insertedNode.childCount; k += 1) {
+        newPositions.push(itemOffset);
+        itemOffset += insertedNode.child(k).nodeSize;
+      }
+    } else {
+      newPositions.push(cursor);
+    }
+    cursor += insertedNode.nodeSize;
+  }
+
+  const $placed = tr.doc.resolve(Math.min(mappedInsertPos + 1, tr.doc.content.size));
+  tr.setSelection(Selection.near($placed));
+  tr.scrollIntoView();
+  view.dispatch(tr);
+
+  return { moved: true, newPositions };
+}
+
+/**
+ * Moves one or multiple selected blocks to before/after `targetPos` in a single transaction.
+ */
+export function moveBlocksAtPositions(
+  view: EditorView,
+  sourcePositions: number[],
+  targetPos: number,
+  placement: 'before' | 'after'
+): boolean {
+  return moveBlocksWithResult(view, sourcePositions, targetPos, placement).moved;
+}
+
 /**
  * Moves a block from `sourcePos` to before/after `targetPos` safely in a single transaction,
  * automatically adapting cross-list boundaries (e.g. dropping paragraph next to list item).
@@ -200,65 +487,7 @@ export function moveBlockAtPos(
   targetPos: number,
   placement: 'before' | 'after'
 ): boolean {
-  const { state } = view;
-  const { doc } = state;
-
-  const sourceNode = doc.nodeAt(sourcePos);
-  const targetNode = doc.nodeAt(targetPos);
-  if (!sourceNode || !targetNode) return false;
-
-  const sourceFrom = sourcePos;
-  const sourceTo = sourcePos + sourceNode.nodeSize;
-  let insertPos = placement === 'before' ? targetPos : targetPos + targetNode.nodeSize;
-
-  // No-op if dropping onto its own boundary
-  if (insertPos >= sourceFrom && insertPos <= sourceTo) {
-    return false;
-  }
-
-  const isSourceListItem =
-    sourceNode.type.name === 'listItem' || sourceNode.type.name === 'taskItem';
-  let nodeToInsert: PmNode = sourceNode;
-
-  const $rawInsert = doc.resolve(insertPos);
-  if (!isSourceListItem && $rawInsert.depth >= 1) {
-    // Climb out of list container when dropping a top-level block beside a list item
-    for (let d = $rawInsert.depth; d >= 1; d--) {
-      if (
-        $rawInsert.parent.canReplace(
-          $rawInsert.index(),
-          $rawInsert.index(),
-          Fragment.from(nodeToInsert)
-        )
-      ) {
-        break;
-      }
-      insertPos = placement === 'before' ? $rawInsert.before(d) : $rawInsert.after(d);
-    }
-  } else if (isSourceListItem && $rawInsert.depth === 0) {
-    // Wrap standalone listItem/taskItem in its parent list container when moved outside a list
-    const $source = doc.resolve(sourceFrom);
-    if ($source.depth >= 1) {
-      nodeToInsert = $source.parent.type.create(null, sourceNode);
-    }
-  }
-
-  const tr = state.tr;
-  tr.delete(sourceFrom, sourceTo);
-  const mappedInsertPos = tr.mapping.map(insertPos, -1);
-  const $mapped = tr.doc.resolve(mappedInsertPos);
-  const index = $mapped.index();
-
-  if (!$mapped.parent.canReplace(index, index, Fragment.from(nodeToInsert))) {
-    return false;
-  }
-
-  tr.insert(mappedInsertPos, nodeToInsert);
-  const $placed = tr.doc.resolve(Math.min(mappedInsertPos + 1, tr.doc.content.size));
-  tr.setSelection(Selection.near($placed));
-  tr.scrollIntoView();
-  view.dispatch(tr);
-  return true;
+  return moveBlocksWithResult(view, [sourcePos], targetPos, placement).moved;
 }
 
 export function findBlockDOMAtCoords(
@@ -476,17 +705,27 @@ export const GlobalDragHandle = Extension.create<DragHandleOptions>({
       customSelectors: [],
       onPositionChange: undefined,
       onDropIndicatorChange: undefined,
+      getSelectedPositions: undefined,
+      onGroupMoved: undefined,
     };
   },
 
   addProseMirrorPlugins() {
     let hoveredNodePos: number | null = null;
     let hoveredNodeType = 'paragraph';
-    let activeDragSourcePos: number | null = null;
+    let activeDragSourcePositions: number[] = [];
     let activeDropTarget: ResolvedDropTarget | null = null;
     let lastMouseX: number | null = null;
     let lastMouseY: number | null = null;
     let suppressedByTyping = false;
+    let groupDragPreviewEl: HTMLElement | null = null;
+
+    const cleanupDragPreview = () => {
+      if (groupDragPreviewEl && groupDragPreviewEl.parentNode) {
+        groupDragPreviewEl.parentNode.removeChild(groupDragPreviewEl);
+      }
+      groupDragPreviewEl = null;
+    };
 
     const hideHandle = () => {
       if (this.options.onPositionChange) {
@@ -514,7 +753,11 @@ export const GlobalDragHandle = Extension.create<DragHandleOptions>({
         return;
       }
 
-      if (activeDragSourcePos !== null || view.dom.classList.contains('is-dragging-block')) return;
+      if (
+        activeDragSourcePositions.length > 0 ||
+        view.dom.classList.contains('is-dragging-block')
+      )
+        return;
 
       const editorRoot = view.dom.closest('.mind-editor-root');
 
@@ -593,7 +836,8 @@ export const GlobalDragHandle = Extension.create<DragHandleOptions>({
         key: GlobalDragHandleKey,
         view: (editorView) => {
           const resetDragState = () => {
-            activeDragSourcePos = null;
+            activeDragSourcePositions = [];
+            cleanupDragPreview();
             editorView.dom.classList.remove('is-dragging-block');
             editorView.dragging = null;
             clearDropIndicator();
@@ -633,22 +877,52 @@ export const GlobalDragHandle = Extension.create<DragHandleOptions>({
             const node = editorView.state.doc.nodeAt(hoveredNodePos);
             if (!node) return;
 
-            activeDragSourcePos = hoveredNodePos;
+            const selected = this.options.getSelectedPositions?.() ?? [];
+            const dragPositions =
+              selected.length > 1 && selected.includes(hoveredNodePos)
+                ? [...selected].sort((a, b) => a - b)
+                : [hoveredNodePos];
+
+            activeDragSourcePositions = dragPositions;
 
             try {
               event.dataTransfer.clearData();
               event.dataTransfer.effectAllowed = 'move';
-              event.dataTransfer.setData('application/x-mind-block', String(hoveredNodePos));
+              event.dataTransfer.setData(
+                'application/x-mind-block',
+                JSON.stringify(dragPositions)
+              );
               event.dataTransfer.setData('text/plain', node.textContent || '');
 
-              const blockDom = editorView.nodeDOM(hoveredNodePos);
-              if (blockDom instanceof Element) {
-                event.dataTransfer.setDragImage(blockDom, 16, 12);
+              if (dragPositions.length > 1) {
+                cleanupDragPreview();
+                const preview = document.createElement('div');
+                preview.textContent = `Movendo ${dragPositions.length} blocos`;
+                preview.style.position = 'fixed';
+                preview.style.top = '-9999px';
+                preview.style.left = '-9999px';
+                preview.style.padding = '5px 10px';
+                preview.style.backgroundColor = '#ffffff';
+                preview.style.border = '1px solid #dee2e6';
+                preview.style.borderRadius = '6px';
+                preview.style.fontSize = '12.5px';
+                preview.style.fontWeight = '500';
+                preview.style.color = '#111827';
+                preview.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.08)';
+                document.body.appendChild(preview);
+                groupDragPreviewEl = preview;
+                event.dataTransfer.setDragImage(preview, 16, 12);
+              } else {
+                const blockDom = editorView.nodeDOM(hoveredNodePos);
+                if (blockDom instanceof Element) {
+                  event.dataTransfer.setDragImage(blockDom, 16, 12);
+                }
               }
 
               // Defer class change one frame so browser snapshots full-opacity drag image first
               window.requestAnimationFrame(() => {
-                if (activeDragSourcePos !== null) {
+                cleanupDragPreview();
+                if (activeDragSourcePositions.length > 0) {
                   editorView.dom.classList.add('is-dragging-block');
                 }
               });
@@ -658,7 +932,7 @@ export const GlobalDragHandle = Extension.create<DragHandleOptions>({
           };
 
           const onWindowDragOver = (event: DragEvent) => {
-            if (activeDragSourcePos === null) return;
+            if (activeDragSourcePositions.length === 0) return;
             if (!editorView.editable || !editorView.dom.isConnected) return;
 
             const shell = (editorView.dom.closest('.mind-editor-canvas-container') ||
@@ -685,7 +959,7 @@ export const GlobalDragHandle = Extension.create<DragHandleOptions>({
           };
 
           const onWindowDrop = (event: DragEvent) => {
-            if (activeDragSourcePos === null) return;
+            if (activeDragSourcePositions.length === 0) return;
             if (!editorView.editable || !editorView.dom.isConnected) {
               resetDragState();
               return;
@@ -700,12 +974,16 @@ export const GlobalDragHandle = Extension.create<DragHandleOptions>({
             if (resolved) {
               event.preventDefault();
               event.stopPropagation();
-              moveBlockAtPos(
+              const isGroupMove = activeDragSourcePositions.length > 1;
+              const result = moveBlocksWithResult(
                 editorView,
-                activeDragSourcePos,
+                activeDragSourcePositions,
                 resolved.targetPos,
                 resolved.placement
               );
+              if (result.moved && isGroupMove && this.options.onGroupMoved) {
+                this.options.onGroupMoved(result.newPositions);
+              }
             }
 
             resetDragState();
@@ -753,14 +1031,14 @@ export const GlobalDragHandle = Extension.create<DragHandleOptions>({
               return false;
             },
             dragover: (view, event) => {
-              if (activeDragSourcePos !== null) {
+              if (activeDragSourcePositions.length > 0) {
                 event.preventDefault();
                 return true;
               }
               return false;
             },
             drop: (view, event) => {
-              if (activeDragSourcePos !== null) {
+              if (activeDragSourcePositions.length > 0) {
                 event.preventDefault();
                 return true;
               }

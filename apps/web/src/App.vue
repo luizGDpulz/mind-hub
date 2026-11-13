@@ -16,7 +16,7 @@
           <component :is="Menu" :size="16" />
         </button>
 
-        <!-- Center Page Breadcrumb (Starts cleanly without 'Mind Hub' text) -->
+        <!-- Center Page Breadcrumb with Favorite Toggle and Sync Indicator (Issue #67) -->
         <div
           v-if="store.activePage"
           class="topbar-breadcrumb gt-xs"
@@ -177,31 +177,58 @@
           <component :is="Settings" :size="15" class="nav-item-lucide" />
           <span>Configurações</span>
         </div>
-        <div
-          class="sidebar-nav-item"
-          data-testid="sidebar-trash-btn"
-          @click="isTrashModalOpen = true"
-        >
-          <component :is="Trash2" :size="15" class="nav-item-lucide" />
-          <span class="ellipsis col">Lixeira</span>
-          <span v-if="store.deletedPages.length > 0" class="sidebar-trash-badge">
-            {{ store.deletedPages.length }}
-          </span>
-        </div>
-        <div
-          class="sidebar-nav-item"
-          data-testid="sidebar-bulk-import-btn"
-          @click="store.isImportModalOpen = true"
-        >
-          <component :is="Package" :size="15" class="nav-item-lucide" />
-          <span>Importar Second Brain</span>
-        </div>
       </nav>
 
-      <!-- Pages Section Header -->
+      <!-- Favorites Section (Issue #63) -->
+      <div v-if="store.favoritePages.length > 0" class="sidebar-section-container" data-testid="sidebar-favorites-section">
+        <div class="pages-section-header" @click="isFavoritesCollapsed = !isFavoritesCollapsed">
+          <span class="sidebar-section-label">Favoritos ({{ store.favoritePages.length }})</span>
+          <div class="pages-section-actions">
+            <button
+              type="button"
+              class="sidebar-mini-btn"
+              :title="isFavoritesCollapsed ? 'Expandir favoritos' : 'Recolher favoritos'"
+              data-testid="toggle-favorites-collapse-btn"
+              @click.stop="isFavoritesCollapsed = !isFavoritesCollapsed"
+            >
+              <component :is="isFavoritesCollapsed ? ChevronRight : ChevronDown" :size="12" />
+            </button>
+          </div>
+        </div>
+
+        <div v-if="!isFavoritesCollapsed" class="favorites-list" data-testid="sidebar-favorites-list">
+          <MindFavoriteItem
+            v-for="fav in store.favoritePages"
+            :key="fav.id"
+            :page="fav"
+            :active-page-id="store.activePageId"
+            :renaming-id="renamingFavPageId"
+            @select="
+              (id) => {
+                store.activeSurface = 'editor';
+                store.selectPage(id);
+              }
+            "
+            @create-child="handleCreateChildPage"
+            @contextmenu="(ev, page) => handleTreeContextMenu(ev, page, 'favorites')"
+            @rename-save="handleRenameSave"
+          />
+        </div>
+      </div>
+
+      <!-- Pages Section Header with Expand/Collapse All and Active Counter (Issue #63) -->
       <div class="pages-section-header">
-        <span class="sidebar-section-label">Pages</span>
+        <span class="sidebar-section-label">Pages ({{ store.activePages.length }})</span>
         <div class="pages-section-actions">
+          <button
+            type="button"
+            class="sidebar-mini-btn"
+            :title="treeForceExpanded ? 'Recolher todas as pastas' : 'Expandir todas as pastas'"
+            data-testid="toggle-tree-expand-all-btn"
+            @click="toggleTreeExpandAll"
+          >
+            <component :is="treeForceExpanded ? ChevronsDownUp : ChevronsUpDown" :size="13" />
+          </button>
           <button
             type="button"
             class="sidebar-mini-btn"
@@ -215,13 +242,15 @@
         </div>
       </div>
 
-      <!-- Hierarchical Page Tree (Scrollable body) -->
+      <!-- Hierarchical Page Tree (Scrollable body) with Context Menu & Inline Rename -->
       <div class="col scroll sidebar-tree-container">
         <PageTreeItem
           v-for="node in store.pageTree"
           :key="node.id"
           :node="node"
           :active-page-id="store.activePageId"
+          :renaming-id="renamingPageId"
+          :force-expanded="treeForceExpanded"
           :depth="0"
           @select="
             (id) => {
@@ -230,12 +259,9 @@
             }
           "
           @create-child="handleCreateChildPage"
-          @more-options="
-            (id) => {
-              store.selectPage(id);
-              showOverflowMenu = true;
-            }
-          "
+          @contextmenu="handleTreeContextMenu"
+          @more-options="(id, ev) => ev && handleTreeContextMenu(ev, store.pages.find((p) => p.id === id) || node)"
+          @rename-save="handleRenameSave"
         />
       </div>
 
@@ -434,80 +460,18 @@
 
         <!-- Main Document + Embedded Database + Open-Source Diagrams -->
         <div v-else-if="store.activePage" class="editor-container">
-          <!-- Page Header Icon & Customization (Notion-like, Issue #26) -->
-          <div class="page-header-icon-container" data-testid="page-header-icon-container">
-            <div
-              class="page-header-icon-box"
-              data-testid="page-header-icon"
-              title="Clique para mudar o ícone"
-              @click="isIconPickerOpen = true"
-            >
-              <img
-                v-if="store.activePage.icon && isImageUrl(store.activePage.icon)"
-                :src="store.activePage.icon"
-                class="page-header-custom-img"
-                alt="Page Icon"
-              />
-              <span v-else class="page-header-emoji">{{ store.activePage.icon || '📄' }}</span>
-            </div>
-
-            <div class="page-header-icon-hover-actions">
-              <button
-                type="button"
-                class="page-icon-action-btn"
-                @click="isIconPickerOpen = true"
-              >
-                Mudar ícone
-              </button>
-              <button
-                v-if="store.activePage.icon"
-                type="button"
-                class="page-icon-action-btn"
-                @click="store.updatePageMeta(store.activePage.id, { icon: '' })"
-              >
-                Remover
-              </button>
-            </div>
-          </div>
-
-          <!-- Clean H1 Title -->
-          <input
-            :value="store.activePage.title"
-            type="text"
-            class="page-title-h1"
-            data-testid="page-title-input"
-            aria-label="Page title"
-            @input="
-              (e) =>
-                store.activePage &&
-                store.updatePageMeta(store.activePage.id, {
-                  title: (e.target as HTMLInputElement).value,
-                })
-            "
-          />
-
           <!-- MindEditor Notion-Like: Plug & Play Engine (@mind-hub/editor) -->
           <MindEditor
-            v-if="store.activePage"
+            ref="mindEditorRef"
             :key="store.activePage.id"
+            v-model:show-properties="showPropertiesOverride"
+            class="mind-hub-editor-shell"
             :model-value="store.activePage.contentJson || store.activePage.contentMarkdown"
-            :frontmatter="{
-              title: store.activePage.title,
-              tags: store.activePage.tags ?? [],
-              status: 'ativo',
-              created: store.activePage.createdAt,
-              updated: store.activePage.updatedAt,
-            }"
+            :frontmatter="activePageFrontmatter"
             :read-only="store.editorReadMode"
             :pages="mentionPageReferences"
-            @update:json="(doc) => store.updateActivePageContent(doc as any)"
-            @update:frontmatter="
-              (meta) =>
-                store.activePage &&
-                store.updatePageMeta(store.activePage.id, {
-                  tags: meta.tags,
-                })
-            "
+            @update:json="handleEditorJsonUpdate"
+            @update:frontmatter="handleFrontmatterUpdate"
             @select-page="
               (pageId) => {
                 store.activeSurface = 'editor';
@@ -517,7 +481,72 @@
             @create-subpage="handleAddSubpage"
             @insert-database-block="store.enableDatabaseBlockForActivePage()"
             @insert-diagram-block="(kind) => store.enableDiagramBlockForActivePage(kind)"
-          />
+          >
+            <template #title>
+              <!-- Page Header Icon & Customization (below YAML Properties, Notion-like Issue #26) -->
+              <div class="page-header-icon-container" data-testid="page-header-icon-container">
+                <div
+                  class="page-header-icon-box"
+                  data-testid="page-header-icon"
+                  title="Clique para mudar o ícone"
+                  @click="!store.editorReadMode && (isIconPickerOpen = true)"
+                >
+                  <img
+                    v-if="store.activePage.icon && isImageUrl(store.activePage.icon)"
+                    :src="store.activePage.icon"
+                    class="page-header-custom-img"
+                    alt="Page Icon"
+                  />
+                  <span v-else class="page-header-emoji">{{ store.activePage.icon || '📄' }}</span>
+                </div>
+
+                <div v-if="!store.editorReadMode" class="page-header-icon-hover-actions">
+                  <button
+                    type="button"
+                    class="page-icon-action-btn"
+                    @click="isIconPickerOpen = true"
+                  >
+                    Mudar ícone
+                  </button>
+                  <button
+                    v-if="store.activePage.icon"
+                    type="button"
+                    class="page-icon-action-btn"
+                    @click="store.updatePageMeta(store.activePage.id, { icon: '' })"
+                  >
+                    Remover
+                  </button>
+                  <button
+                    v-if="!isActivePagePropertiesVisible"
+                    type="button"
+                    class="page-icon-action-btn"
+                    data-testid="page-add-properties-btn"
+                    @click="openActivePageProperties"
+                  >
+                    + Propriedades
+                  </button>
+                </div>
+              </div>
+
+              <!-- Clean H1 Title (DB Page.title owns note identity) -->
+              <input
+                :value="store.activePage.title"
+                type="text"
+                class="page-title-h1"
+                placeholder="Sem título"
+                :readonly="store.editorReadMode"
+                data-testid="page-title-input"
+                aria-label="Page title"
+                @input="
+                  (e) =>
+                    store.activePage &&
+                    store.updatePageMeta(store.activePage.id, {
+                      title: (e.target as HTMLInputElement).value,
+                    })
+                "
+              />
+            </template>
+          </MindEditor>
 
           <!-- Embedded Database Block: Table & Kanban Board (only when inserted on this page) -->
           <DatabaseViewBlock
@@ -582,37 +611,46 @@
       </q-page>
     </q-page-container>
 
-    <!-- Quick Insight Modal -->
-    <q-dialog v-model="store.isQuickInsightOpen">
-      <div class="mind-search-modal" style="width: 460px; max-width: 92vw; padding: 20px">
-        <div class="modal-clean-title">Quick capture to Inbox</div>
-        <input
-          v-model="quickInsightText"
-          type="text"
-          placeholder="Write a quick note or task..."
-          class="clean-modal-input q-my-md"
-          data-testid="quick-insight-input"
-          @keyup.enter="handleSaveQuickInsight"
-        />
-        <div class="modal-actions-end">
-          <button
-            type="button"
-            class="topbar-text-btn"
-            @click="store.isQuickInsightOpen = false"
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            class="primary-blue-btn"
-            data-testid="quick-insight-submit"
-            @click="handleSaveQuickInsight"
-          >
-            Save to Inbox
-          </button>
-        </div>
-      </div>
-    </q-dialog>
+    <!-- Quick Insight / Capture Modal (Issue #67) -->
+    <MindQuickCaptureModal
+      v-model="store.isQuickInsightOpen"
+      @submit="handleSaveQuickInsight"
+    />
+
+    <!-- Tree Node Context Menu (Issue #61) -->
+    <MindTreeContextMenu
+      v-if="treeContextMenuTarget"
+      v-model="isTreeContextMenuOpen"
+      :page="treeContextMenuTarget"
+      :x="treeContextMenuCoords.x"
+      :y="treeContextMenuCoords.y"
+      @action="handleTreeContextMenuAction"
+      @close="isTreeContextMenuOpen = false"
+    />
+
+    <!-- Move Page Modal (Issue #62) -->
+    <MindMovePageModal
+      v-if="pageIdToMove"
+      v-model="isMovePageModalOpen"
+      :page-id="pageIdToMove"
+      :pages="store.pages"
+      @move="handleConfirmMovePage"
+      @close="isMovePageModalOpen = false"
+    />
+
+    <!-- Space Settings Global Modal in Tabs (Issue #65, #66) -->
+    <MindSettingsModal
+      v-model="store.isMcpModalOpen"
+      :workspace-name="'Mind de Luiz Gustavo Dias Pulz'"
+      :backend-connected="store.backendConnected"
+      :active-pages-count="store.activePages.length"
+      :deleted-pages-count="store.deletedPages.length"
+      :database-tasks-count="store.databaseRows.length"
+      @sync-server-vault="handleSyncServerVault"
+      @export-markdown="triggerGitExport"
+      @empty-trash="store.emptyTrash"
+      @close="store.isMcpModalOpen = false"
+    />
 
     <!-- 2-Column Split Search Modal with Instant Preview (Issue #32) -->
     <MindSearchModal
@@ -649,6 +687,7 @@
       :bottom="56"
       :left="10"
       @open-settings="store.isMcpModalOpen = true"
+      @open-import="store.isImportModalOpen = true"
       @open-versions="isHelpVersionsMenuOpen = true"
       @logout="store.activeSurface = 'login'"
     />
@@ -695,27 +734,7 @@
       @select="(icon) => store.activePage && store.updatePageMeta(store.activePage.id, { icon })"
     />
 
-    <!-- Space Settings & Git Markdown Export Modal -->
-    <q-dialog v-model="store.isMcpModalOpen">
-      <div class="mind-search-modal" style="width: 560px; max-width: 95vw; padding: 20px">
-        <div class="modal-clean-title q-mb-xs">Space Settings, Native MCP &amp; Git Export</div>
-        <div class="comment-body-text q-mb-md">
-          JSON-RPC 2.0 endpoint available at <code>POST /mcp</code> (search_pages, get_page, create_page, update_page, list_database_tasks, create_database_task, add_page_comment, import_markdown_vault).
-        </div>
-        <div v-if="store.lastSyncSnapshot" class="q-mb-md">
-          <pre class="exported-md-preview">{{ store.lastSyncSnapshot.files[0]?.markdown }}</pre>
-        </div>
-        <div class="modal-actions-end">
-          <button
-            type="button"
-            class="topbar-text-btn"
-            @click="store.isMcpModalOpen = false"
-          >
-            Close
-          </button>
-        </div>
-      </div>
-    </q-dialog>
+
 
     <!-- Bulk Second Brain / Markdown Importer Modal (M8) -->
     <q-dialog v-model="store.isImportModalOpen">
@@ -803,10 +822,13 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue';
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 import { Dark } from 'quasar';
 import {
   ChevronDown,
+  ChevronRight,
+  ChevronsDownUp,
+  ChevronsUpDown,
   Copy,
   CopyPlus,
   Download,
@@ -820,21 +842,21 @@ import {
   Menu,
   MessageSquare,
   MoreHorizontal,
-  Package,
   PanelLeftClose,
   Plus,
   Search as SearchIcon,
   Settings,
   Share2,
+  SlidersHorizontal,
   Sparkles,
   SquarePen,
   Trash2,
   UserCheck,
 } from 'lucide-vue-next';
-import type { RawMarkdownFileEntry } from '@mind-hub/shared';
+import type { MindMark, MindNode, RawMarkdownFileEntry, TiptapDoc } from '@mind-hub/shared';
 import { useMindStore } from './stores/mind-store.js';
 import PageTreeItem from './components/PageTreeItem.vue';
-import { MindEditor, type PageReference } from '@mind-hub/editor';
+import { MindEditor, type EditorFrontmatter, type PageReference } from '@mind-hub/editor';
 import DatabaseViewBlock from './components/DatabaseViewBlock.vue';
 import DiagramEmbedsBlock from './components/DiagramEmbedsBlock.vue';
 import CleanLoginView from './components/CleanLoginView.vue';
@@ -849,7 +871,12 @@ import MindWorkspaceMenu from './components/ui/MindWorkspaceMenu.vue';
 import MindSidebarAppsMenu from './components/ui/MindSidebarAppsMenu.vue';
 import MindHelpVersionsMenu from './components/ui/MindHelpVersionsMenu.vue';
 import MindVersionHistoryModal from './components/ui/MindVersionHistoryModal.vue';
-import type { ActionMenuItem, ActionMenuPageMeta } from './components/ui/types.js';
+import MindTreeContextMenu from './components/ui/MindTreeContextMenu.vue';
+import MindMovePageModal from './components/ui/MindMovePageModal.vue';
+import MindSettingsModal from './components/ui/MindSettingsModal.vue';
+import MindQuickCaptureModal from './components/ui/MindQuickCaptureModal.vue';
+import MindFavoriteItem from './components/ui/MindFavoriteItem.vue';
+import type { ActionMenuItem, ActionMenuPageMeta, TreeContextMenuActionId, TreeContextMenuTarget } from './components/ui/types.js';
 
 const store = useMindStore();
 const leftDrawerOpen = ref(true);
@@ -865,6 +892,115 @@ const quickInsightText = ref('');
 const aiPromptInput = ref('');
 const replyBuffers = reactive<Record<string, string>>({});
 
+const STORAGE_PAGE_PROPS_KEY = 'mind_hub_page_properties';
+
+function loadStoredPageProperties(): Record<string, EditorFrontmatter> {
+  try {
+    const raw = localStorage.getItem(STORAGE_PAGE_PROPS_KEY);
+    if (!raw) return {};
+    const parsed: unknown = JSON.parse(raw);
+    if (typeof parsed === 'object' && parsed !== null) {
+      return parsed as Record<string, EditorFrontmatter>;
+    }
+  } catch {
+    // Ignore storage read errors in constrained environments
+  }
+  return {};
+}
+
+const mindEditorRef = ref<InstanceType<typeof MindEditor> | null>(null);
+const showPropertiesOverride = ref(false);
+const pagePropertiesById = reactive<Record<string, EditorFrontmatter>>(loadStoredPageProperties());
+
+function persistPageProperties(): void {
+  try {
+    localStorage.setItem(STORAGE_PAGE_PROPS_KEY, JSON.stringify(pagePropertiesById));
+  } catch {
+    // Ignore storage quota errors
+  }
+}
+
+watch(
+  () => store.activePageId,
+  () => {
+    showPropertiesOverride.value = false;
+  },
+);
+
+const activePageFrontmatter = computed<EditorFrontmatter>(() => {
+  const current = store.activePage;
+  if (!current) return {};
+  const extra = pagePropertiesById[current.id] ?? {};
+  const next: EditorFrontmatter = { ...extra };
+  if (current.tags && current.tags.length > 0) {
+    next.tags = [...current.tags];
+  }
+  return next;
+});
+
+const isActivePagePropertiesVisible = computed<boolean>(() => {
+  if (showPropertiesOverride.value) return true;
+  for (const [key, val] of Object.entries(activePageFrontmatter.value)) {
+    if (key === 'title' || val === undefined) continue;
+    if (key === 'tags' && Array.isArray(val) && val.length === 0) continue;
+    return true;
+  }
+  return false;
+});
+
+function openActivePageProperties(): void {
+  if (store.editorReadMode) return;
+  showPropertiesOverride.value = true;
+  void mindEditorRef.value?.openProperties(true);
+}
+
+function isMindNode(value: unknown): value is MindNode {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    typeof (value as { type?: unknown }).type === 'string'
+  );
+}
+
+function handleEditorJsonUpdate(doc: Record<string, unknown>): void {
+  const safeContent: MindNode[] = Array.isArray(doc.content)
+    ? doc.content.filter(isMindNode)
+    : [];
+  const nextDoc: TiptapDoc = {
+    type: 'doc',
+    content: safeContent,
+  };
+  void store.updateActivePageContent(nextDoc);
+}
+
+function handleFrontmatterUpdate(meta: EditorFrontmatter): void {
+  const current = store.activePage;
+  if (!current) return;
+
+  const nextTags = Array.isArray(meta.tags)
+    ? meta.tags.map((tag) => String(tag).trim()).filter(Boolean)
+    : [];
+
+  const nextExtra: EditorFrontmatter = {};
+  for (const [key, val] of Object.entries(meta)) {
+    if (key === 'title' || key === 'tags' || val === undefined) continue;
+    nextExtra[key] = val;
+  }
+
+  if (Object.keys(nextExtra).length > 0) {
+    pagePropertiesById[current.id] = nextExtra;
+  } else {
+    delete pagePropertiesById[current.id];
+  }
+  persistPageProperties();
+
+  const prevTagsJson = JSON.stringify(current.tags ?? []);
+  const nextTagsJson = JSON.stringify(nextTags);
+  if (prevTagsJson !== nextTagsJson) {
+    void store.updatePageMeta(current.id, { tags: nextTags });
+  }
+}
+
 const mentionPageReferences = computed<PageReference[]>(() =>
   store.activePages.map((p) => ({
     id: p.id,
@@ -875,6 +1011,113 @@ const mentionPageReferences = computed<PageReference[]>(() =>
     updatedAt: p.updatedAt,
   })),
 );
+
+const isFavoritesCollapsed = ref(false);
+const treeForceExpanded = ref<boolean | null>(null);
+const renamingPageId = ref<string>('');
+const renamingFavPageId = ref<string>('');
+const contextMenuSource = ref<'tree' | 'favorites'>('tree');
+const isTreeContextMenuOpen = ref(false);
+const treeContextMenuTarget = ref<TreeContextMenuTarget | null>(null);
+const treeContextMenuCoords = reactive({ x: 0, y: 0 });
+
+const isMovePageModalOpen = ref(false);
+const pageIdToMove = ref<string>('');
+
+function toggleTreeExpandAll(): void {
+  treeForceExpanded.value = treeForceExpanded.value === true ? false : true;
+}
+
+function handleTreeContextMenu(
+  event: MouseEvent,
+  node: {
+    id: string;
+    title: string;
+    icon?: string;
+    isFavorite?: boolean;
+    updatedAt?: string | number | Date;
+  },
+  source: 'tree' | 'favorites' = 'tree',
+): void {
+  contextMenuSource.value = source;
+  treeContextMenuTarget.value = {
+    id: node.id,
+    title: node.title,
+    icon: node.icon,
+    isFavorite: Boolean(node.isFavorite),
+    updatedAt: node.updatedAt,
+    authorName: 'Luiz Gustavo Dias Pulz',
+  };
+  treeContextMenuCoords.x = event.clientX;
+  treeContextMenuCoords.y = event.clientY;
+  isTreeContextMenuOpen.value = true;
+}
+
+function handleRenameSave(id: string, newTitle: string): void {
+  if (id && newTitle) {
+    void store.renamePage(id, newTitle);
+  }
+  renamingPageId.value = '';
+  renamingFavPageId.value = '';
+}
+
+async function handleTreeContextMenuAction(actionId: TreeContextMenuActionId, pageId: string): Promise<void> {
+  switch (actionId) {
+    case 'rename':
+      if (contextMenuSource.value === 'favorites') {
+        renamingPageId.value = '';
+        renamingFavPageId.value = pageId;
+      } else {
+        renamingFavPageId.value = '';
+        renamingPageId.value = pageId;
+      }
+      break;
+    case 'duplicate':
+      await store.duplicatePage(pageId);
+      break;
+    case 'create-subpage':
+      await handleCreateChildPage(pageId);
+      break;
+    case 'move':
+      pageIdToMove.value = pageId;
+      isMovePageModalOpen.value = true;
+      break;
+    case 'toggle-favorite':
+      await store.toggleFavorite(pageId);
+      break;
+    case 'copy-link': {
+      const page = store.pages.find((p) => p.id === pageId);
+      if (page) {
+        const url = `${window.location.origin}/#${page.slug}`;
+        await navigator.clipboard.writeText(url);
+      }
+      break;
+    }
+    case 'open-new-tab': {
+      const page = store.pages.find((p) => p.id === pageId);
+      if (page) {
+        const url = `${window.location.origin}/#${page.slug}`;
+        window.open(url, '_blank');
+      }
+      break;
+    }
+    case 'open-side-by-side': {
+      const page = store.pages.find((p) => p.id === pageId);
+      if (page) {
+        store.activePageId = page.id;
+      }
+      break;
+    }
+    case 'delete':
+      await store.softDeletePage(pageId);
+      break;
+  }
+}
+
+async function handleConfirmMovePage(pageId: string, targetParentId: string | null): Promise<void> {
+  await store.movePage(pageId, targetParentId);
+  isMovePageModalOpen.value = false;
+}
 
 const actionMenuItems = computed<ActionMenuItem[]>(() => {
   const current = store.activePage;
@@ -923,6 +1166,17 @@ const actionMenuItems = computed<ActionMenuItem[]>(() => {
             contentJson: current.contentJson,
           });
         }
+      },
+    },
+    {
+      id: 'add-properties',
+      label: 'Propriedades (YAML)',
+      icon: SlidersHorizontal,
+      toggle: true,
+      active: isActivePagePropertiesVisible.value,
+      section: 'tools',
+      handler: () => {
+        openActivePageProperties();
       },
     },
     {
@@ -1041,6 +1295,7 @@ async function handleAddSubpage(): Promise<void> {
     title: 'Sem título',
     parentId: store.activePage.id,
     contentMarkdown: '',
+    tags: [],
     icon: '📄',
   });
   store.selectPage(newSub.id);
@@ -1118,7 +1373,8 @@ async function handleCreateRootPage(): Promise<void> {
     title: 'Sem título',
     icon: '📄',
     parentId: null,
-    tags: ['nota'],
+    contentMarkdown: '',
+    tags: [],
   });
   store.selectPage(newPage.id);
 }
@@ -1145,17 +1401,18 @@ function handleOpenHelp(): void {
 function handleCreateChildPage(parentId: string): void {
   store.activeSurface = 'editor';
   void store.createPage({
-    title: 'Subpage Specification',
+    title: 'Sem título',
     icon: '📑',
     parentId,
-    tags: ['subpage'],
+    contentMarkdown: '',
+    tags: [],
   });
 }
 
-function handleSaveQuickInsight(): void {
-  const text = quickInsightText.value.trim();
-  if (!text) return;
-  void store.submitQuickInsight(text, ['quick-note']).then((inbox) => {
+function handleSaveQuickInsight(text?: string, tags?: string[]): void {
+  const content = typeof text === 'string' ? text.trim() : quickInsightText.value.trim();
+  if (!content) return;
+  void store.submitQuickInsight(content, tags || ['quick-note']).then((inbox) => {
     quickInsightText.value = '';
     store.isQuickInsightOpen = false;
     store.selectPage(inbox.id);
@@ -1264,6 +1521,19 @@ function splitSnippetSegments(
 
 .topbar-breadcrumb.no-sidebar-offset {
   margin-left: 6px;
+}
+
+/* Favorites Section (Issue #63) */
+.sidebar-section-container {
+  display: flex;
+  flex-direction: column;
+}
+
+.favorites-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 2px 8px 6px 8px;
 }
 
 .crumb-sep {
@@ -1558,16 +1828,6 @@ function splitSnippetSegments(
   font-size: 10.5px;
   color: var(--mind-text-muted);
   line-height: 1.2;
-}
-
-.sidebar-trash-badge {
-  font-size: 11px;
-  font-weight: 600;
-  padding: 1px 6px;
-  background: var(--mind-bg-surface-subtle);
-  border: 1px solid var(--mind-border-subtle);
-  border-radius: 999px;
-  color: var(--mind-text-muted);
 }
 
 /* Drag Resizer on right edge of sidebar */
@@ -1891,5 +2151,11 @@ function splitSnippetSegments(
   height: 15px;
   object-fit: contain;
   border-radius: 2px;
+}
+
+.editor-container :deep(.mind-editor-root) {
+  padding: 0 0 28px;
+  max-width: none;
+  margin: 0;
 }
 </style>

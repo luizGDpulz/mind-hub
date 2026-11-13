@@ -756,4 +756,44 @@ describe('MindEditor.vue', () => {
 
     wrapper.unmount();
   });
+
+  it('renders custom #title slot below FrontmatterHeader and keeps empty properties hidden until opened', async () => {
+    const wrapper = mount(MindEditor, {
+      props: {
+        modelValue: '',
+        frontmatter: {},
+      },
+      slots: {
+        title: '<h1 data-testid="slotted-db-title">Título do Banco</h1>',
+      },
+      global: {
+        stubs: {
+          EditorContent: {
+            template: '<div class="mind-editor-content-stub"><slot /></div>',
+          },
+          BubbleFormattingMenu: true,
+        },
+      },
+    });
+
+    expect(wrapper.find('[data-testid="mind-frontmatter-header"]').exists()).toBe(false);
+    expect(wrapper.find('[data-testid="slotted-db-title"]').text()).toBe('Título do Banco');
+
+    await wrapper.vm.openProperties(false);
+    await nextTick();
+
+    const rootEl = wrapper.find('[data-testid="mind-editor-root"]').element;
+    const childrenIds = Array.from(rootEl.children).map(
+      (el) => el.getAttribute('data-testid') || el.className,
+    );
+    const fmIdx = childrenIds.indexOf('mind-frontmatter-header');
+    const titleIdx = childrenIds.indexOf('slotted-db-title');
+    const canvasIdx = childrenIds.indexOf('mind-editor-canvas-container');
+
+    expect(fmIdx).toBeGreaterThanOrEqual(0);
+    expect(titleIdx).toBeGreaterThan(fmIdx);
+    expect(canvasIdx).toBeGreaterThan(titleIdx);
+
+    wrapper.unmount();
+  });
 });

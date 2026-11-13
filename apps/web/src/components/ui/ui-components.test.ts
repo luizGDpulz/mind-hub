@@ -355,6 +355,12 @@ describe('@mind-hub/web — Atomic UI Components (Refs #27, #30, #31, #32, #33)'
     await settingsBtn.trigger('click');
     expect(wrapper.emitted('open-settings')).toHaveLength(1);
 
+    // Click import Second Brain action (Issue #70)
+    const importBtn = wrapper.find('[data-testid="workspace-import-btn"]');
+    expect(importBtn.text()).toContain('Importar Second Brain');
+    await importBtn.trigger('click');
+    expect(wrapper.emitted('open-import')).toHaveLength(1);
+
     // Click versions action
     const versionsBtn = wrapper.find('[data-testid="workspace-versions-btn"]');
     await versionsBtn.trigger('click');

@@ -662,14 +662,16 @@ defineExpose({
     />
 
     <!-- 2. Separate Note Title Header (below Properties, outside ProseMirror block canvas) -->
-    <NoteTitleBar
-      v-if="showTitle"
-      :model-value="title ?? frontmatter?.title ?? ''"
-      :placeholder="titlePlaceholder"
-      :read-only="readOnly"
-      @update:model-value="handleTitleUpdate"
-      @focus-editor="focusEditorStart"
-    />
+    <slot name="title">
+      <NoteTitleBar
+        v-if="showTitle"
+        :model-value="title ?? frontmatter?.title ?? ''"
+        :placeholder="titlePlaceholder"
+        :read-only="readOnly"
+        @update:model-value="handleTitleUpdate"
+        @focus-editor="focusEditorStart"
+      />
+    </slot>
 
     <!-- Editor Canvas Surface -->
     <div

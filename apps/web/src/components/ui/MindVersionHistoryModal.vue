@@ -1,10 +1,12 @@
 <template>
-  <q-dialog
+  <MindModal
     :model-value="modelValue"
-    data-testid="version-history-modal"
+    max-width="660px"
+    hide-header
+    flush
     @update:model-value="$emit('update:modelValue', $event)"
   >
-    <div class="mind-version-modal-card">
+    <div class="mind-version-modal-card" data-testid="version-history-modal">
       <!-- Modal Header -->
       <div class="version-modal-header">
         <div class="version-modal-title-group">
@@ -70,10 +72,11 @@
         </button>
       </div>
     </div>
-  </q-dialog>
+  </MindModal>
 </template>
 
 <script setup lang="ts">
+import MindModal from './MindModal.vue';
 import { History, X, Check, ExternalLink } from 'lucide-vue-next';
 import type { MindVersionEntry } from '@mind-hub/shared';
 
@@ -115,12 +118,8 @@ function openRepo(): void {
 
 <style scoped>
 .mind-version-modal-card {
-  width: 660px;
-  max-width: 95vw;
+  width: 100%;
   background: var(--mind-bg-canvas, #ffffff);
-  border: 1px solid var(--mind-border-subtle, #e9ecef);
-  border-radius: 10px;
-  box-shadow: var(--mind-shadow-popover, 0 12px 32px rgba(0, 0, 0, 0.14));
   display: flex;
   flex-direction: column;
   overflow: hidden;

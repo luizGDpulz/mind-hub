@@ -82,7 +82,8 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue';
+import { computed, nextTick, onMounted, ref } from 'vue';
+import { useDismissiblePopover } from '../../composables/useDismissiblePopover';
 import type { ActionMenuItem, ActionMenuPageMeta } from './types.js';
 
 const props = defineProps<{
@@ -143,25 +144,18 @@ function handleItemClick(item: ActionMenuItem): void {
   }
 }
 
-function handleDocumentClick(event: MouseEvent): void {
-  const el = menuRootRef.value;
-  if (el && !el.contains(event.target as Node)) {
-    emit('close');
-  }
-}
+useDismissiblePopover({
+  isOpen: () => true,
+  containerRef: menuRootRef,
+  closeOnOutsideClick: true,
+  deferOutsideAttachMs: 10,
+  onClose: () => emit('close'),
+});
 
 onMounted(() => {
   void nextTick(() => {
     searchInputRef.value?.focus();
   });
-  // Defer attaching to prevent immediate close on trigger click
-  setTimeout(() => {
-    document.addEventListener('click', handleDocumentClick);
-  }, 10);
-});
-
-onUnmounted(() => {
-  document.removeEventListener('click', handleDocumentClick);
 });
 </script>
 

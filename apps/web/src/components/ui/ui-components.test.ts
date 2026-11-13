@@ -157,9 +157,8 @@ describe('@mind-hub/web — Atomic UI Components (Refs #27, #30, #31, #32, #33)'
       },
       global: {
         stubs: {
-          'q-dialog': {
-            template: '<div><slot /></div>',
-          },
+          Teleport: true,
+          Transition: false,
         },
       },
     });
@@ -224,9 +223,8 @@ describe('@mind-hub/web — Atomic UI Components (Refs #27, #30, #31, #32, #33)'
       },
       global: {
         stubs: {
-          'q-dialog': {
-            template: '<div><slot /></div>',
-          },
+          Teleport: true,
+          Transition: false,
         },
       },
     });
@@ -305,9 +303,8 @@ describe('@mind-hub/web — Atomic UI Components (Refs #27, #30, #31, #32, #33)'
       },
       global: {
         stubs: {
-          'q-dialog': {
-            template: '<div><slot /></div>',
-          },
+          Teleport: true,
+          Transition: false,
         },
       },
     });
@@ -405,9 +402,8 @@ describe('@mind-hub/web — Atomic UI Components (Refs #27, #30, #31, #32, #33)'
       },
       global: {
         stubs: {
-          'q-dialog': {
-            template: '<div><slot /></div>',
-          },
+          Teleport: true,
+          Transition: false,
         },
       },
     });

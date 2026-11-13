@@ -1,14 +1,13 @@
 <template>
-  <div
-    v-if="modelValue"
-    class="mind-workspace-menu-backdrop"
-    @click.self="$emit('update:modelValue', false)"
+  <MindPopover
+    :model-value="modelValue"
+    :top="top"
+    :bottom="top !== undefined ? undefined : bottom"
+    :left="left"
+    width="290px"
+    data-testid="workspace-menu-popover"
+    @update:model-value="$emit('update:modelValue', $event)"
   >
-    <div
-      class="mind-workspace-menu-card"
-      data-testid="workspace-menu-popover"
-      :style="popoverStyle"
-    >
       <!-- Top Workspace Profile Header -->
       <div class="workspace-profile-header">
         <div class="workspace-profile-avatar">M</div>
@@ -138,12 +137,11 @@
           <span>Sair</span>
         </button>
       </div>
-    </div>
-  </div>
+  </MindPopover>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
+import MindPopover from './MindPopover.vue';
 import {
   Settings,
   Package,
@@ -184,19 +182,6 @@ const emit = defineEmits<{
   (e: 'logout'): void;
 }>();
 
-const popoverStyle = computed(() => {
-  if (props.top !== undefined) {
-    return {
-      top: `${props.top}px`,
-      left: `${props.left}px`,
-    };
-  }
-  return {
-    bottom: `${props.bottom}px`,
-    left: `${props.left}px`,
-  };
-});
-
 function handleAction(action: 'settings' | 'import' | 'versions' | 'repo' | 'new-workspace' | 'logout'): void {
   emit('update:modelValue', false);
   if (action === 'settings') {
@@ -214,38 +199,6 @@ function handleAction(action: 'settings' | 'import' | 'versions' | 'repo' | 'new
 </script>
 
 <style scoped>
-.mind-workspace-menu-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 9999;
-  background: transparent;
-}
-
-.mind-workspace-menu-card {
-  position: absolute;
-  width: 290px;
-  background: var(--mind-bg-canvas, #ffffff);
-  border: 1px solid var(--mind-border-subtle, #e9ecef);
-  border-radius: 8px;
-  box-shadow: var(--mind-shadow-popover, 0 8px 24px rgba(0, 0, 0, 0.12));
-  padding: 6px;
-  display: flex;
-  flex-direction: column;
-  animation: mindMenuFadeIn 0.12s cubic-bezier(0.16, 1, 0.3, 1);
-  font-family: inherit;
-}
-
-@keyframes mindMenuFadeIn {
-  from {
-    opacity: 0;
-    transform: translateY(-4px) scale(0.98);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
-}
-
 .workspace-profile-header {
   display: flex;
   align-items: center;

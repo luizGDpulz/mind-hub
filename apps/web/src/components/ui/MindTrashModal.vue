@@ -1,10 +1,12 @@
 <template>
-  <q-dialog
+  <MindModal
     :model-value="modelValue"
-    data-testid="clean-trash-modal"
+    max-width="680px"
+    hide-header
+    flush
     @update:model-value="$emit('update:modelValue', $event)"
   >
-    <div class="mind-trash-modal-card">
+    <div class="mind-trash-modal-card" data-testid="clean-trash-modal">
       <!-- Modal Header -->
       <div class="trash-modal-header">
         <div class="trash-modal-title-group">
@@ -111,10 +113,11 @@
         </div>
       </div>
     </div>
-  </q-dialog>
+  </MindModal>
 </template>
 
 <script setup lang="ts">
+import MindModal from './MindModal.vue';
 import { computed, ref } from 'vue';
 import { Search, Trash2, RotateCcw, X } from 'lucide-vue-next';
 import type { MindPage } from '@mind-hub/shared';
@@ -187,12 +190,8 @@ function handleEmptyTrashClick(): void {
 
 <style scoped>
 .mind-trash-modal-card {
-  width: 680px;
-  max-width: 95vw;
+  width: 100%;
   background: var(--mind-bg-canvas);
-  border: 1px solid var(--mind-border-subtle);
-  border-radius: 10px;
-  box-shadow: var(--mind-shadow-popover);
   display: flex;
   flex-direction: column;
   overflow: hidden;

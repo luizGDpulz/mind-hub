@@ -1,14 +1,14 @@
 <template>
-  <div
-    v-if="modelValue"
-    class="mind-help-versions-backdrop"
-    @click.self="$emit('update:modelValue', false)"
+  <MindPopover
+    :model-value="modelValue"
+    :top="top"
+    :bottom="top !== undefined ? undefined : bottom"
+    :left="left"
+    width="260px"
+    placement-direction="up"
+    data-testid="help-versions-popover"
+    @update:model-value="$emit('update:modelValue', $event)"
   >
-    <div
-      class="mind-help-versions-card"
-      data-testid="help-versions-popover"
-      :style="popoverStyle"
-    >
       <!-- Top Documentation & Support Actions -->
       <div class="help-actions-list">
         <button
@@ -81,12 +81,12 @@
           </div>
         </div>
       </div>
-    </div>
-  </div>
+  </MindPopover>
 </template>
 
 <script setup lang="ts">
 import { computed } from 'vue';
+import MindPopover from './MindPopover.vue';
 import {
   BookOpen,
   MessageSquare,
@@ -122,19 +122,6 @@ const emit = defineEmits<{
 
 const recentReleases = computed(() => props.versionHistory.slice(0, 3));
 
-const popoverStyle = computed(() => {
-  if (props.top !== undefined) {
-    return {
-      top: `${props.top}px`,
-      left: `${props.left}px`,
-    };
-  }
-  return {
-    bottom: `${props.bottom}px`,
-    left: `${props.left}px`,
-  };
-});
-
 function handleAction(action: 'docs' | 'support' | 'more' | 'view-all'): void {
   emit('update:modelValue', false);
   if (action === 'docs') {
@@ -150,38 +137,6 @@ function handleAction(action: 'docs' | 'support' | 'more' | 'view-all'): void {
 </script>
 
 <style scoped>
-.mind-help-versions-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 9999;
-  background: transparent;
-}
-
-.mind-help-versions-card {
-  position: absolute;
-  width: 260px;
-  background: var(--mind-bg-canvas, #ffffff);
-  border: 1px solid var(--mind-border-subtle, #e9ecef);
-  border-radius: 8px;
-  box-shadow: var(--mind-shadow-popover, 0 8px 24px rgba(0, 0, 0, 0.14));
-  padding: 6px;
-  display: flex;
-  flex-direction: column;
-  animation: mindHelpFadeIn 0.12s cubic-bezier(0.16, 1, 0.3, 1);
-  font-family: inherit;
-}
-
-@keyframes mindHelpFadeIn {
-  from {
-    opacity: 0;
-    transform: translateY(4px) scale(0.98);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
-}
-
 .help-actions-list {
   display: flex;
   flex-direction: column;

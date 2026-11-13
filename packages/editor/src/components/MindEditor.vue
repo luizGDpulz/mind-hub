@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, markRaw, onBeforeUnmount, ref, watch, type Component } from 'vue';
+import { computed, markRaw, nextTick, onBeforeUnmount, ref, watch, type Component } from 'vue';
 import { useEditor, EditorContent, VueNodeViewRenderer } from '@tiptap/vue-3';
 import type { NodeViewProps } from '@tiptap/core';
 import type { Node as PmNode } from '@tiptap/pm/model';
@@ -36,6 +36,7 @@ import {
 
 import {
   DEFAULT_NOTE_TAGS,
+  type EditorFrontmatter,
   type MindEditorProps,
   type MindEditorEmits,
   type SlashMenuItem,
@@ -54,6 +55,7 @@ import { GlobalDragHandle } from '../extensions/drag-handle.js';
 import {
   BlockColor,
   applyBlockColorAtPos,
+  normalizeContainerBlockColors,
   syncBlockColorsAtSelection,
 } from '../extensions/block-color.js';
 import { SlashCommand, executeSlashItem } from '../extensions/slash-command.js';
@@ -74,9 +76,67 @@ const props = withDefaults(defineProps<MindEditorProps>(), {
   placeholder: "Pressione '/' para comandos ou comece a digitar...",
   pages: () => [],
   enableFrontmatterHeader: true,
+  showProperties: undefined,
 });
 
 const emit = defineEmits<MindEditorEmits>();
+
+const frontmatterHeaderRef = ref<InstanceType<typeof FrontmatterHeader> | null>(null);
+const localShowProperties = ref(false);
+const frontmatterInitialCollapsed = ref(true);
+
+function hasFrontmatterProperties(meta?: EditorFrontmatter): boolean {
+  if (!meta) return false;
+  for (const [key, val] of Object.entries(meta)) {
+    if (key === 'title' || val === undefined) continue;
+    if (key === 'tags' && Array.isArray(val) && val.length === 0) continue;
+    return true;
+  }
+  return false;
+}
+
+const isFrontmatterVisible = computed<boolean>(() => {
+  if (!props.enableFrontmatterHeader) return false;
+  if (props.showProperties !== undefined) {
+    return props.showProperties || hasFrontmatterProperties(props.frontmatter);
+  }
+  return localShowProperties.value || hasFrontmatterProperties(props.frontmatter);
+});
+
+async function openProperties(focusAdd = true): Promise<void> {
+  if (!props.enableFrontmatterHeader || props.readOnly) return;
+  frontmatterInitialCollapsed.value = false;
+  localShowProperties.value = true;
+  emit('update:showProperties', true);
+  await nextTick();
+  if (focusAdd) {
+    await frontmatterHeaderRef.value?.startAddingProperty();
+  } else {
+    frontmatterHeaderRef.value?.expand();
+  }
+}
+
+function handleRemoveProperties(): void {
+  localShowProperties.value = false;
+  frontmatterInitialCollapsed.value = true;
+  emit('update:showProperties', false);
+  const preservedTitle = props.title ?? props.frontmatter?.title;
+  emit('update:frontmatter', preservedTitle ? { title: preservedTitle } : {});
+}
+
+watch(
+  () => props.showProperties,
+  async (nextVal, prevVal) => {
+    if (nextVal && !prevVal) {
+      frontmatterInitialCollapsed.value = false;
+      await nextTick();
+      frontmatterHeaderRef.value?.expand();
+    } else if (nextVal === false) {
+      localShowProperties.value = false;
+      frontmatterInitialCollapsed.value = true;
+    }
+  }
+);
 
 // Block Gutter State
 const gutterState = ref<{
@@ -440,8 +500,17 @@ const editor = useEditor({
     MermaidConfigured,
     CalloutConfigured,
     BlockColor,
-    MarkdownShortcuts,
+    MarkdownShortcuts.configure({
+      shouldTriggerFrontmatter: () =>
+        props.enableFrontmatterHeader && !isFrontmatterVisible.value && !props.readOnly,
+      onTriggerFrontmatter: () => {
+        void openProperties(true);
+      },
+    }),
   ],
+  onCreate: ({ editor: ed }) => {
+    normalizeContainerBlockColors(ed);
+  },
   onUpdate: ({ editor: ed }) => {
     isInternalUpdate = true;
     emit('update:modelValue', ed.getHTML());
@@ -474,10 +543,12 @@ watch(
         return;
       }
       editor.value.commands.setContent(val, false);
+      normalizeContainerBlockColors(editor.value);
     } else if (typeof val === 'string') {
       const current = editor.value.getHTML();
       if (val !== current) {
         editor.value.commands.setContent(val, false);
+        normalizeContainerBlockColors(editor.value);
       }
     }
   }
@@ -694,6 +765,10 @@ function handleKeydown(event: KeyboardEvent): void {
 onBeforeUnmount(() => {
   editor.value?.destroy();
 });
+
+defineExpose({
+  openProperties,
+});
 </script>
 
 <template>
@@ -702,7 +777,20 @@ onBeforeUnmount(() => {
     data-testid="mind-editor-root"
     @keydown="handleKeydown"
   >
-    <!-- Separate Note Title Header (outside ProseMirror block canvas) -->
+    <!-- 1. Obsidian-style Frontmatter Properties Header (hidden on blank note until triggered) -->
+    <FrontmatterHeader
+      v-if="isFrontmatterVisible"
+      ref="frontmatterHeaderRef"
+      :model-value="frontmatter ?? {}"
+      :initial-collapsed="frontmatterInitialCollapsed"
+      :default-tags="defaultTags"
+      :read-only="readOnly"
+      @update:model-value="emit('update:frontmatter', $event)"
+      @remove-properties="handleRemoveProperties"
+      @escape-to-editor="focusEditorStart"
+    />
+
+    <!-- 2. Separate Note Title Header (below Properties, outside ProseMirror block canvas) -->
     <div v-if="showTitle" class="mind-note-title-bar" data-testid="mind-note-title-bar">
       <input
         :value="title ?? frontmatter?.title ?? ''"
@@ -717,15 +805,6 @@ onBeforeUnmount(() => {
         @keydown.down.prevent="focusEditorStart"
       >
     </div>
-
-    <!-- Frontmatter Header (Collapsed by default; Visual & Raw YAML modes) -->
-    <FrontmatterHeader
-      v-if="enableFrontmatterHeader && frontmatter"
-      :model-value="frontmatter"
-      :default-tags="defaultTags"
-      :read-only="readOnly"
-      @update:model-value="emit('update:frontmatter', $event)"
-    />
 
     <!-- Editor Canvas Surface -->
     <div
@@ -972,6 +1051,10 @@ onBeforeUnmount(() => {
   transition: background-color 0.12s ease;
 }
 
+:deep(.ProseMirror ul:not([data-type="taskList"]) > li) {
+  padding-left: 28px;
+}
+
 :deep(.ProseMirror ol > li) {
   counter-increment: mind-ol;
 }
@@ -992,9 +1075,9 @@ onBeforeUnmount(() => {
 :deep(.ProseMirror ul:not([data-type="taskList"]) > li::before) {
   content: "•";
   position: absolute;
-  left: 12px;
+  left: 10px;
   top: 4px;
-  width: 16px;
+  width: 14px;
   font-size: 16px;
   line-height: 1.5;
   color: inherit;
@@ -1011,6 +1094,11 @@ onBeforeUnmount(() => {
   padding: 0;
   border-radius: 0;
   min-height: 0;
+}
+
+:deep(.ProseMirror li > p[data-block-bg]),
+:deep(.ProseMirror li > div > p[data-block-bg]) {
+  background-color: transparent !important;
 }
 
 :deep(.ProseMirror ul[data-type="taskList"]) {

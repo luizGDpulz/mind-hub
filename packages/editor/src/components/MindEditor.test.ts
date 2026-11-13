@@ -53,12 +53,16 @@ describe('MindEditor.vue', () => {
     expect(wrapper.find('[data-testid="mind-editor-root"]').exists()).toBe(true);
     expect(wrapper.find('[data-testid="mind-frontmatter-header"]').exists()).toBe(true);
     expect(wrapper.find('[data-testid="frontmatter-content"]').exists()).toBe(false);
-    expect(wrapper.text()).toContain('ativo');
+    expect(wrapper.find('[data-testid="toggle-raw-yaml-mode"]').exists()).toBe(false);
 
     await wrapper.find('[data-testid="toggle-frontmatter-collapse"]').trigger('click');
 
     expect(wrapper.find('[data-testid="frontmatter-content"]').exists()).toBe(true);
+    expect(wrapper.find('[data-testid="toggle-raw-yaml-mode"]').exists()).toBe(true);
     expect(wrapper.text()).toContain('editor');
+    expect(
+      (wrapper.find('[data-testid="status-property-input"]').element as HTMLInputElement).value
+    ).toBe('ativo');
   });
 
   it('emits save event on Ctrl+S keydown', async () => {
@@ -273,7 +277,52 @@ describe('MindEditor.vue', () => {
     wrapper.unmount();
   });
 
-  it('keeps separate Note Title above collapsed YAML and preserves pill color across list transformations', async () => {
+  it('hides YAML properties by default on blank notes until triggered via --- or openProperties', async () => {
+    const host = document.createElement('div');
+    document.body.appendChild(host);
+
+    const wrapper = mount(MindEditor, {
+      attachTo: host,
+      props: {
+        modelValue: '<p>--</p>',
+        title: '',
+        showTitle: true,
+        basicBlocksOnly: true,
+        frontmatter: {},
+      },
+      global: {
+        stubs: {
+          BubbleFormattingMenu: true,
+        },
+      },
+    });
+
+    await nextTick();
+    await nextTick();
+
+    // Clean note starts without YAML Propriedades
+    expect(wrapper.find('[data-testid="mind-frontmatter-header"]').exists()).toBe(false);
+    expect(wrapper.find('[data-testid="mind-note-title-input"]').exists()).toBe(true);
+
+    // Triggering openProperties reveals expanded Propriedades ABOVE the title bar
+    await (wrapper.vm as unknown as { openProperties: (focus?: boolean) => Promise<void> }).openProperties(false);
+    await nextTick();
+
+    const fmEl = wrapper.find('[data-testid="mind-frontmatter-header"]');
+    const titleBarEl = wrapper.find('[data-testid="mind-note-title-bar"]');
+    expect(fmEl.exists()).toBe(true);
+    expect(wrapper.find('[data-testid="frontmatter-content"]').exists()).toBe(true);
+    expect(
+      Boolean(
+        fmEl.element.compareDocumentPosition(titleBarEl.element) &
+          Node.DOCUMENT_POSITION_FOLLOWING
+      )
+    ).toBe(true);
+
+    wrapper.unmount();
+  });
+
+  it('keeps separate Note Title below collapsed YAML and preserves pill color across list transformations', async () => {
     const host = document.createElement('div');
     document.body.appendChild(host);
 
@@ -300,11 +349,21 @@ describe('MindEditor.vue', () => {
     await nextTick();
     await nextTick();
 
-    // Title is rendered separately above collapsed frontmatter
+    // Title is rendered separately below collapsed frontmatter
+    const fmHeader = wrapper.find('[data-testid="mind-frontmatter-header"]');
+    const titleBar = wrapper.find('[data-testid="mind-note-title-bar"]');
     const titleInput = wrapper.find('[data-testid="mind-note-title-input"]');
+    expect(fmHeader.exists()).toBe(true);
     expect(titleInput.exists()).toBe(true);
     expect((titleInput.element as HTMLInputElement).value).toBe('Nota Limpa');
     expect(wrapper.find('[data-testid="frontmatter-content"]').exists()).toBe(false);
+    expect(wrapper.find('[data-testid="toggle-raw-yaml-mode"]').exists()).toBe(false);
+    expect(
+      Boolean(
+        fmHeader.element.compareDocumentPosition(titleBar.element) &
+          Node.DOCUMENT_POSITION_FOLLOWING
+      )
+    ).toBe(true);
 
     await titleInput.setValue('Novo Título');
     expect(wrapper.emitted('update:title')?.at(-1)).toEqual(['Novo Título']);

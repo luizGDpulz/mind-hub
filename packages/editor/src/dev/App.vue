@@ -8,6 +8,7 @@ import {
   Check,
   Code2,
   BookOpen,
+  SlidersHorizontal,
 } from 'lucide-vue-next';
 import MindEditor from '../components/MindEditor.vue';
 import type { EditorFrontmatter, PageReference } from '../types.js';
@@ -55,13 +56,10 @@ const basicSampleContent = `
 <hr>
 `.trim();
 
+const mindEditorRef = ref<InstanceType<typeof MindEditor> | null>(null);
 const noteTitle = ref<string>('');
-const frontmatter = ref<EditorFrontmatter>({
-  title: '',
-  tags: [],
-  status: 'rascunho',
-  created: todayIso,
-});
+const frontmatter = ref<EditorFrontmatter>({});
+const showProperties = ref(false);
 const content = ref<string>('<p></p>');
 const showRawPanel = ref(false);
 const copySuccess = ref(false);
@@ -72,21 +70,18 @@ const samplePages: PageReference[] = [
     id: 'page-1',
     title: 'Arquitetura do Homelab',
     slug: 'arquitetura-do-homelab',
-    icon: '🚀',
     summary: 'Infraestrutura da Millennium Falcon, Docker e redes NPM',
   },
   {
     id: 'page-2',
     title: 'Padrões de UI e Design System (Mind Style)',
     slug: 'padroes-de-ui',
-    icon: '🎨',
     summary: 'Fonte única da verdade para cores pastéis e vetos de IA',
   },
   {
     id: 'page-3',
     title: 'ADR 002 - Arquitetura do Mind Editor',
     slug: 'adr-002-mind-editor',
-    icon: '📝',
     summary: 'Decisão de engenharia para motor de blocos open source',
   },
 ];
@@ -98,21 +93,23 @@ function handleFrontmatterUpdate(nextMeta: EditorFrontmatter): void {
   }
 }
 
+function addYamlProperties(): void {
+  showProperties.value = true;
+  void mindEditorRef.value?.openProperties(true);
+}
+
 function loadBasicSample(): void {
   noteTitle.value = basicSampleTitle;
   frontmatter.value = { ...basicSampleFrontmatter, tags: [...(basicSampleFrontmatter.tags ?? [])] };
+  showProperties.value = true;
   content.value = basicSampleContent;
   showToast('Exemplo de blocos básicos carregado!');
 }
 
 function clearEditor(): void {
   noteTitle.value = '';
-  frontmatter.value = {
-    title: '',
-    tags: [],
-    status: 'rascunho',
-    created: todayIso,
-  };
+  frontmatter.value = {};
+  showProperties.value = false;
   content.value = '<p></p>';
   showToast('Documento limpo!');
 }
@@ -134,7 +131,7 @@ function showToast(msg: string): void {
 }
 
 function handleSave(): void {
-  showToast('💾 Salvo com sucesso via atalho Ctrl+S!');
+  showToast('Salvo via atalho Ctrl+S');
 }
 </script>
 
@@ -158,6 +155,18 @@ function handleSave(): void {
       </div>
 
       <div class="header-right">
+        <button
+          v-if="!showProperties"
+          type="button"
+          class="header-btn"
+          data-testid="app-add-properties-btn"
+          title="Adicionar propriedades YAML no topo da nota"
+          @click="addYamlProperties"
+        >
+          <SlidersHorizontal class="btn-icon" />
+          <span>+ Propriedades</span>
+        </button>
+
         <button
           type="button"
           class="header-btn"
@@ -207,14 +216,27 @@ function handleSave(): void {
       <!-- Editor Column -->
       <section class="editor-viewport">
         <div class="editor-paper-card">
+          <div v-if="!showProperties" class="paper-top-action-row">
+            <button
+              type="button"
+              class="paper-add-properties-btn"
+              @click="addYamlProperties"
+            >
+              <SlidersHorizontal class="btn-icon" />
+              <span>Adicionar propriedades</span>
+            </button>
+          </div>
+
           <MindEditor
+            ref="mindEditorRef"
             v-model="content"
             v-model:title="noteTitle"
+            v-model:show-properties="showProperties"
             :show-title="true"
             :basic-blocks-only="true"
             :frontmatter="frontmatter"
             :pages="samplePages"
-            placeholder="Pressione '/' para blocos básicos ou comece a digitar..."
+            placeholder="Digite '---' no início para propriedades ou '/' para blocos básicos..."
             @update:frontmatter="handleFrontmatterUpdate"
             @save="handleSave"
           />
@@ -381,6 +403,40 @@ function handleSave(): void {
   border: 1px solid #e9ecef;
   border-radius: 10px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.paper-top-action-row {
+  max-width: 820px;
+  margin: 0 auto;
+  padding: 16px 76px 0;
+  margin-bottom: -16px;
+}
+
+.paper-add-properties-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border: none;
+  background: transparent;
+  color: #868e96;
+  font-size: 12px;
+  font-weight: 500;
+  padding: 3px 6px;
+  margin-left: -6px;
+  border-radius: 5px;
+  cursor: pointer;
+  opacity: 0.55;
+  transition: opacity 0.14s ease, background-color 0.12s ease, color 0.12s ease;
+}
+
+.editor-paper-card:hover .paper-add-properties-btn,
+.paper-add-properties-btn:focus-visible {
+  opacity: 1;
+}
+
+.paper-add-properties-btn:hover {
+  background-color: #f8f9fa;
+  color: #111827;
 }
 
 .inspector-panel {

@@ -1,6 +1,18 @@
 <template>
   <section class="mind-settings-section" data-testid="settings-panel-sync">
-    <h4 class="mind-settings-title">Vault &amp; Sincronização Local</h4>
+    <GitHubSyncWizard
+      :status="gitHubStatus"
+      :busy="gitHubBusy"
+      :testing="gitHubTesting"
+      :test-result="gitHubTestResult"
+      :configure-error="gitHubConfigureError"
+      @test-connection="$emit('github-test-connection', $event)"
+      @configure="$emit('github-configure', $event)"
+      @sync-now="$emit('github-sync-now')"
+      @disconnect="$emit('github-disconnect')"
+    />
+
+    <h4 class="mind-settings-title" style="margin-top: 8px">Vault Local &amp; Exportação</h4>
 
     <div class="mind-setting-row">
       <div class="mind-setting-meta">
@@ -53,13 +65,30 @@
 </template>
 
 <script setup lang="ts">
+import type {
+  GitHubSyncConfigInput,
+  GitHubSyncStatus,
+  GitHubTestConnectionInput,
+  GitHubTestConnectionResult,
+} from '@mind-hub/shared';
+import GitHubSyncWizard from './GitHubSyncWizard.vue';
+
 defineProps<{
   backendConnected: boolean;
+  gitHubStatus?: GitHubSyncStatus;
+  gitHubBusy?: boolean;
+  gitHubTesting?: boolean;
+  gitHubTestResult?: GitHubTestConnectionResult | null;
+  gitHubConfigureError?: string;
 }>();
 
 defineEmits<{
   (e: 'sync-server-vault'): void;
   (e: 'export-markdown'): void;
+  (e: 'github-test-connection', payload: GitHubTestConnectionInput): void;
+  (e: 'github-configure', payload: GitHubSyncConfigInput): void;
+  (e: 'github-sync-now'): void;
+  (e: 'github-disconnect'): void;
 }>();
 </script>
 

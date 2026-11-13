@@ -4,6 +4,7 @@
       v-model:left-drawer-open="leftDrawerOpen"
       @export-git="triggerGitExport"
       @open-properties="pageWorkspaceRef?.openProperties()"
+      @open-sync-settings="openSyncSettings"
     />
 
     <MindSidebar
@@ -28,14 +29,24 @@
 
     <MindSettingsModal
       v-model="store.isMcpModalOpen"
+      v-model:initial-tab="store.settingsActiveTab"
       :workspace-name="'Mind de Luiz Gustavo Dias Pulz'"
       :backend-connected="store.backendConnected"
       :active-pages-count="store.activePages.length"
       :deleted-pages-count="store.deletedPages.length"
       :database-tasks-count="store.databaseRows.length"
+      :git-hub-status="store.gitHubSyncStatus"
+      :git-hub-busy="store.isGitHubSyncBusy"
+      :git-hub-testing="isTestingGitHub"
+      :git-hub-test-result="gitHubTestResult"
+      :git-hub-configure-error="gitHubConfigureError"
       @sync-server-vault="handleSyncServerVault"
       @export-markdown="triggerGitExport"
       @empty-trash="store.emptyTrash"
+      @github-test-connection="handleGitHubTestConnection"
+      @github-configure="handleGitHubConfigure"
+      @github-sync-now="void store.triggerGitHubSync()"
+      @github-disconnect="void store.disconnectGitHubSync()"
       @close="store.isMcpModalOpen = false"
     />
 
@@ -123,7 +134,12 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref } from 'vue';
 import { Dark } from 'quasar';
-import type { RawMarkdownFileEntry } from '@mind-hub/shared';
+import type {
+  GitHubSyncConfigInput,
+  GitHubTestConnectionInput,
+  GitHubTestConnectionResult,
+  RawMarkdownFileEntry,
+} from '@mind-hub/shared';
 import { useMindStore } from './stores/mind-store.js';
 import MindTopbar from './components/shell/MindTopbar.vue';
 import MindSidebar from './components/shell/MindSidebar.vue';
@@ -147,6 +163,9 @@ const isWorkspaceMenuOpen = ref(false);
 const isAppsMenuOpen = ref(false);
 const isHelpVersionsMenuOpen = ref(false);
 const pageWorkspaceRef = ref<InstanceType<typeof MindPageWorkspace> | null>(null);
+const isTestingGitHub = ref(false);
+const gitHubTestResult = ref<GitHubTestConnectionResult | null>(null);
+const gitHubConfigureError = ref('');
 
 onMounted(() => {
   Dark.set(false);
@@ -197,5 +216,30 @@ function handleSyncServerVault(): void {
 
 function handleBulkUploadFiles(entries: RawMarkdownFileEntry[]): void {
   void store.importMarkdownBulk(entries, { conflictStrategy: 'upsert' });
+}
+
+function openSyncSettings(): void {
+  store.settingsActiveTab = 'sync';
+  store.isMcpModalOpen = true;
+}
+
+async function handleGitHubTestConnection(input: GitHubTestConnectionInput): Promise<void> {
+  isTestingGitHub.value = true;
+  gitHubTestResult.value = null;
+  try {
+    gitHubTestResult.value = await store.testGitHubConnection(input);
+  } finally {
+    isTestingGitHub.value = false;
+  }
+}
+
+async function handleGitHubConfigure(input: GitHubSyncConfigInput): Promise<void> {
+  gitHubConfigureError.value = '';
+  const res = await store.configureGitHubSync(input);
+  if (res.error) {
+    gitHubConfigureError.value = res.error;
+  } else {
+    gitHubTestResult.value = null;
+  }
 }
 </script>

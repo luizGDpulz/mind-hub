@@ -8,6 +8,7 @@ export { default as SlashMenu } from './components/SlashMenu.vue';
 export { default as PageMentionPopover } from './components/PageMentionPopover.vue';
 export { default as MermaidBlockView } from './components/MermaidBlockView.vue';
 export { default as CalloutBlockView } from './components/CalloutBlockView.vue';
+export { default as SubpageBlockView } from './components/SubpageBlockView.vue';
 export { default as BubbleFormattingMenu } from './components/BubbleFormattingMenu.vue';
 export { default as MindEditor } from './components/MindEditor.vue';
 export {
@@ -89,6 +90,11 @@ export {
   parseMarkdownCallout,
   type CalloutNodeOptions,
 } from './extensions/callout-node.js';
+export {
+  SubpageBlockNode,
+  type SubpageBlockAttrs,
+  type SubpageBlockOptions,
+} from './extensions/subpage-block-node.js';
 export {
   EMOJI_CATEGORIES,
   LUCIDE_ICON_CATALOG,

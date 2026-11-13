@@ -31,6 +31,7 @@ export const BLOCK_COLORABLE_TYPES = [
   'blockquote',
   'codeBlock',
   'callout',
+  'subpageBlock',
 ] as const;
 
 const VALID_COLOR_IDS = new Set<string>(BLOCK_COLOR_PALETTE.map((c) => c.id));

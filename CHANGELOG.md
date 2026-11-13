@@ -8,7 +8,12 @@ O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.
 ## [Não lançado]
 
 ### 🚀 Adicionado
-- Melhorias contínuas em homologação.
+- **Milestone M15: Sincronização GitHub (Google OKF v0.2), Assets, Capa & Blocos Notion-like** (#87, #88, #89, #90, #91):
+  - **Formato Aberto Google OKF v0.2** (`@mind-hub/shared` & PostgreSQL): exportação hierárquica com `index.md` em pastas-pai, índice raiz, trilha `log.md`, serialização/parse bidirecional de `subpageBlock` em Markdown, colunas `cover_url`/`cover_y_position`/`last_synced_hash` e tabelas `page_assets` / `sync_configs` (#87).
+  - **Delta Sync Inteligente & Assets no Backend** (`@mind-hub/server`): `GitSyncService` com hash SHA-256 (`sourceHash !== lastSyncedHash`), controle de concorrência otimista (`expectedHash` / `409 Conflict`), rotas `/api/sync/github/*` (status, test-connection, configure, sync, disconnect) e endpoint `/api/assets/by-path/*` (#88).
+  - **Blocos Inline Notion-like (`SubpageBlockNode`)** (`@mind-hub/editor`): novo bloco de subpágina em linha com ícone, título, suporte a paleta pastel `BlockColor`, comando `/subpage` e cartão de preview no hover (#89).
+  - **Capa de Página & Resolução de Assets** (`@mind-hub/web`): `PageCoverBanner` com galeria de presets Mind Light, upload de capa, reposicionamento vertical (`coverYPosition`), remoção do rodapé estático em favor de blocos inline e resolução automática de URLs `./assets/...` (#90).
+  - **Wizard Plug & Play GitHub Sync** (`@mind-hub/web`): assistente guiado de 3 passos (`GitHubSyncWizard`) em `Configurações > Vault & Sync`, painel conectado com histórico/pendências e indicador discreto de status na barra superior (#91).
 
 ---
 

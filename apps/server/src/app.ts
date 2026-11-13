@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import Fastify, { type FastifyInstance } from 'fastify';
 import cors from '@fastify/cors';
@@ -8,12 +9,15 @@ import {
   planBulkVaultImport,
   type AddCommentReplyInput,
   type AiChatRequest,
+  type AssetKind,
   type AuthLoginInput,
   type AuthSessionResponse,
   type BulkImportApiResponse,
   type CreateDatabaseTaskInput,
   type CreatePageCommentInput,
   type CreatePageInput,
+  type GitHubSyncConfigInput,
+  type GitHubTestConnectionInput,
   type QuickInsightInput,
   type RawMarkdownFileEntry,
   type SearchMode,
@@ -24,9 +28,11 @@ import {
 import {
   DurableFilePageRepository,
   InMemoryPageRepository,
+  PageConflictError,
   type PageRepository,
 } from './repository.js';
 import { AiService } from './ai-service.js';
+import { GitSyncService } from './git-sync-service.js';
 import { McpHandler, type JsonRpcRequest } from './mcp-handler.js';
 
 const IGNORED_VAULT_DIRS = new Set([
@@ -102,6 +108,7 @@ export function scanMarkdownDirectoryRecursively(
 export interface BuildAppOptions {
   repository?: PageRepository;
   dataFilePath?: string;
+  gitVaultDir?: string;
   geminiApiKey?: string;
   nvidiaApiKey?: string;
   staticDir?: string;
@@ -124,6 +131,22 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
     (dataFilePath
       ? new DurableFilePageRepository(dataFilePath)
       : new InMemoryPageRepository());
+
+  const gitVaultDir =
+    options.gitVaultDir ??
+    process.env.GIT_VAULT_DIR ??
+    (dataFilePath
+      ? path.join(path.dirname(dataFilePath), 'git-vault')
+      : path.join(os.tmpdir(), `mind-hub-git-vault-${process.pid}`));
+
+  const gitSyncService = new GitSyncService({
+    repository: repo,
+    gitVaultDir,
+  });
+
+  app.addHook('onClose', async () => {
+    gitSyncService.dispose();
+  });
 
   const aiService = new AiService(
     options.geminiApiKey ?? process.env.GEMINI_API_KEY,
@@ -242,17 +265,30 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
       return reply.code(400).send({ error: 'Title is required' });
     }
     const created = await repo.createPage(body);
+    gitSyncService.scheduleDebouncedSync();
     return reply.code(201).send({ page: created });
   });
 
   app.patch<{ Params: { id: string }; Body: UpdatePageInput }>(
     '/api/pages/:id',
     async (request, reply) => {
-      const updated = await repo.updatePage(request.params.id, request.body ?? {});
-      if (!updated) {
-        return reply.code(404).send({ error: 'Page not found' });
+      try {
+        const updated = await repo.updatePage(request.params.id, request.body ?? {});
+        if (!updated) {
+          return reply.code(404).send({ error: 'Page not found' });
+        }
+        gitSyncService.scheduleDebouncedSync();
+        return { page: updated };
+      } catch (err) {
+        if (err instanceof PageConflictError) {
+          return reply.code(409).send({
+            error: err.message,
+            code: err.code,
+            currentPage: err.currentPage,
+          });
+        }
+        throw err;
       }
-      return { page: updated };
     },
   );
 
@@ -631,6 +667,74 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
   });
 
   // =========================================================================
+  // GITHUB OKF SYNC (Plug & Play + Delta Sync via Hashes)
+  // =========================================================================
+
+  app.get('/api/sync/github/status', async () => {
+    const status = await gitSyncService.getStatus();
+    return { status };
+  });
+
+  app.post<{ Body: GitHubTestConnectionInput }>(
+    '/api/sync/github/test-connection',
+    async (request, reply) => {
+      const body = request.body;
+      if (!body || typeof body.repository !== 'string') {
+        return reply.code(400).send({ error: 'Repository is required' });
+      }
+      const result = await gitSyncService.testConnection({
+        repository: body.repository,
+        branch: body.branch,
+        token: body.token ?? '',
+      });
+      return result;
+    },
+  );
+
+  app.post<{ Body: GitHubSyncConfigInput }>(
+    '/api/sync/github/configure',
+    async (request, reply) => {
+      const body = request.body;
+      if (!body || typeof body.repository !== 'string') {
+        return reply.code(400).send({ error: 'Repository is required' });
+      }
+      try {
+        const result = await gitSyncService.configure({
+          repository: body.repository,
+          branch: body.branch,
+          token: body.token ?? '',
+          autoSyncEnabled: body.autoSyncEnabled,
+          debounceSeconds: body.debounceSeconds,
+          strategy: body.strategy,
+        });
+        return result;
+      } catch (err) {
+        return reply.code(400).send({
+          error: err instanceof Error ? err.message : 'Falha ao configurar sincronização GitHub',
+        });
+      }
+    },
+  );
+
+  app.post('/api/sync/github/sync', async (_request, reply) => {
+    try {
+      const result = await gitSyncService.syncNow('bidirectional');
+      const status = await gitSyncService.getStatus();
+      return { result, status };
+    } catch (err) {
+      return reply.code(400).send({
+        error: err instanceof Error ? err.message : 'Falha ao sincronizar com GitHub',
+      });
+    }
+  });
+
+  app.post('/api/sync/github/disconnect', async () => {
+    await gitSyncService.disconnect();
+    const status = await gitSyncService.getStatus();
+    return { ok: true, status };
+  });
+
+  // =========================================================================
   // MEDIA & ICON ASSETS (Database / Store Persistence)
   // =========================================================================
   const ALLOWED_ASSET_MIME_TYPES = new Set([
@@ -645,6 +749,8 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
 
   app.post<{
     Body: {
+      pageId?: string | null;
+      kind?: AssetKind;
       filename?: string;
       mimeType?: string;
       dataBase64?: string;
@@ -674,6 +780,8 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
     }
 
     const asset = await repo.createAsset({
+      pageId: body.pageId ?? null,
+      kind: body.kind ?? 'inline_image',
       filename: body.filename?.trim() || 'icon-upload',
       mimeType,
       dataBase64: cleanBase64,
@@ -682,13 +790,35 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
     return reply.code(201).send({
       asset: {
         id: asset.id,
+        pageId: asset.pageId,
+        kind: asset.kind,
         filename: asset.filename,
         mimeType: asset.mimeType,
         sizeBytes: asset.sizeBytes,
+        storagePath: asset.storagePath,
         url: asset.url,
         createdAt: asset.createdAt,
       },
     });
+  });
+
+  app.get<{ Params: { '*': string } }>('/api/assets/by-path/*', async (request, reply) => {
+    const relPath = (request.params['*'] ?? '').trim();
+    if (!relPath) {
+      return reply.code(404).send({ error: 'Asset not found' });
+    }
+    const asset = await repo.getAssetByStoragePath(relPath);
+    if (!asset) {
+      return reply.code(404).send({ error: 'Asset not found' });
+    }
+    const payload = Buffer.from(asset.dataBase64, 'base64');
+    reply.header('Content-Type', asset.mimeType);
+    reply.header('X-Content-Type-Options', 'nosniff');
+    reply.header('Cache-Control', 'public, max-age=31536000, immutable');
+    if (asset.mimeType === 'image/svg+xml') {
+      reply.header('Content-Security-Policy', 'sandbox');
+    }
+    return reply.send(payload);
   });
 
   app.get<{ Params: { id: string } }>('/api/assets/:id', async (request, reply) => {

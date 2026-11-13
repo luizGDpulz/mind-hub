@@ -135,6 +135,44 @@ export function parseInline(text: string): TiptapNode[] {
   return nodes;
 }
 
+const SUBPAGE_COMMENT_RE = /^\[([^\]]+)\]\(([^)]+)\)\s*<!--\s*mind:subpage\s+([^>]*)-->$/;
+const SUBPAGE_SHORTCODE_RE = /^\[subpage:\s*([^\]]+)\]\(([^)]+)\)(?:\s*\{color=["']([^"']+)["']\})?$/;
+
+function extractAttr(attrSource: string, key: string): string {
+  const match = new RegExp(`${key}=["']([^"']*)["']`).exec(attrSource);
+  return match?.[1] ?? '';
+}
+
+function parseSubpageBlockLine(trimmed: string): TiptapNode | null {
+  const commentMatch = SUBPAGE_COMMENT_RE.exec(trimmed);
+  if (commentMatch) {
+    const rawLabel = (commentMatch[1] ?? '').trim();
+    const href = (commentMatch[2] ?? '').trim();
+    const attrStr = commentMatch[3] ?? '';
+    const pageId = extractAttr(attrStr, 'id');
+    const icon = extractAttr(attrStr, 'icon');
+    const color = extractAttr(attrStr, 'color') || 'default';
+    const title = icon && rawLabel.startsWith(`${icon} `) ? rawLabel.slice(icon.length + 1).trim() : rawLabel;
+    return {
+      type: 'subpageBlock',
+      attrs: { pageId, title: title || 'Subpágina', icon: icon || '📄', href, color },
+    };
+  }
+
+  const shortMatch = SUBPAGE_SHORTCODE_RE.exec(trimmed);
+  if (shortMatch) {
+    const rawTitle = (shortMatch[1] ?? '').trim();
+    const href = (shortMatch[2] ?? '').trim();
+    const color = shortMatch[3] ?? 'default';
+    return {
+      type: 'subpageBlock',
+      attrs: { pageId: '', title: rawTitle || 'Subpágina', icon: '📄', href, color },
+    };
+  }
+
+  return null;
+}
+
 function isSpecialBlockStart(trimmed: string): boolean {
   return (
     /^#{1,6}\s+/.test(trimmed) ||
@@ -148,6 +186,8 @@ function isSpecialBlockStart(trimmed: string): boolean {
     /^\d+\.\s+/.test(trimmed) ||
     trimmed.startsWith('- ') ||
     trimmed.startsWith('* ') ||
+    SUBPAGE_COMMENT_RE.test(trimmed) ||
+    SUBPAGE_SHORTCODE_RE.test(trimmed) ||
     (trimmed.startsWith('|') && trimmed.endsWith('|') && trimmed.length > 2)
   );
 }
@@ -178,6 +218,12 @@ function parseBlock(state: ParseState): TiptapNode | null {
   if (trimmed === '---' || trimmed === '***' || trimmed === '___') {
     advance(state);
     return { type: 'horizontalRule' };
+  }
+
+  const subpageNode = parseSubpageBlockLine(trimmed);
+  if (subpageNode) {
+    advance(state);
+    return subpageNode;
   }
 
   if (trimmed.startsWith('```')) {
@@ -487,6 +533,15 @@ function serializeNode(node: TiptapNode): string {
     }
     case 'horizontalRule':
       return '---';
+    case 'subpageBlock': {
+      const pageId = String(node.attrs?.pageId ?? '');
+      const title = String(node.attrs?.title ?? 'Subpágina');
+      const icon = String(node.attrs?.icon ?? '📄');
+      const href = String(node.attrs?.href ?? (pageId ? `#/page/${pageId}` : './subpagina.md'));
+      const color = String(node.attrs?.color ?? node.attrs?.bgColor ?? 'default');
+      const label = icon ? `${icon} ${title}` : title;
+      return `[${label}](${href}) <!-- mind:subpage id="${pageId}" icon="${icon}" color="${color}" -->`;
+    }
     case 'table': {
       const rows = node.content ?? [];
       const lines: string[] = [];

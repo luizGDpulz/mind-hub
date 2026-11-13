@@ -3,14 +3,17 @@ import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from '
 import { dirname } from 'node:path';
 import {
   buildPageTree,
+  computeMarkdownHash,
+  computeOkfPagePath,
   createInitialSeedComments,
   createInitialSeedDatabaseTasks,
   createInitialSeedDiagrams,
   createInitialSeedPages,
-  exportPageWithFrontmatter,
+  exportPageAsOkfMarkdown,
   generateDeterministicEmbedding,
   markdownToMindDoc,
   mindDocToMarkdown,
+  resolveAssetStoragePath,
   searchPagesEngine,
   slugifyTitle,
   type AddCommentReplyInput,
@@ -21,6 +24,7 @@ import {
   type DatabaseStatus,
   type DatabaseTaskRow,
   type DiagramBlockItem,
+  type GitHubSyncHistoryEntry,
   type GitSyncSnapshot,
   type MindAsset,
   type MindPage,
@@ -34,6 +38,32 @@ import {
   type UpsertDiagramInput,
 } from '@mind-hub/shared';
 
+export interface StoredSyncConfig {
+  id: string;
+  provider: 'github';
+  repository: string;
+  branch: string;
+  token: string;
+  autoSyncEnabled: boolean;
+  debounceSeconds: number;
+  lastSyncAt: string | null;
+  lastCommitSha: string | null;
+  lastError: string | null;
+  history: GitHubSyncHistoryEntry[];
+  updatedAt: string;
+}
+
+export class PageConflictError extends Error {
+  readonly code = 'HASH_CONFLICT';
+  readonly currentPage: MindPage;
+
+  constructor(currentPage: MindPage) {
+    super(`Conflito de versão detectado na página "${currentPage.title}"`);
+    this.name = 'PageConflictError';
+    this.currentPage = currentPage;
+  }
+}
+
 export interface DurableStoreSnapshot {
   version: number;
   updatedAt: string;
@@ -42,6 +72,7 @@ export interface DurableStoreSnapshot {
   comments: PageCommentThread[];
   diagrams: DiagramBlockItem[];
   assets?: MindAsset[];
+  syncConfig?: StoredSyncConfig | null;
 }
 
 export interface PageRepository {
@@ -87,8 +118,16 @@ export interface PageRepository {
   // Media & Icon Assets stored in repository snapshot/DB
   listAssets(): Promise<MindAsset[]>;
   getAssetById(id: string): Promise<MindAsset | null>;
+  getAssetByStoragePath(storagePath: string): Promise<MindAsset | null>;
   createAsset(input: CreateAssetInput): Promise<MindAsset>;
   deleteAsset(id: string): Promise<boolean>;
+
+  // GitHub OKF Sync Configuration & Delta Tracking
+  getSyncConfig(): Promise<StoredSyncConfig | null>;
+  saveSyncConfig(config: StoredSyncConfig): Promise<StoredSyncConfig>;
+  deleteSyncConfig(): Promise<boolean>;
+  getPendingSyncCount(): Promise<number>;
+  markPagesSynced(pageHashes: ReadonlyMap<string, string>): Promise<void>;
 }
 
 export class InMemoryPageRepository implements PageRepository {
@@ -97,6 +136,7 @@ export class InMemoryPageRepository implements PageRepository {
   protected readonly comments = new Map<string, PageCommentThread>();
   protected readonly diagrams = new Map<string, DiagramBlockItem>();
   protected readonly assets = new Map<string, MindAsset>();
+  protected syncConfig: StoredSyncConfig | null = null;
 
   constructor(
     initialPages?: ReadonlyArray<MindPage>,
@@ -208,12 +248,21 @@ export class InMemoryPageRepository implements PageRepository {
     const embedding = generateDeterministicEmbedding(
       `${title} ${tags.join(' ')} ${contentMarkdown}`,
     );
+    const computedHash =
+      input.sourceHash ??
+      computeMarkdownHash(
+        `${slug}::${title}::${input.icon ?? '📄'}::${input.coverUrl ?? ''}::${tags.join(',')}::${contentMarkdown}`,
+      );
 
     const page: MindPage = {
       id,
       slug,
       title,
       icon: input.icon ?? '📄',
+      pageType: input.pageType ?? 'concept',
+      description: input.description ?? '',
+      coverUrl: input.coverUrl ?? null,
+      coverYPosition: input.coverYPosition ?? 50,
       parentId: input.parentId ?? null,
       sortOrder: input.sortOrder ?? this.pages.size + 1,
       contentMarkdown,
@@ -223,7 +272,8 @@ export class InMemoryPageRepository implements PageRepository {
       tags,
       embedding,
       sourcePath: input.sourcePath ?? null,
-      sourceHash: input.sourceHash ?? null,
+      sourceHash: computedHash,
+      lastSyncedHash: input.lastSyncedHash ?? null,
       createdAt: now,
       updatedAt: now,
       deletedAt: null,
@@ -238,6 +288,15 @@ export class InMemoryPageRepository implements PageRepository {
     const existing = this.pages.get(id);
     if (!existing || existing.deletedAt !== null) {
       return null;
+    }
+
+    if (
+      input.expectedHash !== undefined &&
+      input.expectedHash !== null &&
+      existing.sourceHash &&
+      input.expectedHash !== existing.sourceHash
+    ) {
+      throw new PageConflictError(existing);
     }
 
     const updatedTitle =
@@ -262,15 +321,31 @@ export class InMemoryPageRepository implements PageRepository {
     }
 
     const updatedTags = input.tags !== undefined ? [...input.tags] : existing.tags;
+    const updatedIcon = input.icon ?? existing.icon;
+    const updatedCoverUrl =
+      input.coverUrl !== undefined ? input.coverUrl : (existing.coverUrl ?? null);
+    const updatedCoverY =
+      input.coverYPosition !== undefined ? input.coverYPosition : (existing.coverYPosition ?? 50);
     const embedding = generateDeterministicEmbedding(
       `${updatedTitle} ${updatedTags.join(' ')} ${contentMarkdown}`,
     );
+
+    const nextSourceHash =
+      input.sourceHash !== undefined
+        ? input.sourceHash
+        : computeMarkdownHash(
+            `${updatedSlug}::${updatedTitle}::${updatedIcon}::${updatedCoverUrl ?? ''}::${updatedTags.join(',')}::${contentMarkdown}`,
+          );
 
     const updated: MindPage = {
       ...existing,
       title: updatedTitle,
       slug: updatedSlug,
-      icon: input.icon ?? existing.icon,
+      icon: updatedIcon,
+      pageType: input.pageType ?? existing.pageType ?? 'concept',
+      description: input.description !== undefined ? input.description : (existing.description ?? ''),
+      coverUrl: updatedCoverUrl,
+      coverYPosition: updatedCoverY,
       parentId: input.parentId !== undefined ? input.parentId : existing.parentId,
       sortOrder: input.sortOrder ?? existing.sortOrder,
       contentMarkdown,
@@ -280,7 +355,9 @@ export class InMemoryPageRepository implements PageRepository {
       tags: updatedTags,
       embedding,
       sourcePath: input.sourcePath !== undefined ? input.sourcePath : existing.sourcePath,
-      sourceHash: input.sourceHash !== undefined ? input.sourceHash : existing.sourceHash,
+      sourceHash: nextSourceHash,
+      lastSyncedHash:
+        input.lastSyncedHash !== undefined ? input.lastSyncedHash : (existing.lastSyncedHash ?? null),
       updatedAt: new Date().toISOString(),
     };
 
@@ -474,11 +551,12 @@ export class InMemoryPageRepository implements PageRepository {
 
   async exportGitSnapshot(): Promise<GitSyncSnapshot> {
     const active = await this.listPages(false);
+    const assets = await this.listAssets();
     const files = active.map((page) => ({
-      path: page.sourcePath ?? `${page.slug}.md`,
+      path: page.sourcePath ?? computeOkfPagePath(page, active),
       pageId: page.id,
       title: page.title,
-      markdown: exportPageWithFrontmatter(page),
+      markdown: exportPageAsOkfMarkdown(page, active, assets),
     }));
 
     return {
@@ -742,22 +820,38 @@ export class InMemoryPageRepository implements PageRepository {
     return this.assets.get(id) ?? null;
   }
 
+  async getAssetByStoragePath(storagePath: string): Promise<MindAsset | null> {
+    const normalized = storagePath.replace(/^\.?\//, '');
+    for (const asset of this.assets.values()) {
+      const candidate = resolveAssetStoragePath(asset);
+      if (candidate === normalized || candidate.endsWith(`/${normalized}`)) {
+        return asset;
+      }
+    }
+    return null;
+  }
+
   async createAsset(input: CreateAssetInput): Promise<MindAsset> {
     const id = input.id?.trim() || `asset-${randomUUID()}`;
     const cleanBase64 = input.dataBase64.replace(/^data:[^;]+;base64,/, '').trim();
     const sizeBytes = Buffer.byteLength(cleanBase64, 'base64');
-    const asset: MindAsset = {
+    const filename = input.filename.trim() || `${id}.bin`;
+    const kind = input.kind ?? 'inline_image';
+    const baseAsset: MindAsset = {
       id,
-      filename: input.filename.trim() || `${id}.bin`,
+      pageId: input.pageId ?? null,
+      kind,
+      filename,
       mimeType: input.mimeType.trim(),
       dataBase64: cleanBase64,
       sizeBytes,
       url: `/api/assets/${encodeURIComponent(id)}`,
       createdAt: new Date().toISOString(),
     };
-    this.assets.set(id, asset);
+    baseAsset.storagePath = resolveAssetStoragePath(baseAsset);
+    this.assets.set(id, baseAsset);
     this.onMutate();
-    return asset;
+    return baseAsset;
   }
 
   async deleteAsset(id: string): Promise<boolean> {
@@ -766,6 +860,53 @@ export class InMemoryPageRepository implements PageRepository {
       this.onMutate();
     }
     return existed;
+  }
+
+  async getSyncConfig(): Promise<StoredSyncConfig | null> {
+    return this.syncConfig;
+  }
+
+  async saveSyncConfig(config: StoredSyncConfig): Promise<StoredSyncConfig> {
+    this.syncConfig = { ...config, history: [...config.history] };
+    this.onMutate();
+    return this.syncConfig;
+  }
+
+  async deleteSyncConfig(): Promise<boolean> {
+    const had = this.syncConfig !== null;
+    this.syncConfig = null;
+    if (had) {
+      this.onMutate();
+    }
+    return had;
+  }
+
+  async getPendingSyncCount(): Promise<number> {
+    let count = 0;
+    for (const page of this.pages.values()) {
+      if (page.deletedAt !== null) continue;
+      if (!page.lastSyncedHash || page.sourceHash !== page.lastSyncedHash) {
+        count += 1;
+      }
+    }
+    return count;
+  }
+
+  async markPagesSynced(pageHashes: ReadonlyMap<string, string>): Promise<void> {
+    let mutated = false;
+    for (const [pageId, syncedHash] of pageHashes.entries()) {
+      const existing = this.pages.get(pageId);
+      if (existing) {
+        this.pages.set(pageId, {
+          ...existing,
+          lastSyncedHash: syncedHash,
+        });
+        mutated = true;
+      }
+    }
+    if (mutated) {
+      this.onMutate();
+    }
   }
 }
 
@@ -824,6 +965,10 @@ export class DurableFilePageRepository extends InMemoryPageRepository {
           this.assets.set(a.id, a);
         }
       }
+
+      if (parsed.syncConfig) {
+        this.syncConfig = parsed.syncConfig;
+      }
     } catch {
       // If snapshot is corrupted or unreadable, keep seed state and overwrite cleanly on next mutation
     } finally {
@@ -846,6 +991,7 @@ export class DurableFilePageRepository extends InMemoryPageRepository {
         comments: Array.from(this.comments.values()),
         diagrams: Array.from(this.diagrams.values()),
         assets: Array.from(this.assets.values()),
+        syncConfig: this.syncConfig,
       };
 
       const tmpPath = `${this.filePath}.tmp`;

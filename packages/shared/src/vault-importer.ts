@@ -132,14 +132,37 @@ export function extractFrontmatterAndBody(rawMarkdown: string): {
 
   const uniqueTags = Array.from(new Set(tags.map((t) => t.replace(/^#/, '').trim()).filter(Boolean)));
 
+  const coverYRaw = rawAttributes.cover_y ?? rawAttributes.covery;
+  const parsedCoverY = typeof coverYRaw === 'string' ? Number(coverYRaw) : undefined;
+
   return {
     frontmatter: {
+      id: typeof rawAttributes.id === 'string' ? rawAttributes.id : undefined,
       title: typeof rawAttributes.title === 'string' ? rawAttributes.title : undefined,
       slug: typeof rawAttributes.slug === 'string' ? rawAttributes.slug : undefined,
       icon: typeof rawAttributes.icon === 'string' ? rawAttributes.icon : undefined,
+      type: typeof rawAttributes.type === 'string' ? rawAttributes.type : undefined,
+      description: typeof rawAttributes.description === 'string' ? rawAttributes.description : undefined,
+      coverUrl:
+        typeof rawAttributes.cover_url === 'string'
+          ? rawAttributes.cover_url
+          : typeof rawAttributes.coverurl === 'string'
+            ? rawAttributes.coverurl
+            : undefined,
+      coverY: Number.isFinite(parsedCoverY) ? parsedCoverY : undefined,
       tags: uniqueTags,
-      created: typeof rawAttributes.created === 'string' ? rawAttributes.created : undefined,
-      updated: typeof rawAttributes.updated === 'string' ? rawAttributes.updated : undefined,
+      created:
+        typeof rawAttributes.created_at === 'string'
+          ? rawAttributes.created_at
+          : typeof rawAttributes.created === 'string'
+            ? rawAttributes.created
+            : undefined,
+      updated:
+        typeof rawAttributes.updated_at === 'string'
+          ? rawAttributes.updated_at
+          : typeof rawAttributes.updated === 'string'
+            ? rawAttributes.updated
+            : undefined,
       status,
       project,
       isFavorite: rawAttributes.favorite === 'true' || rawAttributes.isfavorite === 'true',
@@ -328,7 +351,13 @@ export function planBulkVaultImport(
 ): BulkImportPlanResult {
   const now = new Date().toISOString();
   const parsedNotes = files
-    .filter((f) => f.path.trim().length > 0 && f.content.trim().length > 0)
+    .filter((f) => {
+      const normalized = f.path.trim().replace(/\\/g, '/').replace(/^\/+/, '');
+      if (!normalized || f.content.trim().length === 0) return false;
+      // Skip synthetic OKF root log/index manifests on root path
+      if (normalized === 'log.md' || normalized === 'index.md') return false;
+      return true;
+    })
     .map((f) => parseMarkdownNoteFile(f));
 
   const folderMap = new Map<string, MindPage>();
@@ -344,7 +373,7 @@ export function planBulkVaultImport(
       existingByTitleLower.set(existing.title.toLowerCase(), existing);
       if (existing.sourcePath && existing.sourcePath.endsWith('/index.md')) {
         const folderKey = existing.sourcePath.replace(/\/index\.md$/, '');
-        folderMap.set(folderKey, existing);
+        folderMap.set(folderKey, { ...existing, tags: [...existing.tags] });
       }
     }
   }
@@ -414,8 +443,15 @@ export function planBulkVaultImport(
         note.fileName.toLowerCase() === 'index' ||
         note.fileName.toLowerCase() === 'readme')
     ) {
+      if (note.frontmatter.id) {
+        parentFolder.id = note.frontmatter.id;
+      }
       parentFolder.title = note.title;
       parentFolder.icon = note.icon;
+      parentFolder.pageType = 'index';
+      parentFolder.description = note.frontmatter.description ?? parentFolder.description;
+      parentFolder.coverUrl = note.frontmatter.coverUrl ?? parentFolder.coverUrl;
+      parentFolder.coverYPosition = note.frontmatter.coverY ?? parentFolder.coverYPosition;
       parentFolder.contentMarkdown = note.normalizedMarkdown;
       parentFolder.contentJson = note.tiptapDoc;
       parentFolder.tags = Array.from(
@@ -426,6 +462,9 @@ export function planBulkVaultImport(
       );
       parentFolder.sourcePath = note.relativePath;
       parentFolder.sourceHash = note.sourceHash;
+      if (!pagesToUpsert.includes(parentFolder)) {
+        pagesToUpsert.push(parentFolder);
+      }
       continue;
     }
 
@@ -435,13 +474,26 @@ export function planBulkVaultImport(
     );
 
     const pathSlug = slugifyTitle(note.relativePath.replace(/\.(md|markdown)$/i, '').replace(/\//g, '-'));
-    const pageId = `sb-${pathSlug.slice(0, 48)}`;
+    const pageId = note.frontmatter.id?.trim() || `sb-${pathSlug.slice(0, 48)}`;
+    const rawType = note.frontmatter.type;
+    const validType =
+      rawType === 'concept' ||
+      rawType === 'index' ||
+      rawType === 'project' ||
+      rawType === 'runbook' ||
+      rawType === 'standard'
+        ? rawType
+        : 'concept';
 
     const page: MindPage = {
       id: pageId,
       slug: note.slug,
       title: note.title,
       icon: note.icon,
+      pageType: validType,
+      description: note.frontmatter.description ?? '',
+      coverUrl: note.frontmatter.coverUrl ?? null,
+      coverYPosition: note.frontmatter.coverY ?? 50,
       parentId,
       sortOrder: pagesToUpsert.length + 1,
       contentMarkdown: note.normalizedMarkdown,

@@ -40,8 +40,17 @@
         <SettingsSyncTab
           v-else-if="activeTab === 'sync'"
           :backend-connected="backendConnected"
+          :git-hub-status="gitHubStatus"
+          :git-hub-busy="gitHubBusy"
+          :git-hub-testing="gitHubTesting"
+          :git-hub-test-result="gitHubTestResult"
+          :git-hub-configure-error="gitHubConfigureError"
           @sync-server-vault="$emit('sync-server-vault')"
           @export-markdown="$emit('export-markdown')"
+          @github-test-connection="$emit('github-test-connection', $event)"
+          @github-configure="$emit('github-configure', $event)"
+          @github-sync-now="$emit('github-sync-now')"
+          @github-disconnect="$emit('github-disconnect')"
         />
 
         <SettingsShortcutsTab v-else-if="activeTab === 'shortcuts'" />
@@ -80,7 +89,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue';
+import { ref, watch } from 'vue';
 import {
   HardDrive,
   Keyboard,
@@ -88,6 +97,12 @@ import {
   RefreshCw,
   Settings,
 } from 'lucide-vue-next';
+import type {
+  GitHubSyncConfigInput,
+  GitHubSyncStatus,
+  GitHubTestConnectionInput,
+  GitHubTestConnectionResult,
+} from '@mind-hub/shared';
 import MindConfirmDialog from './MindConfirmDialog.vue';
 import MindModal from './MindModal.vue';
 import SettingsAppearanceTab from './settings/SettingsAppearanceTab.vue';
@@ -96,33 +111,60 @@ import SettingsShortcutsTab from './settings/SettingsShortcutsTab.vue';
 import SettingsStorageTab from './settings/SettingsStorageTab.vue';
 import SettingsSyncTab from './settings/SettingsSyncTab.vue';
 
+type SettingsTabId = 'general' | 'appearance' | 'sync' | 'shortcuts' | 'storage';
+
 const props = withDefaults(
   defineProps<{
     modelValue: boolean;
+    initialTab?: SettingsTabId;
     workspaceName?: string;
     backendConnected?: boolean;
     activePagesCount?: number;
     deletedPagesCount?: number;
     databaseTasksCount?: number;
+    gitHubStatus?: GitHubSyncStatus;
+    gitHubBusy?: boolean;
+    gitHubTesting?: boolean;
+    gitHubTestResult?: GitHubTestConnectionResult | null;
+    gitHubConfigureError?: string;
   }>(),
   {
+    initialTab: 'general',
     workspaceName: 'Mind de Luiz Pulz',
     backendConnected: true,
     activePagesCount: 0,
     deletedPagesCount: 0,
     databaseTasksCount: 0,
+    gitHubBusy: false,
+    gitHubTesting: false,
+    gitHubTestResult: null,
+    gitHubConfigureError: '',
   },
 );
 
-defineEmits<{
+const emit = defineEmits<{
   (e: 'update:modelValue', value: boolean): void;
+  (e: 'update:initialTab', value: SettingsTabId): void;
   (e: 'sync-server-vault'): void;
   (e: 'export-markdown'): void;
   (e: 'empty-trash'): void;
+  (e: 'github-test-connection', payload: GitHubTestConnectionInput): void;
+  (e: 'github-configure', payload: GitHubSyncConfigInput): void;
+  (e: 'github-sync-now'): void;
+  (e: 'github-disconnect'): void;
   (e: 'close'): void;
 }>();
 
-const activeTab = ref<'general' | 'appearance' | 'sync' | 'shortcuts' | 'storage'>('general');
+const activeTab = ref<SettingsTabId>(props.initialTab);
+watch(
+  () => props.initialTab,
+  (nextTab) => {
+    activeTab.value = nextTab;
+  },
+);
+watch(activeTab, (tab) => {
+  emit('update:initialTab', tab);
+});
 const workspaceNameBuffer = ref(props.workspaceName);
 const selectedLanguage = ref('pt-BR');
 const densityMode = ref<'comfortable' | 'compact'>('comfortable');

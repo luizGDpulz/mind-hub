@@ -853,7 +853,7 @@ import {
   Trash2,
   UserCheck,
 } from 'lucide-vue-next';
-import type { MindMark, MindNode, RawMarkdownFileEntry, TiptapDoc } from '@mind-hub/shared';
+import type { MindNode, RawMarkdownFileEntry, TiptapDoc } from '@mind-hub/shared';
 import { useMindStore } from './stores/mind-store.js';
 import PageTreeItem from './components/PageTreeItem.vue';
 import { MindEditor, type EditorFrontmatter, type PageReference } from '@mind-hub/editor';
@@ -1172,8 +1172,7 @@ const actionMenuItems = computed<ActionMenuItem[]>(() => {
       id: 'add-properties',
       label: 'Propriedades (YAML)',
       icon: SlidersHorizontal,
-      toggle: true,
-      active: isActivePagePropertiesVisible.value,
+      shortcut: '---',
       section: 'tools',
       handler: () => {
         openActivePageProperties();

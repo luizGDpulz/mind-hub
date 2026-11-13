@@ -1,5 +1,8 @@
 import { Extension } from '@tiptap/core';
+import { Plugin, PluginKey } from '@tiptap/pm/state';
 import type { Editor } from '@tiptap/core';
+import type { EditorState, Transaction } from '@tiptap/pm/state';
+import type { Node as PmNode } from '@tiptap/pm/model';
 import type { BlockColorId, BlockColorOption, BlockColorUpdate } from '../types.js';
 
 export const BLOCK_COLOR_PALETTE: BlockColorOption[] = [
@@ -136,6 +139,144 @@ export function syncBlockColorsAtSelection(editor: Editor, update: BlockColorUpd
   return true;
 }
 
+const BLOCK_COLOR_SYNC_PLUGIN_KEY = new PluginKey('mindBlockColorSync');
+const LIST_OR_QUOTE_CONTAINERS = new Set(['listItem', 'taskItem', 'blockquote']);
+
+function countNodesOfType(doc: PmNode, typeName: string): number {
+  let count = 0;
+  doc.descendants((node) => {
+    if (node.type.name === typeName) count += 1;
+    return true;
+  });
+  return count;
+}
+
+function applyContainerColorHoisting(doc: PmNode, tr: Transaction): boolean {
+  let modified = false;
+
+  doc.descendants((node, pos) => {
+    if (!LIST_OR_QUOTE_CONTAINERS.has(node.type.name)) {
+      return true;
+    }
+
+    let hoistedText = normalizeBlockColorId(node.attrs?.blockTextColor);
+    let hoistedBg = normalizeBlockColorId(node.attrs?.blockBackgroundColor);
+    let containerNeedsUpdate = false;
+    const clearChildPositions: Array<{ pos: number; attrs: Record<string, unknown> }> = [];
+
+    let offset = 1;
+    for (let i = 0; i < node.childCount; i += 1) {
+      const child = node.child(i);
+      if (child.type.name === 'paragraph') {
+        const childText = normalizeBlockColorId(child.attrs?.blockTextColor);
+        const childBg = normalizeBlockColorId(child.attrs?.blockBackgroundColor);
+        if (childText || childBg) {
+          if (!hoistedText && childText) {
+            hoistedText = childText;
+            containerNeedsUpdate = true;
+          }
+          if (!hoistedBg && childBg) {
+            hoistedBg = childBg;
+            containerNeedsUpdate = true;
+          }
+          clearChildPositions.push({
+            pos: pos + offset,
+            attrs: {
+              ...child.attrs,
+              blockTextColor: null,
+              blockBackgroundColor: null,
+            },
+          });
+        }
+      }
+      offset += child.nodeSize;
+    }
+
+    if (containerNeedsUpdate) {
+      tr.setNodeMarkup(pos, undefined, {
+        ...node.attrs,
+        blockTextColor: hoistedText,
+        blockBackgroundColor: hoistedBg,
+      });
+      modified = true;
+    }
+
+    for (const childPatch of clearChildPositions) {
+      tr.setNodeMarkup(childPatch.pos, undefined, childPatch.attrs);
+      modified = true;
+    }
+
+    return true;
+  });
+
+  return modified;
+}
+
+/**
+ * Normalizes loaded HTML/JSON documents so any block colors placed on inner list/quote
+ * paragraphs are hoisted onto the outer listItem / taskItem / blockquote container.
+ */
+export function normalizeContainerBlockColors(editor: Editor): boolean {
+  const { state, view } = editor;
+  const tr = state.tr;
+  const modified = applyContainerColorHoisting(state.doc, tr);
+  if (!modified) return false;
+  tr.setMeta('mindBlockColorSync', true);
+  tr.setMeta('addToHistory', false);
+  view.dispatch(tr);
+  return true;
+}
+
+function buildBlockColorSyncTransaction(
+  transactions: readonly Transaction[],
+  oldState: EditorState,
+  newState: EditorState
+): Transaction | null {
+  if (!transactions.some((t) => t.docChanged)) return null;
+  if (transactions.some((t) => t.getMeta('mindBlockColorSync'))) return null;
+
+  const tr = newState.tr;
+  let modified = false;
+
+  // Preserve color back onto top-level paragraph when a colored listItem/blockquote is unwrapped
+  const { $from: $oldFrom } = oldState.selection;
+  for (let d = $oldFrom.depth; d >= 1; d -= 1) {
+    const oldNode = $oldFrom.node(d);
+    if (!LIST_OR_QUOTE_CONTAINERS.has(oldNode.type.name)) continue;
+
+    const oldText = normalizeBlockColorId(oldNode.attrs?.blockTextColor);
+    const oldBg = normalizeBlockColorId(oldNode.attrs?.blockBackgroundColor);
+    if (!oldText && !oldBg) break;
+
+    const oldCount = countNodesOfType(oldState.doc, oldNode.type.name);
+    const newCount = countNodesOfType(newState.doc, oldNode.type.name);
+
+    if (newCount < oldCount) {
+      const { $from: $newFrom } = newState.selection;
+      if ($newFrom.depth === 1 && $newFrom.parent.type.name === 'paragraph') {
+        const newPara = $newFrom.parent;
+        if (!newPara.attrs?.blockTextColor && !newPara.attrs?.blockBackgroundColor) {
+          tr.setNodeMarkup($newFrom.before(1), undefined, {
+            ...newPara.attrs,
+            blockTextColor: oldText,
+            blockBackgroundColor: oldBg,
+          });
+          modified = true;
+        }
+      }
+    }
+    break;
+  }
+
+  if (applyContainerColorHoisting(tr.doc, tr)) {
+    modified = true;
+  }
+
+  if (!modified) return null;
+  tr.setMeta('mindBlockColorSync', true);
+  return tr;
+}
+
 declare module '@tiptap/core' {
   interface Commands<ReturnType> {
     blockColor: {
@@ -148,6 +289,16 @@ declare module '@tiptap/core' {
 
 export const BlockColor = Extension.create({
   name: 'blockColor',
+
+  addProseMirrorPlugins() {
+    return [
+      new Plugin({
+        key: BLOCK_COLOR_SYNC_PLUGIN_KEY,
+        appendTransaction: (transactions, oldState, newState) =>
+          buildBlockColorSyncTransaction(transactions, oldState, newState),
+      }),
+    ];
+  },
 
   addGlobalAttributes() {
     return [

@@ -1,11 +1,14 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import { Editor } from '@tiptap/core';
 import StarterKit from '@tiptap/starter-kit';
+import TaskList from '@tiptap/extension-task-list';
+import TaskItem from '@tiptap/extension-task-item';
 import {
   BlockColor,
   BLOCK_COLOR_PALETTE,
   applyBlockColorAtPos,
   normalizeBlockColorId,
+  normalizeContainerBlockColors,
 } from './block-color.js';
 
 describe('BlockColor Extension', () => {
@@ -78,5 +81,41 @@ describe('BlockColor Extension', () => {
 
     const html = editor.getHTML();
     expect(html).toContain('<li data-block-color="green" data-block-bg="green"><p>Primeiro</p></li>');
+  });
+
+  it('hoists paragraph pill color onto <li> when toggled into bullet/ordered/task list and restores on unwrap', () => {
+    const editor = new Editor({
+      extensions: [StarterKit, TaskList, TaskItem.configure({ nested: true }), BlockColor],
+      content: '<p data-block-bg="purple" data-block-color="purple">Item colorido</p>',
+    });
+    editors.push(editor);
+
+    // Toggling bullet list wraps <p> into <li>, plugin automatically hoists color to <li>
+    editor.chain().setTextSelection(3).toggleBulletList().run();
+    expect(editor.getHTML()).toContain(
+      '<ul><li data-block-color="purple" data-block-bg="purple"><p>Item colorido</p></li></ul>'
+    );
+
+    // Toggling off restores color cleanly onto top-level <p>
+    editor.chain().toggleBulletList().run();
+    expect(editor.getHTML()).toBe(
+      '<p data-block-color="purple" data-block-bg="purple">Item colorido</p>'
+    );
+
+    // Switching to task list also hoists onto taskItem
+    editor.chain().toggleTaskList().run();
+    expect(editor.getHTML()).toContain('data-block-bg="purple"');
+    expect(editor.getHTML()).not.toContain('<p data-block-bg="purple">');
+  });
+
+  it('normalizes legacy HTML where child paragraph inside listItem held block color', () => {
+    const editor = new Editor({
+      extensions: [StarterKit, BlockColor],
+      content: '<ul><li><p data-block-bg="blue">Legado</p></li></ul>',
+    });
+    editors.push(editor);
+
+    expect(normalizeContainerBlockColors(editor)).toBe(true);
+    expect(editor.getHTML()).toBe('<ul><li data-block-bg="blue"><p>Legado</p></li></ul>');
   });
 });

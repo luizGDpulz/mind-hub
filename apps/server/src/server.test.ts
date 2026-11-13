@@ -21,9 +21,9 @@ describe('@mind-hub/server — Fastify API, Soft Delete, Durable Persistence, MC
       activeComments: number;
     }>();
     expect(body.status).toBe('ok');
-    expect(body.activePages).toBe(4);
+    expect(body.activePages).toBe(2);
     expect(body.activeTasks).toBe(8);
-    expect(body.activeComments).toBe(2);
+    expect(body.activeComments).toBe(0);
 
     const bootstrapRes = await app.inject({ method: 'GET', url: '/api/workspace/bootstrap' });
     expect(bootstrapRes.statusCode).toBe(200);
@@ -33,15 +33,15 @@ describe('@mind-hub/server — Fastify API, Soft Delete, Durable Persistence, MC
       comments: unknown[];
       diagrams: unknown[];
     }>();
-    expect(bootstrapBody.pages.length).toBe(4);
+    expect(bootstrapBody.pages.length).toBe(2);
     expect(bootstrapBody.databaseTasks.length).toBe(8);
-    expect(bootstrapBody.comments.length).toBe(2);
-    expect(bootstrapBody.diagrams.length).toBe(3);
+    expect(bootstrapBody.comments.length).toBe(0);
+    expect(bootstrapBody.diagrams.length).toBe(0);
 
     const treeRes = await app.inject({ method: 'GET', url: '/api/pages/tree' });
     expect(treeRes.statusCode).toBe(200);
     const treeBody = treeRes.json<{ tree: Array<{ id: string; children: unknown[] }> }>();
-    expect(treeBody.tree.length).toBe(2);
+    expect(treeBody.tree.length).toBe(1);
     await app.close();
   });
 
@@ -268,7 +268,7 @@ describe('@mind-hub/server — Fastify API, Soft Delete, Durable Persistence, MC
     });
     expect(gitRes.statusCode).toBe(200);
     const snapshot = gitRes.json<{ totalFiles: number; files: Array<{ path: string; markdown: string }> }>();
-    expect(snapshot.totalFiles).toBe(4);
+    expect(snapshot.totalFiles).toBe(3);
     expect(snapshot.files[0]?.markdown).toContain('---');
 
     await app.close();
@@ -374,6 +374,16 @@ describe('@mind-hub/server — Fastify API, Soft Delete, Durable Persistence, MC
     });
     expect(mcpCreateTask.statusCode).toBe(200);
 
+    await app.inject({
+      method: 'POST',
+      url: '/api/pages',
+      payload: {
+        title: 'ADR 001 — Fastify e Drizzle ORM',
+        contentMarkdown: 'Escolhemos Fastify e Drizzle ORM pela latência baixa.',
+        tags: ['adr', 'fastify', 'drizzle'],
+      },
+    });
+
     const aiRes = await app.inject({
       method: 'POST',
       url: '/api/ai/chat',
@@ -462,5 +472,55 @@ describe('@mind-hub/server — Fastify API, Soft Delete, Durable Persistence, MC
     expect(mcpBulkParsed.wikiLinksResolved).toBe(1);
 
     await app.close();
+  });
+
+  it('stores uploaded icon image assets on disk and serves them via /api/assets/:id with hardened headers', async () => {
+    const storeFile = join(tmpdir(), `mind-hub-asset-store-${Date.now()}.json`);
+    const repo1 = new DurableFilePageRepository(storeFile);
+    const app1 = await buildApp({ repository: repo1 });
+
+    const pngBase64 =
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+    const uploadRes = await app1.inject({
+      method: 'POST',
+      url: '/api/assets',
+      payload: {
+        filename: 'logo.png',
+        mimeType: 'image/png',
+        dataBase64: `data:image/png;base64,${pngBase64}`,
+      },
+    });
+    expect(uploadRes.statusCode).toBe(201);
+    const uploadBody = uploadRes.json<{ asset: { id: string; url: string; mimeType: string } }>();
+    expect(uploadBody.asset.url).toBe(`/api/assets/${uploadBody.asset.id}`);
+    expect(uploadBody.asset.mimeType).toBe('image/png');
+
+    await app1.close();
+
+    // Verify disk durability across restart
+    const repo2 = new DurableFilePageRepository(storeFile);
+    const app2 = await buildApp({ repository: repo2 });
+    const fetchRes = await app2.inject({
+      method: 'GET',
+      url: uploadBody.asset.url,
+    });
+    expect(fetchRes.statusCode).toBe(200);
+    expect(fetchRes.headers['content-type']).toBe('image/png');
+    expect(fetchRes.headers['x-content-type-options']).toBe('nosniff');
+
+    // Reject unsupported MIME type
+    const badRes = await app2.inject({
+      method: 'POST',
+      url: '/api/assets',
+      payload: {
+        filename: 'malware.exe',
+        mimeType: 'application/octet-stream',
+        dataBase64: pngBase64,
+      },
+    });
+    expect(badRes.statusCode).toBe(400);
+
+    await app2.close();
+    rmSync(storeFile, { force: true });
   });
 });

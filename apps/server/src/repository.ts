@@ -14,6 +14,7 @@ import {
   searchPagesEngine,
   slugifyTitle,
   type AddCommentReplyInput,
+  type CreateAssetInput,
   type CreateDatabaseTaskInput,
   type CreatePageCommentInput,
   type CreatePageInput,
@@ -21,6 +22,7 @@ import {
   type DatabaseTaskRow,
   type DiagramBlockItem,
   type GitSyncSnapshot,
+  type MindAsset,
   type MindPage,
   type PageCommentThread,
   type PageTreeNode,
@@ -39,6 +41,7 @@ export interface DurableStoreSnapshot {
   databaseTasks: DatabaseTaskRow[];
   comments: PageCommentThread[];
   diagrams: DiagramBlockItem[];
+  assets?: MindAsset[];
 }
 
 export interface PageRepository {
@@ -80,6 +83,12 @@ export interface PageRepository {
   listDiagrams(pageId?: string, includeDeleted?: boolean): Promise<DiagramBlockItem[]>;
   upsertDiagram(input: UpsertDiagramInput): Promise<DiagramBlockItem>;
   softDeleteDiagram(id: string): Promise<DiagramBlockItem | null>;
+
+  // Media & Icon Assets stored in repository snapshot/DB
+  listAssets(): Promise<MindAsset[]>;
+  getAssetById(id: string): Promise<MindAsset | null>;
+  createAsset(input: CreateAssetInput): Promise<MindAsset>;
+  deleteAsset(id: string): Promise<boolean>;
 }
 
 export class InMemoryPageRepository implements PageRepository {
@@ -87,6 +96,7 @@ export class InMemoryPageRepository implements PageRepository {
   protected readonly databaseTasks = new Map<string, DatabaseTaskRow>();
   protected readonly comments = new Map<string, PageCommentThread>();
   protected readonly diagrams = new Map<string, DiagramBlockItem>();
+  protected readonly assets = new Map<string, MindAsset>();
 
   constructor(
     initialPages?: ReadonlyArray<MindPage>,
@@ -723,6 +733,40 @@ export class InMemoryPageRepository implements PageRepository {
     this.onMutate();
     return deleted;
   }
+
+  async listAssets(): Promise<MindAsset[]> {
+    return Array.from(this.assets.values());
+  }
+
+  async getAssetById(id: string): Promise<MindAsset | null> {
+    return this.assets.get(id) ?? null;
+  }
+
+  async createAsset(input: CreateAssetInput): Promise<MindAsset> {
+    const id = input.id?.trim() || `asset-${randomUUID()}`;
+    const cleanBase64 = input.dataBase64.replace(/^data:[^;]+;base64,/, '').trim();
+    const sizeBytes = Buffer.byteLength(cleanBase64, 'base64');
+    const asset: MindAsset = {
+      id,
+      filename: input.filename.trim() || `${id}.bin`,
+      mimeType: input.mimeType.trim(),
+      dataBase64: cleanBase64,
+      sizeBytes,
+      url: `/api/assets/${encodeURIComponent(id)}`,
+      createdAt: new Date().toISOString(),
+    };
+    this.assets.set(id, asset);
+    this.onMutate();
+    return asset;
+  }
+
+  async deleteAsset(id: string): Promise<boolean> {
+    const existed = this.assets.delete(id);
+    if (existed) {
+      this.onMutate();
+    }
+    return existed;
+  }
 }
 
 export class DurableFilePageRepository extends InMemoryPageRepository {
@@ -773,6 +817,13 @@ export class DurableFilePageRepository extends InMemoryPageRepository {
           this.diagrams.set(d.id, d);
         }
       }
+
+      if (Array.isArray(parsed.assets)) {
+        this.assets.clear();
+        for (const a of parsed.assets) {
+          this.assets.set(a.id, a);
+        }
+      }
     } catch {
       // If snapshot is corrupted or unreadable, keep seed state and overwrite cleanly on next mutation
     } finally {
@@ -794,6 +845,7 @@ export class DurableFilePageRepository extends InMemoryPageRepository {
         databaseTasks: Array.from(this.databaseTasks.values()),
         comments: Array.from(this.comments.values()),
         diagrams: Array.from(this.diagrams.values()),
+        assets: Array.from(this.assets.values()),
       };
 
       const tmpPath = `${this.filePath}.tmp`;

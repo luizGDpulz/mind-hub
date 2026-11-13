@@ -145,6 +145,7 @@ function isSpecialBlockStart(trimmed: string): boolean {
     trimmed.startsWith('> ') ||
     trimmed === '>' ||
     /^-\s+\[[ xX]\]\s+/.test(trimmed) ||
+    /^\d+\.\s+/.test(trimmed) ||
     trimmed.startsWith('- ') ||
     trimmed.startsWith('* ') ||
     (trimmed.startsWith('|') && trimmed.endsWith('|') && trimmed.length > 2)
@@ -169,7 +170,7 @@ function parseBlock(state: ParseState): TiptapNode | null {
     advance(state);
     return {
       type: 'heading',
-      attrs: { level: Math.min(hashes.length, 3) },
+      attrs: { level: Math.min(hashes.length, 4) },
       content: parseInline(text),
     };
   }
@@ -254,6 +255,25 @@ function parseBlock(state: ParseState): TiptapNode | null {
     return {
       type: 'taskList',
       content: taskItems,
+    };
+  }
+
+  if (/^\d+\.\s+/.test(trimmed)) {
+    const listItems: TiptapNode[] = [];
+    while (state.index < state.lines.length) {
+      const currentTrimmed = peek(state).trimStart();
+      const match = currentTrimmed.match(/^\d+\.\s+(.*)$/);
+      if (!match) break;
+      const itemText = (match[1] ?? '').trim();
+      listItems.push({
+        type: 'listItem',
+        content: [{ type: 'paragraph', content: parseInline(itemText) }],
+      });
+      advance(state);
+    }
+    return {
+      type: 'orderedList',
+      content: listItems,
     };
   }
 
@@ -401,7 +421,7 @@ function serializeNode(node: TiptapNode): string {
   switch (node.type) {
     case 'heading': {
       const rawLevel = Number(node.attrs?.level ?? 1);
-      const level = Math.max(1, Math.min(3, Number.isFinite(rawLevel) ? rawLevel : 1));
+      const level = Math.max(1, Math.min(4, Number.isFinite(rawLevel) ? rawLevel : 1));
       const prefix = '#'.repeat(level);
       return `${prefix} ${serializeInline(node.content ?? [])}`;
     }
@@ -409,6 +429,17 @@ function serializeNode(node: TiptapNode): string {
       return serializeInline(node.content ?? []);
     case 'bulletList':
       return (node.content ?? []).map((item) => serializeNode(item)).join('\n');
+    case 'orderedList':
+      return (node.content ?? [])
+        .map((item, idx) => {
+          const inner = (item.content ?? [])
+            .map((child) =>
+              child.type === 'paragraph' ? serializeInline(child.content ?? []) : serializeNode(child),
+            )
+            .join(' ');
+          return `${idx + 1}. ${inner}`;
+        })
+        .join('\n');
     case 'listItem': {
       const inner = (node.content ?? [])
         .map((child) =>
@@ -443,6 +474,16 @@ function serializeNode(node: TiptapNode): string {
         .split('\n')
         .map((l) => `> ${l}`)
         .join('\n');
+    }
+    case 'callout': {
+      const label = String(node.attrs?.type ?? 'note').toUpperCase();
+      const inner = (node.content ?? [])
+        .map((child) =>
+          child.type === 'paragraph' ? serializeInline(child.content ?? []) : serializeNode(child),
+        )
+        .join('\n');
+      const lines = inner.split('\n').map((l) => `> ${l}`);
+      return `> [!${label}]\n${lines.join('\n')}`;
     }
     case 'horizontalRule':
       return '---';
@@ -513,7 +554,7 @@ export function exportPageWithFrontmatter(page: MindPage): string {
     `updated: ${page.updatedAt}`,
     '---',
     '',
-    `# ${page.icon} ${page.title}`,
+    `# ${page.icon ? `${page.icon} ` : ''}${page.title}`,
     '',
     page.contentMarkdown.trim(),
     '',

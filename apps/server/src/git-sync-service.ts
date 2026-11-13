@@ -129,7 +129,9 @@ export class GitSyncService {
     } catch (error) {
       const rawMessage = error instanceof Error ? error.message : String(error);
       const stderr = (error as { stderr?: string })?.stderr ?? '';
-      throw new Error(scrubSecret(`${rawMessage} ${stderr}`.trim(), secretToScrub));
+      throw new Error(scrubSecret(`${rawMessage} ${stderr}`.trim(), secretToScrub), {
+        cause: error,
+      });
     }
   }
 
@@ -179,8 +181,8 @@ export class GitSyncService {
     const branch = (input.branch ?? 'main').trim() || 'main';
     const token = input.token.trim();
 
-    let displayRepo = input.repository;
-    let isLocalRemote = false;
+    let displayRepo: string;
+    let isLocalRemote: boolean;
     try {
       const parsed = normalizeGitHubRepository(input.repository);
       displayRepo = parsed.displayRepo;
@@ -559,7 +561,7 @@ export class GitSyncService {
         history: [errEntry, ...cfg.history].slice(0, 20),
         updatedAt: syncedAt,
       });
-      throw new Error(safeErr);
+      throw new Error(safeErr, { cause: error });
     }
   }
 }

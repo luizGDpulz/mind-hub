@@ -424,14 +424,20 @@ onBeforeUnmount(() => {
   editor.value?.destroy();
 });
 
-function insertSubpageBlock(attrs: Partial<SubpageBlockAttrs>): void {
-  editor.value?.chain().focus().insertSubpageBlock(attrs).run();
+function insertSubpageBlock(attrs: Partial<SubpageBlockAttrs>): boolean {
+  if (!editor.value) return false;
+  return editor.value.chain().focus().insertSubpageBlock(attrs).run();
+}
+
+function focus(): void {
+  editor.value?.commands.focus('start');
 }
 
 defineExpose({
   openProperties,
   handleRootMouseDown,
   insertSubpageBlock,
+  focus,
 });
 </script>
 

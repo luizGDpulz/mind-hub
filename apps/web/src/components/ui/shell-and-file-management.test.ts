@@ -227,9 +227,7 @@ describe('MindSettingsModal — Painel de Configurações em Abas Notion/Docmost
     // Switch to Sync tab
     await wrapper.find('[data-testid="settings-tab-sync"]').trigger('click');
     expect(wrapper.find('[data-testid="settings-panel-sync"]').exists()).toBe(true);
-
-    await wrapper.find('[data-testid="sync-vault-action-btn"]').trigger('click');
-    expect(wrapper.emitted('sync-server-vault')).toBeTruthy();
+    expect(wrapper.find('[data-testid="sync-vault-action-btn"]').exists()).toBe(false);
 
     await wrapper.find('[data-testid="export-markdown-action-btn"]').trigger('click');
     expect(wrapper.emitted('export-markdown')).toBeTruthy();
@@ -286,7 +284,7 @@ describe('MindTreeContextMenu — Ações Rápidas no Nó do Arquivo', () => {
     });
 
     // Valida Header estilo Notion
-    expect(wrapper.find('.tree-context-caption').text()).toBe('Página');
+    expect(wrapper.find('.tree-context-caption').text()).toBe('Nota');
     expect(wrapper.find('.tree-context-page-title').text()).toBe('Nota Arquivada');
 
     // Valida Footer de Auditoria estilo Notion

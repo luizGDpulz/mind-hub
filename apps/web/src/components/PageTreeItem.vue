@@ -56,7 +56,7 @@
         <button
           type="button"
           class="tree-action-icon-btn"
-          title="Criar subpágina"
+          title="Criar subnota"
           data-testid="tree-add-child-btn"
           @click.stop="$emit('create-child', node.id)"
         >

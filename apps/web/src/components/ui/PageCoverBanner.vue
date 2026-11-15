@@ -14,33 +14,34 @@
     @pointerup="handlePointerUp"
     @pointercancel="handlePointerUp"
   >
-    <!-- Repositioning helper banner -->
+    <!-- Notion-like Center Reposition Hint Pill (Image 5) -->
     <div
       v-if="isRepositioning"
-      class="cover-reposition-overlay"
+      class="cover-reposition-center-pill"
       data-testid="cover-reposition-bar"
     >
-      <span class="cover-reposition-hint">Arraste para reposicionar ({{ draftY }}%)</span>
-      <input
-        v-model.number="draftY"
-        type="range"
-        min="0"
-        max="100"
-        class="cover-y-slider"
-        aria-label="Posição vertical da capa"
-        data-testid="cover-y-slider"
-      />
+      Arraste a imagem para reposicionar
+    </div>
+
+    <!-- Notion-like Top-Right Save / Cancel Pill Group (Image 5) -->
+    <div
+      v-if="isRepositioning"
+      class="cover-reposition-top-actions"
+      data-testid="cover-reposition-actions"
+      @pointerdown.stop
+    >
       <button
         type="button"
-        class="cover-action-btn primary"
+        class="cover-reposition-pill-btn"
         data-testid="cover-save-position-btn"
         @click.stop="savePosition"
       >
         Salvar posição
       </button>
+      <span class="cover-reposition-pill-sep" />
       <button
         type="button"
-        class="cover-action-btn"
+        class="cover-reposition-pill-btn"
         data-testid="cover-cancel-position-btn"
         @click.stop="cancelReposition"
       >
@@ -254,6 +255,14 @@ function handlePointerDown(event: PointerEvent): void {
   isDragging = true;
   dragStartY = event.clientY;
   dragInitialPosY = draftY.value;
+  const target = event.currentTarget as HTMLElement | null;
+  if (target && typeof target.setPointerCapture === 'function' && event.pointerId !== undefined) {
+    try {
+      target.setPointerCapture(event.pointerId);
+    } catch {
+      // Ignore synthetic events in unit tests
+    }
+  }
 }
 
 function handlePointerMove(event: PointerEvent): void {
@@ -264,8 +273,17 @@ function handlePointerMove(event: PointerEvent): void {
   draftY.value = Math.min(100, Math.max(0, Math.round(nextY)));
 }
 
-function handlePointerUp(): void {
+function handlePointerUp(event: PointerEvent): void {
+  if (!isDragging) return;
   isDragging = false;
+  const target = event.currentTarget as HTMLElement | null;
+  if (target && typeof target.releasePointerCapture === 'function' && event.pointerId !== undefined) {
+    try {
+      target.releasePointerCapture(event.pointerId);
+    } catch {
+      // Ignore synthetic events in unit tests
+    }
+  }
 }
 
 function openPicker(): void {
@@ -347,31 +365,57 @@ defineExpose({ openPicker });
   background: #fff5f5;
 }
 
-.cover-reposition-overlay {
+.cover-reposition-center-pill {
   position: absolute;
   left: 50%;
   top: 50%;
   transform: translate(-50%, -50%);
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 8px 12px;
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.95);
-  border: 1px solid #dee2e6;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
-}
-
-.cover-reposition-hint {
+  padding: 6px 14px;
+  border-radius: 6px;
+  background: rgba(25, 25, 25, 0.64);
+  color: #ffffff;
   font-size: 12px;
   font-weight: 500;
-  color: #495057;
-  white-space: nowrap;
+  line-height: 1.35;
+  text-align: center;
+  pointer-events: none;
+  backdrop-filter: blur(4px);
 }
 
-.cover-y-slider {
-  width: 90px;
-  accent-color: #1971c2;
+.cover-reposition-top-actions {
+  position: absolute;
+  top: 12px;
+  right: 16px;
+  display: inline-flex;
+  align-items: center;
+  background: rgba(255, 255, 255, 0.96);
+  border: 1px solid rgba(222, 226, 230, 0.95);
+  border-radius: 6px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  overflow: hidden;
+}
+
+.cover-reposition-pill-btn {
+  border: none;
+  background: transparent;
+  color: #343a40;
+  font-size: 12px;
+  font-weight: 500;
+  height: 28px;
+  padding: 0 10px;
+  cursor: pointer;
+  transition: background-color 0.12s ease, color 0.12s ease;
+}
+
+.cover-reposition-pill-btn:hover {
+  background: #f1f3f5;
+  color: #212529;
+}
+
+.cover-reposition-pill-sep {
+  width: 1px;
+  height: 16px;
+  background: #dee2e6;
 }
 
 .cover-picker-popover {

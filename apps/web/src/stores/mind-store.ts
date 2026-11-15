@@ -32,6 +32,7 @@ import {
   type GitHubTestConnectionResult,
   type GitSyncSnapshot,
   type MindAsset,
+  type MindNode,
   type MindPage,
   type MindVersionEntry,
   type PageCommentThread,

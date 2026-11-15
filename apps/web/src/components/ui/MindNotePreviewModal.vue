@@ -98,9 +98,9 @@
             :cover-url="modalPage.coverUrl ?? ''"
             :cover-y-position="modalPage.coverYPosition ?? 50"
             :read-only="false"
-            @update-cover="(url) => store.updatePageMeta(modalPage!.id, { coverUrl: url })"
-            @update-position="(y) => store.updatePageMeta(modalPage!.id, { coverYPosition: y })"
-            @remove-cover="store.updatePageMeta(modalPage!.id, { coverUrl: '' })"
+            @update:cover-url="(url) => store.updatePageMeta(modalPage!.id, { coverUrl: url })"
+            @update:cover-y-position="(y) => store.updatePageMeta(modalPage!.id, { coverYPosition: y })"
+            @remove="store.updatePageMeta(modalPage!.id, { coverUrl: '' })"
           />
 
           <div class="modal-peek-content-wrap">

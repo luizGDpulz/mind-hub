@@ -39,8 +39,8 @@
       <button
         type="button"
         class="fav-action-icon-btn"
-        title="Nova subpágina"
-        aria-label="Criar subpágina"
+        title="Nova subnota"
+        aria-label="Criar subnota"
         data-testid="fav-add-child-btn"
         @click.stop="$emit('create-child', page.id)"
       >

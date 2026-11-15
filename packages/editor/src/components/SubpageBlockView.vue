@@ -3,7 +3,7 @@ import { computed, onBeforeUnmount, ref } from 'vue';
 import { NodeViewWrapper, type NodeViewProps } from '@tiptap/vue-3';
 import { File, FileText } from 'lucide-vue-next';
 import { getBlockColorDisplayHex } from '../extensions/block-color.js';
-import { parseLucideIconValue } from '../extensions/lucide-icon-registry.js';
+import { parseLucideIconValue } from '../extensions/callout-icons.js';
 import type { PageReference } from '../types.js';
 
 const props = defineProps<NodeViewProps>();

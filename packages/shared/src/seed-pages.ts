@@ -88,6 +88,8 @@ export function createInitialSeedPages(): MindPage[] {
     '| Coluna A | Coluna B |',
     '| --- | --- |',
     '| Valor 1 | Valor 2 |',
+    '',
+    '[Nota de Teste Interna](#/page/page-teste-interno) <!-- mind:subpage id="page-teste-interno" icon="" color="default" -->',
   ].join('\n');
 
   const parentPage = createSeedPage({

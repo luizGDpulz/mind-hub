@@ -633,8 +633,7 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
       Math.min(Math.max(body.maxFiles ?? 250, 1), 500),
     );
 
-    const filesToImport =
-      scannedFiles.length > 0 ? scannedFiles : createSampleSecondBrainBatch();
+    const filesToImport = scannedFiles;
 
     const conflictStrategy = body.conflictStrategy === 'skip' ? 'skip' : 'upsert';
     const existingPages = await repo.listPages(false);

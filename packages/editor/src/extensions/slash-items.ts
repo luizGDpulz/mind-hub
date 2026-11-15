@@ -213,11 +213,11 @@ export function createDefaultSlashItems(callbacks: SlashItemCallbacks): SlashMen
     },
     {
       id: 'subpage',
-      title: 'Subpágina',
-      description: 'Criar uma nova subpágina aninhada',
+      title: 'Subnota',
+      description: 'Criar uma nova subnota aninhada',
       category: 'advanced',
       icon: markRaw(FilePlus),
-      keywords: ['subpagina', 'subpage', 'pagina', 'nota'],
+      keywords: ['subnota', 'subpagina', 'subpage', 'pagina', 'nota'],
       action: () => callbacks.onCreateSubpage(),
     },
   ];

@@ -42,8 +42,8 @@
         <button
           type="button"
           class="sidebar-top-icon-btn"
-          title="Nova página na raiz"
-          aria-label="Nova página na raiz"
+          title="Nova nota na raiz"
+          aria-label="Nova nota na raiz"
           data-testid="sidebar-new-root-note-btn"
           @click="handleCreateRootPage"
         >
@@ -120,14 +120,14 @@
       </div>
     </div>
 
-    <!-- Pages Section Header -->
+    <!-- Notas Section Header -->
     <div class="pages-section-header">
-      <span class="sidebar-section-label">Pages ({{ store.activePages.length }})</span>
+      <span class="sidebar-section-label">Notas ({{ store.activePages.length }})</span>
       <div class="pages-section-actions">
         <button
           type="button"
           class="sidebar-mini-btn"
-          :title="treeForceExpanded ? 'Recolher todas as pastas' : 'Expandir todas as pastas'"
+          :title="treeForceExpanded ? 'Recolher todas as notas' : 'Expandir todas as notas'"
           data-testid="toggle-tree-expand-all-btn"
           @click="toggleTreeExpandAll"
         >
@@ -136,8 +136,8 @@
         <button
           type="button"
           class="sidebar-mini-btn"
-          title="New page"
-          aria-label="Create page"
+          title="Nova nota"
+          aria-label="Criar nota"
           data-testid="new-page-btn"
           @click="handleCreateRootPage"
         >
@@ -316,13 +316,14 @@ function toggleTreeExpandAll(): void {
 async function handleCreateRootPage(): Promise<void> {
   store.activeSurface = 'editor';
   const newPage = await store.createPage({
-    title: 'Sem título',
-    icon: '📄',
+    title: 'Nova Nota',
+    icon: '',
     parentId: null,
     contentMarkdown: '',
     tags: [],
   });
   store.selectPage(newPage.id);
+  store.openNoteModal(newPage.id);
 }
 
 async function handleOpenInbox(): Promise<void> {
@@ -342,13 +343,7 @@ async function handleOpenInbox(): Promise<void> {
 
 function handleCreateChildPage(parentId: string): void {
   store.activeSurface = 'editor';
-  void store.createPage({
-    title: 'Sem título',
-    icon: '📑',
-    parentId,
-    contentMarkdown: '',
-    tags: [],
-  });
+  void store.createSubpageAndLinkInParent(parentId, { openInModal: true });
 }
 
 function handleTreeContextMenu(

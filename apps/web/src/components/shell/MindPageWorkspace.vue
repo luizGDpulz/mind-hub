@@ -63,7 +63,11 @@
                   title="Clique para mudar o ícone"
                   @click="!store.editorReadMode && (isIconPickerOpen = true)"
                 >
-                  <MindPageIcon :icon="store.activePage.icon" :size="44" />
+                  <MindPageIcon
+                    :icon="store.activePage.icon"
+                    :has-content="Boolean(store.activePage.contentMarkdown?.trim())"
+                    :size="44"
+                  />
                 </div>
 
                 <div
@@ -124,10 +128,10 @@
                   :value="store.activePage.title"
                   type="text"
                   class="page-title-h1"
-                  placeholder="Sem título"
+                  placeholder="Nova Nota"
                   :readonly="store.editorReadMode"
                   data-testid="page-title-input"
-                  aria-label="Page title"
+                  aria-label="Título da nota"
                   @input="
                     (e) =>
                       store.activePage &&
@@ -160,10 +164,10 @@
       <div v-else-if="!store.isBootstrapping" class="empty-workspace-state q-pa-xl flex flex-center column" style="min-height: 400px">
         <FileText :size="36" :stroke-width="1.5" style="color: var(--mind-text-muted); margin-bottom: 12px" />
         <div style="font-size: 16px; font-weight: 600; color: var(--mind-text-primary); margin-bottom: 6px">
-          Nenhuma página encontrada
+          Nenhuma nota encontrada
         </div>
         <div style="font-size: 13px; color: var(--mind-text-muted); margin-bottom: 16px">
-          Crie sua primeira página limpa para começar a escrever.
+          Crie sua primeira nota limpa para começar a escrever.
         </div>
         <button
           type="button"
@@ -171,7 +175,7 @@
           data-testid="create-first-page-btn"
           @click="handleCreateRootPage"
         >
-          + Criar página
+          + Criar nota
         </button>
       </div>
     </q-page>
@@ -222,7 +226,7 @@ const {
 
 const hasCustomPageIcon = computed<boolean>(() => {
   const icon = store.activePage?.icon;
-  return Boolean(icon && icon !== '📄');
+  return Boolean(icon && icon !== '📄' && icon !== '📑' && icon !== '📁');
 });
 
 const hasPageCover = computed<boolean>(() => Boolean(store.activePage?.coverUrl?.trim()));
@@ -258,14 +262,28 @@ function handleWorkspaceMouseDown(event: MouseEvent): void {
 defineExpose({ openProperties });
 
 const mentionPageReferences = computed<PageReference[]>(() =>
-  store.activePages.map((p) => ({
-    id: p.id,
-    title: p.title,
-    slug: p.slug,
-    icon: p.icon || '📄',
-    summary: p.tags?.join(', '),
-    updatedAt: p.updatedAt,
-  })),
+  store.activePages.map((p) => {
+    const parent = p.parentId
+      ? store.pages.find((cand) => cand.id === p.parentId && cand.deletedAt === null)
+      : undefined;
+    const firstParagraph = p.contentMarkdown
+      ?.split('\n')
+      .map((line) => line.replace(/^[#>*\-\d.]+\s*/, '').trim())
+      .find(
+        (line) =>
+          line.length > 0 && !line.startsWith('[') && !line.includes('<!-- mind:subpage'),
+      );
+    return {
+      id: p.id,
+      title: p.title,
+      slug: p.slug,
+      icon: p.icon || '',
+      hasContent: Boolean(p.contentMarkdown?.trim()),
+      category: parent?.title ?? 'Notas particulares',
+      summary: firstParagraph || '',
+      updatedAt: p.updatedAt,
+    };
+  }),
 );
 
 function isMindNode(value: unknown): value is MindNode {
@@ -340,11 +358,11 @@ async function handleAddSubpage(): Promise<void> {
   const parentId = store.activePage.id;
   const newSub = await store.createPage(
     {
-      title: 'Sem título',
+      title: 'Nova Nota',
       parentId,
       contentMarkdown: '',
       tags: [],
-      icon: '📄',
+      icon: '',
     },
     { select: false },
   );
@@ -352,7 +370,7 @@ async function handleAddSubpage(): Promise<void> {
   const inserted = mindEditorRef.value?.insertSubpageBlock({
     pageId: newSub.id,
     title: newSub.title,
-    icon: newSub.icon || '📄',
+    icon: newSub.icon || '',
     href: `#/page/${newSub.id}`,
   });
 
@@ -364,8 +382,8 @@ async function handleAddSubpage(): Promise<void> {
 async function handleCreateRootPage(): Promise<void> {
   store.activeSurface = 'editor';
   const newPage = await store.createPage({
-    title: 'Sem título',
-    icon: '📄',
+    title: 'Nova Nota',
+    icon: '',
     parentId: null,
     contentMarkdown: '',
     tags: [],

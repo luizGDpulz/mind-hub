@@ -1,8 +1,8 @@
 <template>
   <MindModal
     :model-value="modelValue"
-    title="Mover página"
-    subtitle="Selecione a pasta ou página de destino na hierarquia do espaço"
+    title="Mover nota"
+    subtitle="Selecione a nota de destino na hierarquia do espaço"
     max-width="480px"
     @update:model-value="$emit('update:modelValue', $event)"
     @close="$emit('close')"
@@ -13,7 +13,7 @@
         <input
           v-model="searchQuery"
           type="text"
-          placeholder="Pesquisar pasta de destino..."
+          placeholder="Pesquisar nota de destino..."
           class="move-search-input"
           data-testid="move-search-input"
         />
@@ -30,7 +30,7 @@
         >
           <span class="move-dest-icon">🏠</span>
           <div class="move-dest-meta">
-            <span class="move-dest-title">Raiz do Workspace (Sem página-pai)</span>
+            <span class="move-dest-title">Raiz do Workspace (Sem nota-pai)</span>
             <span class="move-dest-hint">Nível superior da árvore</span>
           </div>
         </div>

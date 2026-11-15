@@ -7,7 +7,7 @@ withDefaults(
   }>(),
   {
     modelValue: '',
-    placeholder: 'Sem título',
+    placeholder: 'Nova Nota',
     readOnly: false,
   }
 );

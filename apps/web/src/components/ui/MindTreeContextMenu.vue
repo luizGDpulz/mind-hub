@@ -13,7 +13,7 @@
     <!-- Notion-like Header -->
     <template #header>
       <div class="tree-context-header">
-        <span class="tree-context-caption">Página</span>
+        <span class="tree-context-caption">Nota</span>
         <span v-if="page.title" class="tree-context-page-title" :title="page.title">
           {{ page.title }}
         </span>
@@ -135,10 +135,10 @@ const menuItems = computed<DropdownMenuItem[]>(() => [
     section: 'actions',
     testId: 'tree-context-action-delete',
   },
-  // 3. Subpáginas
+  // 3. Subnotas
   {
     id: 'create-subpage',
-    label: 'Nova subpágina',
+    label: 'Nova subnota',
     icon: Plus,
     section: 'subpage',
     testId: 'tree-context-action-create-subpage',

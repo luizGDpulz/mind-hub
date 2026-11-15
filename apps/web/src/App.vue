@@ -128,6 +128,8 @@
       @sync-server="handleSyncServerVault"
       @upload-files="handleBulkUploadFiles"
     />
+
+    <MindNotePreviewModal />
   </q-layout>
 </template>
 
@@ -154,6 +156,7 @@ import MindVersionHistoryModal from './components/ui/MindVersionHistoryModal.vue
 import MindSettingsModal from './components/ui/MindSettingsModal.vue';
 import MindQuickCaptureModal from './components/ui/MindQuickCaptureModal.vue';
 import MindBulkImportModal from './components/ui/MindBulkImportModal.vue';
+import MindNotePreviewModal from './components/ui/MindNotePreviewModal.vue';
 
 const store = useMindStore();
 const leftDrawerOpen = ref(true);

@@ -80,6 +80,7 @@ export const useMindStore = defineStore('mindHub', () => {
   const settingsActiveTab = ref<'general' | 'appearance' | 'sync' | 'shortcuts' | 'storage'>('general');
   const isImportModalOpen = ref<boolean>(false);
   const isVersionHistoryModalOpen = ref<boolean>(false);
+  const noteModalPageId = ref<string | null>(null);
   const gitHubSyncStatus = ref<GitHubSyncStatus>({
     state: 'disconnected',
     configured: false,
@@ -128,6 +129,23 @@ export const useMindStore = defineStore('mindHub', () => {
     );
     return found ?? activePages.value[0] ?? null;
   });
+
+  const noteModalPage = computed<MindPage | null>(() => {
+    if (!noteModalPageId.value) return null;
+    return (
+      pages.value.find(
+        (p) => p.id === noteModalPageId.value && p.deletedAt === null,
+      ) ?? null
+    );
+  });
+
+  function openNoteModal(pageId: string): void {
+    noteModalPageId.value = pageId;
+  }
+
+  function closeNoteModal(): void {
+    noteModalPageId.value = null;
+  }
 
   const pageTree = computed<PageTreeNode[]>(() => buildPageTree(pages.value));
 
@@ -265,10 +283,10 @@ export const useMindStore = defineStore('mindHub', () => {
   ): Promise<MindPage> {
     const t0 = performance.now();
     const now = new Date().toISOString();
-    const title = input.title.trim() || 'Nova Página';
+    const title = input.title.trim() || 'Nova Nota';
     const id = input.id ?? `page-${Math.random().toString(36).slice(2, 10)}`;
     const slug = input.slug ?? slugifyTitle(title);
-    const contentMarkdown = input.contentMarkdown ?? 'Comece a digitar ou use `/` para comandos de bloco...';
+    const contentMarkdown = input.contentMarkdown ?? '';
     const contentJson = input.contentJson ?? markdownToTiptap(contentMarkdown);
     const tags = input.tags ? [...input.tags] : ['nota'];
 
@@ -276,7 +294,7 @@ export const useMindStore = defineStore('mindHub', () => {
       id,
       slug,
       title,
-      icon: input.icon ?? '📄',
+      icon: input.icon ?? '',
       coverUrl: input.coverUrl,
       coverYPosition: input.coverYPosition,
       description: input.description,
@@ -322,8 +340,8 @@ export const useMindStore = defineStore('mindHub', () => {
 
   let patchDebounceTimer: ReturnType<typeof setTimeout> | null = null;
 
-  async function updateActivePageContent(doc: TiptapDoc): Promise<void> {
-    const current = activePage.value;
+  async function updatePageContentById(pageId: string, doc: TiptapDoc): Promise<void> {
+    const current = pages.value.find((p) => p.id === pageId && p.deletedAt === null);
     if (!current) return;
 
     const t0 = performance.now();
@@ -361,6 +379,82 @@ export const useMindStore = defineStore('mindHub', () => {
         // Local state already updated
       }
     }, 300);
+  }
+
+  async function updateActivePageContent(doc: TiptapDoc): Promise<void> {
+    const current = activePage.value;
+    if (!current) return;
+    await updatePageContentById(current.id, doc);
+  }
+
+  async function createSubpageAndLinkInParent(
+    parentId: string,
+    options: { openInModal?: boolean } = {},
+  ): Promise<MindPage> {
+    const newSub = await createPage(
+      {
+        title: 'Nova Nota',
+        icon: '',
+        parentId,
+        contentMarkdown: '',
+        tags: [],
+      },
+      { select: !options.openInModal },
+    );
+
+    const parent = pages.value.find((p) => p.id === parentId && p.deletedAt === null);
+    if (parent) {
+      const subpageNode: MindNode = {
+        type: 'subpageBlock',
+        attrs: {
+          pageId: newSub.id,
+          title: newSub.title,
+          icon: newSub.icon || '',
+          href: `#/page/${newSub.id}`,
+          color: 'default',
+        },
+      };
+      const existingNodes = Array.isArray(parent.contentJson?.content)
+        ? parent.contentJson.content.filter(
+            (n) => !(n.type === 'paragraph' && (!n.content || n.content.length === 0) && parent.contentJson.content.length === 1),
+          )
+        : [];
+      const nextDoc: TiptapDoc = {
+        type: 'doc',
+        content: [...existingNodes, subpageNode],
+      };
+      const nextMarkdown = tiptapToMarkdown(nextDoc);
+      const updatedParent: MindPage = {
+        ...parent,
+        contentJson: nextDoc,
+        contentMarkdown: nextMarkdown,
+        updatedAt: new Date().toISOString(),
+      };
+      pages.value = pages.value.map((p) => (p.id === parent.id ? updatedParent : p));
+      try {
+        await fetch(`/api/pages/${parent.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contentJson: nextDoc,
+            contentMarkdown: nextMarkdown,
+          }),
+        });
+      } catch {
+        // Local state already updated
+      }
+    }
+
+    if (options.openInModal) {
+      if (parent) {
+        selectPage(parent.id);
+      } else {
+        selectPage(newSub.id);
+      }
+      openNoteModal(newSub.id);
+    }
+
+    return newSub;
   }
 
   async function updateActivePageMarkdown(markdown: string): Promise<void> {
@@ -979,9 +1073,21 @@ export const useMindStore = defineStore('mindHub', () => {
         return data;
       }
     } catch {
-      // Fallback to sample Second Brain batch
+      // Offline / local fallback returns empty batch
     }
-    return importMarkdownBulk([], { useSampleSecondBrain: true });
+    const emptyResult: BulkImportApiResponse = {
+      importedAt: new Date().toISOString(),
+      notesProcessed: 0,
+      folderPagesCreated: 0,
+      createdCount: 0,
+      updatedCount: 0,
+      skippedCount: 0,
+      wikiLinksResolved: 0,
+      discoveredTags: [],
+      pages: pages.value,
+    };
+    lastBulkImportReport.value = emptyResult;
+    return emptyResult;
   }
 
   async function reloadPagesFromServer(): Promise<void> {
@@ -1187,6 +1293,10 @@ export const useMindStore = defineStore('mindHub', () => {
     settingsActiveTab,
     isImportModalOpen,
     isVersionHistoryModalOpen,
+    noteModalPageId,
+    noteModalPage,
+    openNoteModal,
+    closeNoteModal,
     gitHubSyncStatus,
     lastGitHubSyncResult,
     isGitHubSyncBusy,
@@ -1212,6 +1322,8 @@ export const useMindStore = defineStore('mindHub', () => {
     enableDiagramBlockForActivePage,
     removeDiagramBlockFromActivePage,
     createPage,
+    createSubpageAndLinkInParent,
+    updatePageContentById,
     updateActivePageContent,
     updateActivePageMarkdown,
     updatePageMeta,

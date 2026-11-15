@@ -30,7 +30,11 @@
               store.selectPage(crumb.id);
             "
           >
-            <MindPageIcon :icon="crumb.icon" :size="14" />
+            <MindPageIcon
+              :icon="crumb.icon"
+              :has-content="Boolean(crumb.contentMarkdown?.trim())"
+              :size="14"
+            />
             <span>{{ crumb.title }}</span>
           </button>
         </template>

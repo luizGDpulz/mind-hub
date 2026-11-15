@@ -29,7 +29,8 @@
 
         <span class="tree-icon-span" :class="{ 'has-parent-chevron': node.children.length > 0 }">
           <MindPageIcon
-            :icon="node.icon || (node.children.length > 0 ? '📁' : '')"
+            :icon="node.icon"
+            :has-content="Boolean(node.contentMarkdown?.trim())"
             :size="15"
           />
         </span>

@@ -63,6 +63,7 @@ export interface PageReference {
   title: string;
   slug?: string;
   icon?: string;
+  hasContent?: boolean;
   summary?: string;
   category?: string;
   updatedAt?: string;

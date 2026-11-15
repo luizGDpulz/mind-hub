@@ -12,7 +12,11 @@
   >
     <!-- Leading Icon (Emoji or Custom URL) -->
     <span class="fav-icon">
-      <MindPageIcon :icon="page.icon" :size="15" />
+      <MindPageIcon
+        :icon="page.icon"
+        :has-content="Boolean(page.contentMarkdown?.trim())"
+        :size="15"
+      />
     </span>
 
     <!-- Inline Rename Input or Title -->

@@ -8,10 +8,11 @@
         data-testid="mind-modal-backdrop"
         @click="handleBackdropClick"
         @keydown.esc="handleEsc"
+        @wheel.self.prevent
       >
         <div
           class="mind-modal-card"
-          :style="{ maxWidth }"
+          :style="{ maxWidth, ...(height ? { height } : {}) }"
           role="dialog"
           aria-modal="true"
           :aria-labelledby="title ? 'mind-modal-title' : undefined"
@@ -49,7 +50,18 @@
           <!-- Body -->
           <div
             class="mind-modal-body"
-            :style="flush ? { padding: '0', display: 'flex', flexDirection: 'column', overflow: 'hidden' } : undefined"
+            :style="
+              flush
+                ? {
+                    padding: '0',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    overflow: 'hidden',
+                    flex: '1',
+                    minHeight: '0',
+                  }
+                : undefined
+            "
             data-testid="mind-modal-body"
           >
             <slot />
@@ -76,6 +88,7 @@ const props = withDefaults(
     title?: string;
     subtitle?: string;
     maxWidth?: string;
+    height?: string;
     closeOnEsc?: boolean;
     closeOnBackdrop?: boolean;
     hideHeader?: boolean;
@@ -85,6 +98,7 @@ const props = withDefaults(
     title: '',
     subtitle: '',
     maxWidth: '540px',
+    height: undefined,
     closeOnEsc: true,
     closeOnBackdrop: true,
   },
@@ -146,6 +160,8 @@ onBeforeUnmount(() => {
   justify-content: center;
   padding: 16px;
   backdrop-filter: blur(2px);
+  overflow: hidden;
+  overscroll-behavior: contain;
 }
 
 .mind-modal-card {
@@ -156,8 +172,9 @@ onBeforeUnmount(() => {
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.12), 0 1px 3px rgba(0, 0, 0, 0.05);
   display: flex;
   flex-direction: column;
-  max-height: 88vh;
+  max-height: calc(100vh - 32px);
   overflow: hidden;
+  overscroll-behavior: contain;
   animation: mind-card-pop 0.14s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
@@ -224,6 +241,9 @@ onBeforeUnmount(() => {
 .mind-modal-body {
   padding: 20px;
   overflow-y: auto;
+  overscroll-behavior: contain;
+  flex: 1;
+  min-height: 0;
   color: var(--mind-text-primary, #111827);
   font-size: 14px;
 }

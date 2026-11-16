@@ -15,6 +15,14 @@
       :style="tableBlockTintStyle"
     />
 
+    <!-- Focused Cell Highlight Box (Notion Blue #1971c2) -->
+    <div
+      v-if="focusedCellBoxStyle"
+      class="table-focused-cell-box"
+      data-testid="table-focused-cell-box"
+      :style="focusedCellBoxStyle"
+    />
+
     <!-- Active Row or Column Selection Highlight Box (Notion Blue #1971c2) -->
     <div
       v-if="selectionRectStyle"
@@ -368,6 +376,26 @@ const selectionRectStyle = computed(() => {
     left: `${col.left}px`,
     width: `${col.width}px`,
     height: `${activeTableBox.value.height}px`,
+  };
+});
+
+const focusedCellBoxStyle = computed(() => {
+  if (
+    selectedAxis.value ||
+    isTableMenuHighlighted.value ||
+    !focusedCell.value ||
+    focusedCell.value.tablePos !== activeTablePos.value
+  ) {
+    return null;
+  }
+  const row = rowBoxes.value[focusedCell.value.rowIndex];
+  const col = colBoxes.value[focusedCell.value.colIndex];
+  if (!row || !col) return null;
+  return {
+    top: `${row.top}px`,
+    left: `${col.left}px`,
+    width: `${col.width}px`,
+    height: `${row.height}px`,
   };
 });
 
@@ -1164,10 +1192,12 @@ watch(
     if (prevEd) {
       prevEd.off('transaction', onEditorStateChange);
       prevEd.off('selectionUpdate', onEditorStateChange);
+      prevEd.off('focus', onEditorStateChange);
     }
     if (nextEd) {
       nextEd.on('transaction', onEditorStateChange);
       nextEd.on('selectionUpdate', onEditorStateChange);
+      nextEd.on('focus', onEditorStateChange);
       nextTick(() => syncFromEditorSelection());
     }
   },
@@ -1260,6 +1290,15 @@ defineExpose({
   background-color: rgba(25, 113, 194, 0.13);
   border: 1px solid rgba(25, 113, 194, 0.2);
   border-radius: 3px;
+  pointer-events: none;
+  box-sizing: border-box;
+  z-index: 41;
+}
+
+.table-focused-cell-box {
+  position: absolute;
+  border: 2px solid #1971c2;
+  border-radius: 2px;
   pointer-events: none;
   box-sizing: border-box;
   z-index: 41;

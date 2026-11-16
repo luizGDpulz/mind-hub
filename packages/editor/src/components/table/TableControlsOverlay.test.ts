@@ -415,6 +415,7 @@ describe('TableControlsOverlay & MindEditor table UX', () => {
     await nextTick();
     await nextTick();
 
+    expect(wrapper.find('[data-testid="table-focused-cell-box"]').exists()).toBe(true);
     expect(wrapper.find('[data-testid="table-col-handle"]').exists()).toBe(true);
     expect(wrapper.find('[data-testid="table-row-handle"]').exists()).toBe(true);
     expect(wrapper.find('.table-mini-dash-col').exists()).toBe(true);
@@ -435,10 +436,11 @@ describe('TableControlsOverlay & MindEditor table UX', () => {
     expect(wrapper.find('[data-testid="table-col-handle"]').attributes('style')).not.toBe(pinnedColLeft);
     expect(wrapper.find('[data-testid="table-row-handle"]').attributes('style')).not.toBe(pinnedRowTop);
 
-    // Click handle -> popover opens and responds to action click
+    // Click handle -> popover opens and axis box replaces single focused-cell box
     await wrapper.find('[data-testid="table-col-handle"]').trigger('click');
     await nextTick();
     expect(wrapper.find('[data-testid="table-axis-popover"]').exists()).toBe(true);
+    expect(wrapper.find('[data-testid="table-focused-cell-box"]').exists()).toBe(false);
 
     // Close menu and selection
     window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
@@ -447,7 +449,7 @@ describe('TableControlsOverlay & MindEditor table UX', () => {
     await nextTick();
 
     // Move mouse away from table while caret is still inside cell (0,0):
-    // + bars hide immediately, while mini-gutters snap back to pinned cell (0,0)
+    // + bars hide immediately, while mini-gutters & focused-cell box remain pinned on (0,0)
     const belowP = wrapper.find('.ProseMirror > p:last-child').element;
     setRect(belowP, { top: 320, left: 180, width: 760, height: 32 });
     belowP.dispatchEvent(
@@ -457,15 +459,17 @@ describe('TableControlsOverlay & MindEditor table UX', () => {
 
     expect(wrapper.find('[data-testid="table-add-row-bar"]').exists()).toBe(false);
     expect(wrapper.find('[data-testid="table-add-col-bar"]').exists()).toBe(false);
+    expect(wrapper.find('[data-testid="table-focused-cell-box"]').exists()).toBe(true);
     expect(wrapper.find('[data-testid="table-col-handle"]').attributes('style')).toBe(pinnedColLeft);
     expect(wrapper.find('[data-testid="table-row-handle"]').attributes('style')).toBe(pinnedRowTop);
 
-    // Move caret outside table -> pinned mini-gutters disappear too
+    // Move caret outside table -> pinned mini-gutters & focused-cell box disappear too
     const docSize = editor.state.doc.content.size;
     editor.chain().setTextSelection(docSize - 2).run();
     await nextTick();
     await nextTick();
 
+    expect(wrapper.find('[data-testid="table-focused-cell-box"]').exists()).toBe(false);
     expect(wrapper.find('[data-testid="table-col-handle"]').exists()).toBe(false);
     expect(wrapper.find('[data-testid="table-row-handle"]').exists()).toBe(false);
 

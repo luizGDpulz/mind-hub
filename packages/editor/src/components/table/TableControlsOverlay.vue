@@ -556,15 +556,21 @@ function syncFromEditorSelection(): void {
     return;
   }
 
-  if (hoveredTablePos.value !== null) {
-    measureTableGeometry(hoveredTablePos.value);
+  if (props.menuHighlightedTablePos !== null && props.menuHighlightedTablePos !== undefined) {
+    measureTableGeometry(props.menuHighlightedTablePos);
     return;
   }
 
-  const enclosing = findEnclosingTablePos(ed.state.doc, ed.state.selection.from);
-  if (enclosing !== null) {
-    hoveredTablePos.value = enclosing;
-    measureTableGeometry(enclosing);
+  if (hoveredTablePos.value !== null) {
+    const meta = getTableMetadata(ed, hoveredTablePos.value);
+    if (!meta) {
+      hoveredTablePos.value = null;
+      hoveredRowIndex.value = null;
+      hoveredColIndex.value = null;
+      measureTableGeometry(null);
+    } else {
+      measureTableGeometry(hoveredTablePos.value);
+    }
   }
 }
 
@@ -951,13 +957,9 @@ function onWindowMouseMove(event: MouseEvent): void {
   }
 
   if (!hitTable) {
-    const enclosing = findEnclosingTablePos(ed.state.doc, ed.state.selection.from);
-    if (enclosing !== null) {
-      hoveredTablePos.value = enclosing;
-      hoveredRowIndex.value = null;
-      hoveredColIndex.value = null;
-      measureTableGeometry(enclosing);
-    } else if (!selectedAxis.value && !isHoveringOverlay.value) {
+    if (!selectedAxis.value && props.menuHighlightedTablePos == null) {
+      isHoveringOverlay.value = false;
+      hoveredAddBar.value = null;
       hoveredTablePos.value = null;
       hoveredRowIndex.value = null;
       hoveredColIndex.value = null;
@@ -1099,11 +1101,34 @@ watch(
   { immediate: true }
 );
 
+function handleDocumentMouseLeave(): void {
+  if (
+    dimDrag.value?.active ||
+    reorderDrag.value?.active ||
+    selectedAxis.value ||
+    axisMenuOpen.value ||
+    props.menuHighlightedTablePos != null
+  ) {
+    return;
+  }
+  isHoveringOverlay.value = false;
+  hoveredAddBar.value = null;
+  hoveredTablePos.value = null;
+  hoveredRowIndex.value = null;
+  hoveredColIndex.value = null;
+  measureTableGeometry(null);
+}
+
 watch(
   () => props.menuHighlightedTablePos,
   (pos) => {
     if (pos !== null && pos !== undefined) {
       nextTick(() => measureTableGeometry(pos));
+    } else if (!selectedAxis.value && !isHoveringOverlay.value) {
+      hoveredTablePos.value = null;
+      hoveredRowIndex.value = null;
+      hoveredColIndex.value = null;
+      measureTableGeometry(null);
     }
   }
 );
@@ -1126,6 +1151,7 @@ onMounted(() => {
   window.addEventListener('mousedown', onWindowMouseDown);
   window.addEventListener('keydown', onWindowKeydown);
   window.addEventListener('resize', onEditorStateChange);
+  document.addEventListener('mouseleave', handleDocumentMouseLeave);
 });
 
 onBeforeUnmount(() => {
@@ -1139,6 +1165,7 @@ onBeforeUnmount(() => {
   window.removeEventListener('mousedown', onWindowMouseDown);
   window.removeEventListener('keydown', onWindowKeydown);
   window.removeEventListener('resize', onEditorStateChange);
+  document.removeEventListener('mouseleave', handleDocumentMouseLeave);
 });
 
 defineExpose({
@@ -1152,7 +1179,6 @@ defineExpose({
   position: absolute;
   inset: 0;
   pointer-events: none;
-  z-index: 40;
 }
 
 .table-block-menu-tint {

@@ -8,6 +8,7 @@
     :aria-label="axis === 'row' ? 'Ações da linha da tabela' : 'Ações da coluna da tabela'"
     data-testid="table-axis-popover"
     @mousedown.stop
+    @click.stop
     @keydown="handleMenuKeydown"
   >
     <!-- Search Bar -->
@@ -384,10 +385,6 @@ const filteredEntries = computed<FilteredTableEntry[]>(() => {
 });
 
 function adjustViewportPosition() {
-  adjustedTop.value = props.top;
-  adjustedLeft.value = props.left;
-  submenuFlipLeft.value = false;
-
   const el = menuRef.value;
   if (!el || typeof window === 'undefined') return;
 
@@ -453,6 +450,9 @@ watch(
   () => {
     actionQuery.value = '';
     colorSubmenuOpen.value = false;
+    adjustedTop.value = props.top;
+    adjustedLeft.value = props.left;
+    submenuFlipLeft.value = false;
     nextTick(() => {
       adjustViewportPosition();
       searchInputRef.value?.focus();
@@ -478,8 +478,14 @@ onMounted(() => {
   border-radius: 8px;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08), 0 1px 3px rgba(0, 0, 0, 0.04);
   padding: 6px;
-  z-index: 150;
+  z-index: 1500;
+  pointer-events: auto;
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+}
+
+.table-axis-popover :deep(.popover-submenu) {
+  z-index: 1520;
+  pointer-events: auto;
 }
 
 .table-axis-search-input {

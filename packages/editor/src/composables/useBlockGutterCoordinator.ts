@@ -210,10 +210,26 @@ export function useBlockGutterCoordinator(options: UseBlockGutterCoordinatorOpti
     const editor = options.editor.value;
     if (!editor) return;
     const targets = resolveGutterTargetPositions();
-    const applied =
-      targets.length === 1 && gutterState.value.nodeType === 'table'
-        ? setTableAllCellsColor(editor, targets[0]!, update)
-        : applyBlockColorAtPositions(editor, targets, update);
+    const tableTargets: number[] = [];
+    const blockTargets: number[] = [];
+
+    for (const pos of targets) {
+      if (editor.state.doc.nodeAt(pos)?.type.name === 'table') {
+        tableTargets.push(pos);
+      } else {
+        blockTargets.push(pos);
+      }
+    }
+
+    let applied = false;
+    for (const tablePos of tableTargets) {
+      if (setTableAllCellsColor(editor, tablePos, update)) {
+        applied = true;
+      }
+    }
+    if (blockTargets.length > 0 && applyBlockColorAtPositions(editor, blockTargets, update)) {
+      applied = true;
+    }
     if (!applied) return;
 
     if (update.textColor !== undefined) {

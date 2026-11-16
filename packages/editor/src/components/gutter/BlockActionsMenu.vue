@@ -128,7 +128,7 @@
             :class="{ 'is-active': activeSubmenu === 'turnInto' }"
             data-testid="menu-trigger-turn-into"
             @mouseenter="openSubmenu('turnInto')"
-            @click="toggleSubmenu('turnInto')"
+            @click="openSubmenu('turnInto')"
           >
             <Repeat2 :size="14" class="item-icon" />
             <span class="item-label">Transformar em</span>

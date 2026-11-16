@@ -389,4 +389,64 @@ describe('TableControlsOverlay & MindEditor table UX', () => {
 
     wrapper.unmount();
   });
+
+  it('hides + bars and axis handles immediately when mouse moves away from table even if caret is inside a cell', async () => {
+    const host = document.createElement('div');
+    document.body.appendChild(host);
+
+    const wrapper = mount(MindEditor, {
+      attachTo: host,
+      props: {
+        modelValue: INITIAL_3X3_TABLE_HTML + '<p>Texto abaixo da tabela</p>',
+        enableFrontmatterHeader: false,
+      },
+      global: {
+        stubs: { BubbleFormattingMenu: true },
+      },
+    });
+
+    await nextTick();
+    await nextTick();
+    const { table } = applyTableRects(wrapper);
+
+    // Focus caret inside first cell
+    const editor = wrapper.findComponent({ name: 'EditorContent' }).props('editor');
+    editor.chain().setTextSelection(4).run();
+    await nextTick();
+
+    // Hover table -> bars and handles appear
+    table.querySelector('td')!.dispatchEvent(
+      new MouseEvent('mousemove', { clientX: 240, clientY: 136, bubbles: true })
+    );
+    await nextTick();
+    expect(wrapper.find('[data-testid="table-add-row-bar"]').exists()).toBe(true);
+    expect(wrapper.find('[data-testid="table-add-col-bar"]').exists()).toBe(true);
+    expect(wrapper.find('[data-testid="table-col-handle"]').exists()).toBe(true);
+    expect(wrapper.find('[data-testid="table-row-handle"]').exists()).toBe(true);
+
+    // Click handle -> popover opens and responds to action click
+    await wrapper.find('[data-testid="table-col-handle"]').trigger('click');
+    await nextTick();
+    expect(wrapper.find('[data-testid="table-axis-popover"]').exists()).toBe(true);
+
+    // Close menu and selection, then move mouse away from table (without clicking outside)
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    await nextTick();
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    await nextTick();
+
+    const belowP = wrapper.find('.ProseMirror > p:last-child').element;
+    setRect(belowP, { top: 320, left: 180, width: 760, height: 32 });
+    belowP.dispatchEvent(
+      new MouseEvent('mousemove', { clientX: 250, clientY: 336, bubbles: true })
+    );
+    await nextTick();
+
+    expect(wrapper.find('[data-testid="table-add-row-bar"]').exists()).toBe(false);
+    expect(wrapper.find('[data-testid="table-add-col-bar"]').exists()).toBe(false);
+    expect(wrapper.find('[data-testid="table-col-handle"]').exists()).toBe(false);
+    expect(wrapper.find('[data-testid="table-row-handle"]').exists()).toBe(false);
+
+    wrapper.unmount();
+  });
 });

@@ -88,6 +88,7 @@ describe('@mind-hub/editor — SubpageBlockNode & SubpageBlockView', () => {
     await linkBtn.trigger('click');
     expect(onNavigate).toHaveBeenCalledWith('page-ponto');
 
+    await wrapper.find('[data-testid="subpage-block-view"]').trigger('mousemove');
     await wrapper.find('[data-testid="subpage-block-view"]').trigger('mouseenter');
     vi.advanceTimersByTime(300);
     await nextTick();

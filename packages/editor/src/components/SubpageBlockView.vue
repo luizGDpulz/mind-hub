@@ -10,6 +10,7 @@ const props = defineProps<NodeViewProps>();
 
 const isHovered = ref(false);
 let hoverTimer: ReturnType<typeof setTimeout> | null = null;
+let hasPointerMoved = false;
 
 const pageId = computed(() => String(props.node.attrs.pageId ?? ''));
 
@@ -58,11 +59,23 @@ const effectiveTextColor = computed(() => {
   return getBlockColorDisplayHex(text, 'text');
 });
 
-function handleMouseEnter(): void {
+function startHoverTimer(): void {
   if (hoverTimer) clearTimeout(hoverTimer);
   hoverTimer = setTimeout(() => {
     isHovered.value = true;
-  }, 240);
+  }, 260);
+}
+
+function handleMouseEnter(): void {
+  if (!hasPointerMoved) return;
+  startHoverTimer();
+}
+
+function handleMouseMove(): void {
+  if (!hasPointerMoved) {
+    hasPointerMoved = true;
+    startHoverTimer();
+  }
 }
 
 function handleMouseLeave(): void {
@@ -74,6 +87,7 @@ function handleMouseLeave(): void {
 }
 
 function handleNavigate(): void {
+  handleMouseLeave();
   if (!pageId.value) return;
   const onNavigate = props.extension.options.onNavigate as ((id: string) => void) | undefined;
   onNavigate?.(pageId.value);
@@ -91,6 +105,7 @@ onBeforeUnmount(() => {
     data-testid="subpage-block-view"
     contenteditable="false"
     @mouseenter="handleMouseEnter"
+    @mousemove="handleMouseMove"
     @mouseleave="handleMouseLeave"
   >
     <button

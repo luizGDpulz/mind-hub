@@ -35,6 +35,8 @@
           v-else-if="activeTab === 'appearance'"
           v-model:density-mode="densityMode"
           v-model:content-width-mode="contentWidthMode"
+          :subnote-style="subnoteStyle"
+          @update:subnote-style="$emit('update:subnoteStyle', $event)"
         />
 
         <SettingsSyncTab
@@ -118,6 +120,7 @@ const props = withDefaults(
     modelValue: boolean;
     initialTab?: SettingsTabId;
     workspaceName?: string;
+    subnoteStyle?: 'clean' | 'card';
     backendConnected?: boolean;
     activePagesCount?: number;
     deletedPagesCount?: number;
@@ -131,6 +134,7 @@ const props = withDefaults(
   {
     initialTab: 'general',
     workspaceName: 'Mind Hub Workspace',
+    subnoteStyle: 'clean',
     backendConnected: true,
     activePagesCount: 0,
     deletedPagesCount: 0,
@@ -145,6 +149,7 @@ const props = withDefaults(
 const emit = defineEmits<{
   (e: 'update:modelValue', value: boolean): void;
   (e: 'update:initialTab', value: SettingsTabId): void;
+  (e: 'update:subnoteStyle', value: 'clean' | 'card'): void;
   (e: 'sync-server-vault'): void;
   (e: 'export-markdown'): void;
   (e: 'empty-trash'): void;

@@ -390,7 +390,7 @@ describe('TableControlsOverlay & MindEditor table UX', () => {
     wrapper.unmount();
   });
 
-  it('hides + bars and axis handles immediately when mouse moves away from table even if caret is inside a cell', async () => {
+  it('shows mini-gutters pinned to clicked cell, tracks hover reactively, hides + bars on leave, and clears pin on outside selection', async () => {
     const host = document.createElement('div');
     document.body.appendChild(host);
 
@@ -409,32 +409,45 @@ describe('TableControlsOverlay & MindEditor table UX', () => {
     await nextTick();
     const { table } = applyTableRects(wrapper);
 
-    // Focus caret inside first cell
+    // Focus caret inside first cell (0,0) -> mini-gutters stay pinned on (0,0)
     const editor = wrapper.findComponent({ name: 'EditorContent' }).props('editor');
     editor.chain().setTextSelection(4).run();
     await nextTick();
-
-    // Hover table -> bars and handles appear
-    table.querySelector('td')!.dispatchEvent(
-      new MouseEvent('mousemove', { clientX: 240, clientY: 136, bubbles: true })
-    );
     await nextTick();
-    expect(wrapper.find('[data-testid="table-add-row-bar"]').exists()).toBe(true);
-    expect(wrapper.find('[data-testid="table-add-col-bar"]').exists()).toBe(true);
+
     expect(wrapper.find('[data-testid="table-col-handle"]').exists()).toBe(true);
     expect(wrapper.find('[data-testid="table-row-handle"]').exists()).toBe(true);
+    expect(wrapper.find('.table-mini-dash-col').exists()).toBe(true);
+    expect(wrapper.find('.table-mini-dash-row').exists()).toBe(true);
+
+    const pinnedColLeft = wrapper.find('[data-testid="table-col-handle"]').attributes('style');
+    const pinnedRowTop = wrapper.find('[data-testid="table-row-handle"]').attributes('style');
+
+    // Hover a different cell (row 1, col 2) -> handles move reactively and + bars appear
+    const cells = Array.from(table.querySelectorAll('td'));
+    cells[5]!.dispatchEvent(
+      new MouseEvent('mousemove', { clientX: 720, clientY: 180, bubbles: true })
+    );
+    await nextTick();
+
+    expect(wrapper.find('[data-testid="table-add-row-bar"]').exists()).toBe(true);
+    expect(wrapper.find('[data-testid="table-add-col-bar"]').exists()).toBe(true);
+    expect(wrapper.find('[data-testid="table-col-handle"]').attributes('style')).not.toBe(pinnedColLeft);
+    expect(wrapper.find('[data-testid="table-row-handle"]').attributes('style')).not.toBe(pinnedRowTop);
 
     // Click handle -> popover opens and responds to action click
     await wrapper.find('[data-testid="table-col-handle"]').trigger('click');
     await nextTick();
     expect(wrapper.find('[data-testid="table-axis-popover"]').exists()).toBe(true);
 
-    // Close menu and selection, then move mouse away from table (without clicking outside)
+    // Close menu and selection
     window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
     await nextTick();
     window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
     await nextTick();
 
+    // Move mouse away from table while caret is still inside cell (0,0):
+    // + bars hide immediately, while mini-gutters snap back to pinned cell (0,0)
     const belowP = wrapper.find('.ProseMirror > p:last-child').element;
     setRect(belowP, { top: 320, left: 180, width: 760, height: 32 });
     belowP.dispatchEvent(
@@ -444,6 +457,15 @@ describe('TableControlsOverlay & MindEditor table UX', () => {
 
     expect(wrapper.find('[data-testid="table-add-row-bar"]').exists()).toBe(false);
     expect(wrapper.find('[data-testid="table-add-col-bar"]').exists()).toBe(false);
+    expect(wrapper.find('[data-testid="table-col-handle"]').attributes('style')).toBe(pinnedColLeft);
+    expect(wrapper.find('[data-testid="table-row-handle"]').attributes('style')).toBe(pinnedRowTop);
+
+    // Move caret outside table -> pinned mini-gutters disappear too
+    const docSize = editor.state.doc.content.size;
+    editor.chain().setTextSelection(docSize - 2).run();
+    await nextTick();
+    await nextTick();
+
     expect(wrapper.find('[data-testid="table-col-handle"]').exists()).toBe(false);
     expect(wrapper.find('[data-testid="table-row-handle"]').exists()).toBe(false);
 

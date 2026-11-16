@@ -37,7 +37,7 @@
       }"
     />
 
-    <!-- Top Column Drag / Menu Handle (:::) -->
+    <!-- Top Column Drag / Menu Handle (mini dash by default -> ::: on hover/select) -->
     <button
       v-if="colHandleStyle"
       type="button"
@@ -49,10 +49,11 @@
       @mousedown.stop.prevent="startReorderMouseDown('col', $event)"
       @click.stop="handleAxisHandleClick('col')"
     >
-      <GripHorizontal :size="13" :stroke-width="2.2" />
+      <span class="table-mini-dash table-mini-dash-col" aria-hidden="true" />
+      <GripHorizontal :size="13" :stroke-width="2.2" class="table-handle-grip" />
     </button>
 
-    <!-- Left Row Drag / Menu Handle (⠿) -->
+    <!-- Left Row Drag / Menu Handle (mini dash by default -> ⠿ on hover/select) -->
     <button
       v-if="rowHandleStyle"
       type="button"
@@ -64,11 +65,13 @@
       @mousedown.stop.prevent="startReorderMouseDown('row', $event)"
       @click.stop="handleAxisHandleClick('row')"
     >
-      <GripVertical :size="13" :stroke-width="2.2" />
+      <span class="table-mini-dash table-mini-dash-row" aria-hidden="true" />
+      <GripVertical :size="13" :stroke-width="2.2" class="table-handle-grip" />
     </button>
 
     <!-- Bottom Add/Resize Rows Bar (+) -->
     <div
+      v-if="showAddBars"
       class="table-add-bar-anchor table-add-row-anchor"
       :style="addRowBarStyle"
       @mouseenter="hoveredAddBar = 'row'"
@@ -77,6 +80,7 @@
       <button
         type="button"
         class="table-add-bar table-add-row-bar"
+        :class="{ 'is-dragging': dimDrag?.active && dimDrag.axis === 'row' }"
         aria-label="Adicionar ou arrastar linhas"
         data-testid="table-add-row-bar"
         @mousedown.stop.prevent="startDimensionDrag('row', $event)"
@@ -98,6 +102,7 @@
 
     <!-- Right Add/Resize Columns Bar (+) -->
     <div
+      v-if="showAddBars"
       class="table-add-bar-anchor table-add-col-anchor"
       :style="addColBarStyle"
       @mouseenter="hoveredAddBar = 'col'"
@@ -106,6 +111,7 @@
       <button
         type="button"
         class="table-add-bar table-add-col-bar"
+        :class="{ 'is-dragging': dimDrag?.active && dimDrag.axis === 'col' }"
         aria-label="Adicionar ou arrastar colunas"
         data-testid="table-add-col-bar"
         @mousedown.stop.prevent="startDimensionDrag('col', $event)"
@@ -154,6 +160,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import type { Editor } from '@tiptap/core';
+import { TableMap } from '@tiptap/pm/tables';
 import { GripHorizontal, GripVertical, Plus } from 'lucide-vue-next';
 import TableAxisContextMenu from './TableAxisContextMenu.vue';
 import {
@@ -216,6 +223,7 @@ const hoveredTablePos = ref<number | null>(null);
 const hoveredRowIndex = ref<number | null>(null);
 const hoveredColIndex = ref<number | null>(null);
 const hoveredAddBar = ref<'row' | 'col' | null>(null);
+const focusedCell = ref<{ tablePos: number; rowIndex: number; colIndex: number } | null>(null);
 
 const selectedAxis = ref<{
   tablePos: number;
@@ -261,7 +269,19 @@ let suppressNextBarClick: 'row' | 'col' | null = null;
 let suppressNextHandleClick: 'row' | 'col' | null = null;
 
 const activeTablePos = computed<number | null>(
-  () => props.menuHighlightedTablePos ?? selectedAxis.value?.tablePos ?? hoveredTablePos.value
+  () =>
+    props.menuHighlightedTablePos ??
+    selectedAxis.value?.tablePos ??
+    hoveredTablePos.value ??
+    focusedCell.value?.tablePos ??
+    null
+);
+
+const showAddBars = computed(
+  () =>
+    hoveredTablePos.value !== null ||
+    Boolean(dimDrag.value?.active) ||
+    props.menuHighlightedTablePos != null
 );
 
 const isTableMenuHighlighted = computed(
@@ -289,12 +309,20 @@ const activeMeta = computed(() => {
 
 const displayRowIndex = computed<number | null>(() => {
   if (selectedAxis.value?.axis === 'row') return selectedAxis.value.index;
-  return hoveredRowIndex.value;
+  if (hoveredRowIndex.value !== null) return hoveredRowIndex.value;
+  if (focusedCell.value && focusedCell.value.tablePos === activeTablePos.value) {
+    return focusedCell.value.rowIndex;
+  }
+  return null;
 });
 
 const displayColIndex = computed<number | null>(() => {
   if (selectedAxis.value?.axis === 'col') return selectedAxis.value.index;
-  return hoveredColIndex.value;
+  if (hoveredColIndex.value !== null) return hoveredColIndex.value;
+  if (focusedCell.value && focusedCell.value.tablePos === activeTablePos.value) {
+    return focusedCell.value.colIndex;
+  }
+  return null;
 });
 
 const isRowHandleSelected = computed(
@@ -542,9 +570,34 @@ function resolveHoveredIndicesFromPoint(
   return { rowIndex, colIndex };
 }
 
+function resolveFocusedCellCoords(
+  ed: Editor
+): { tablePos: number; rowIndex: number; colIndex: number } | null {
+  const { $from } = ed.state.selection;
+  for (let d = $from.depth; d >= 1; d -= 1) {
+    const node = $from.node(d);
+    if (node.type.name === 'table') {
+      const tablePos = $from.before(d);
+      const tableStart = tablePos + 1;
+      for (let cd = $from.depth; cd > d; cd -= 1) {
+        const cellNode = $from.node(cd);
+        if (cellNode.type.name === 'tableCell' || cellNode.type.name === 'tableHeader') {
+          const cellRelPos = $from.before(cd) - tableStart;
+          const rect = TableMap.get(node).findCell(cellRelPos);
+          return { tablePos, rowIndex: rect.top, colIndex: rect.left };
+        }
+      }
+      return { tablePos, rowIndex: 0, colIndex: 0 };
+    }
+  }
+  return null;
+}
+
 function syncFromEditorSelection(): void {
   const ed = props.editor;
   if (!ed || props.readOnly) return;
+
+  focusedCell.value = resolveFocusedCellCoords(ed);
 
   if (selectedAxis.value) {
     const meta = getTableMetadata(ed, selectedAxis.value.tablePos);
@@ -561,16 +614,20 @@ function syncFromEditorSelection(): void {
     return;
   }
 
-  if (hoveredTablePos.value !== null) {
-    const meta = getTableMetadata(ed, hoveredTablePos.value);
+  const targetTablePos = hoveredTablePos.value ?? focusedCell.value?.tablePos ?? null;
+  if (targetTablePos !== null) {
+    const meta = getTableMetadata(ed, targetTablePos);
     if (!meta) {
       hoveredTablePos.value = null;
       hoveredRowIndex.value = null;
       hoveredColIndex.value = null;
+      focusedCell.value = null;
       measureTableGeometry(null);
     } else {
-      measureTableGeometry(hoveredTablePos.value);
+      measureTableGeometry(targetTablePos);
     }
+  } else {
+    measureTableGeometry(null);
   }
 }
 
@@ -963,7 +1020,7 @@ function onWindowMouseMove(event: MouseEvent): void {
       hoveredTablePos.value = null;
       hoveredRowIndex.value = null;
       hoveredColIndex.value = null;
-      measureTableGeometry(null);
+      measureTableGeometry(focusedCell.value?.tablePos ?? null);
     }
     return;
   }
@@ -1034,8 +1091,24 @@ function onWindowMouseUp(): void {
 }
 
 function onWindowMouseDown(event: MouseEvent): void {
-  if (!selectedAxis.value && !axisMenuOpen.value) return;
   const target = event.target instanceof Element ? event.target : null;
+
+  if (
+    focusedCell.value &&
+    target &&
+    !target.closest('table') &&
+    !target.closest('.mind-table-controls-overlay') &&
+    !target.closest('.table-axis-popover') &&
+    !target.closest('.block-actions-popover') &&
+    !target.closest('.mind-block-gutter-shell')
+  ) {
+    focusedCell.value = null;
+    if (hoveredTablePos.value === null && !selectedAxis.value) {
+      measureTableGeometry(null);
+    }
+  }
+
+  if (!selectedAxis.value && !axisMenuOpen.value) return;
   if (
     target?.closest('.table-axis-popover') ||
     target?.closest('.table-axis-handle') ||
@@ -1116,7 +1189,7 @@ function handleDocumentMouseLeave(): void {
   hoveredTablePos.value = null;
   hoveredRowIndex.value = null;
   hoveredColIndex.value = null;
-  measureTableGeometry(null);
+  measureTableGeometry(focusedCell.value?.tablePos ?? null);
 }
 
 watch(
@@ -1128,7 +1201,7 @@ watch(
       hoveredTablePos.value = null;
       hoveredRowIndex.value = null;
       hoveredColIndex.value = null;
-      measureTableGeometry(null);
+      measureTableGeometry(focusedCell.value?.tablePos ?? null);
     }
   }
 );
@@ -1138,6 +1211,7 @@ watch(
   (isRo) => {
     if (isRo) {
       clearAxisSelection();
+      focusedCell.value = null;
       hoveredTablePos.value = null;
       activeTableBox.value = null;
     }
@@ -1215,15 +1289,14 @@ defineExpose({
   align-items: center;
   justify-content: center;
   padding: 0;
-  border: 1px solid #dee2e6;
-  background-color: #ffffff;
+  border: 1px solid transparent;
+  background-color: transparent;
   color: #868e96;
   border-radius: 4px;
   cursor: pointer;
   pointer-events: auto;
   z-index: 48;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
-  transition: background-color 0.12s ease, border-color 0.12s ease, color 0.12s ease;
+  transition: background-color 0.12s ease, border-color 0.12s ease, color 0.12s ease, box-shadow 0.12s ease;
 }
 
 .table-col-handle {
@@ -1236,16 +1309,53 @@ defineExpose({
   height: 24px;
 }
 
-.table-axis-handle:hover {
-  background-color: #f1f3f5;
-  color: #212529;
-  border-color: #adb5bd;
+.table-mini-dash {
+  display: block;
+  border-radius: 999px;
+  background-color: #adb5bd;
+  box-shadow: 0 0 0 1.5px #ffffff;
+  transition: background-color 0.12s ease;
+}
+
+.table-mini-dash-col {
+  width: 14px;
+  height: 3px;
+}
+
+.table-mini-dash-row {
+  width: 3px;
+  height: 14px;
+}
+
+.table-handle-grip {
+  display: none;
+}
+
+.table-axis-handle:hover,
+.table-axis-handle:focus-visible {
+  background-color: #ffffff;
+  color: #495057;
+  border-color: #dee2e6;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+}
+
+.table-axis-handle:hover .table-mini-dash,
+.table-axis-handle:focus-visible .table-mini-dash,
+.table-axis-handle.is-selected .table-mini-dash {
+  display: none;
+}
+
+.table-axis-handle:hover .table-handle-grip,
+.table-axis-handle:focus-visible .table-handle-grip,
+.table-axis-handle.is-selected .table-handle-grip {
+  display: block;
 }
 
 .table-axis-handle.is-selected {
   background-color: #1971c2;
   border-color: #1971c2;
   color: #ffffff;
+  box-shadow: 0 1px 3px rgba(25, 113, 194, 0.28);
 }
 
 .table-add-bar-anchor {
@@ -1263,10 +1373,10 @@ defineExpose({
   padding: 0;
   border: 1px solid #e9ecef;
   border-radius: 4px;
-  background-color: #f1f3f5;
-  color: #868e96;
+  background-color: #ffffff;
+  color: #adb5bd;
   cursor: pointer;
-  transition: background-color 0.12s ease, color 0.12s ease;
+  transition: background-color 0.12s ease, border-color 0.12s ease, color 0.12s ease;
 }
 
 .table-add-row-anchor {
@@ -1277,8 +1387,10 @@ defineExpose({
   width: 18px;
 }
 
-.table-add-bar:hover {
-  background-color: #e9ecef;
+.table-add-bar:hover,
+.table-add-bar.is-dragging {
+  background-color: #f1f3f5;
+  border-color: #dee2e6;
   color: #495057;
 }
 

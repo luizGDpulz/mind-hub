@@ -121,5 +121,13 @@ describe('packages/editor — Gatekeeper UI & Style Compliance (mind-light-style
     const axisMenuPath = path.join(editorSrcDir, 'components', 'table', 'TableAxisContextMenu.vue');
     const axisMenuContent = fs.readFileSync(axisMenuPath, 'utf-8');
     expect(axisMenuContent).toMatch(/\.table-axis-popover[\s\S]*?pointer-events:\s*auto/);
+
+    expect(canvasCss).toMatch(/:deep\(\.ProseMirror\s+hr\)[\s\S]*?padding:\s*10px\s+0;/);
+
+    const tableOverlayPath = path.join(editorSrcDir, 'components', 'table', 'TableControlsOverlay.vue');
+    const tableOverlayContent = fs.readFileSync(tableOverlayPath, 'utf-8');
+    expect(tableOverlayContent).toMatch(
+      /\.table-add-bar\s*\{[\s\S]*?background(?:-color)?:\s*#ffffff;/
+    );
   });
 });

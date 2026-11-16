@@ -66,7 +66,7 @@ export function createInitialSeedPages(): MindPage[] {
     '',
     '#### Título 4',
     '',
-    'Parágrafo de texto com **negrito**, *itálico*, `código inline`, ~~tachado~~ e [link](https://pulz.dev.br).',
+    'Parágrafo de texto com **negrito**, *itálico*, `código inline`, ~~tachado~~ e [link](https://exemplo.org).',
     '',
     '- Item com marcador 1',
     '- Item com marcador 2',

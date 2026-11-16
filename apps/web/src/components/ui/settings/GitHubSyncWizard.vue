@@ -308,7 +308,7 @@
                     <li>
                       Em <strong>Repository access</strong>, marque
                       <strong>Only select repositories</strong> e selecione apenas o repo privado do
-                      Vault (ex: <code>luizGDpulz/mind-hub-tests</code>).
+                      Vault (ex: <code>seu-usuario/meu-second-brain</code>).
                     </li>
                     <li>
                       Na caixa <strong>Permissions</strong> (aba <strong>Repositories</strong>),
@@ -415,7 +415,7 @@
                       v-model="repositoryInput"
                       type="text"
                       class="wizard-text-input"
-                      placeholder="luizGDpulz/mind-hub-tests"
+                      placeholder="seu-usuario/meu-second-brain"
                       data-testid="github-repo-input"
                     />
                   </div>

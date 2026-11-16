@@ -21,13 +21,13 @@ describe('@mind-hub/web — GitHubSyncWizard & Topbar Sync Status (Refs #91)', (
 
     // Step 2: Repo, branch, test connection
     expect(wrapper.find('[data-testid="wizard-step-2"]').exists()).toBe(true);
-    await wrapper.find('[data-testid="github-repo-input"]').setValue('luizGDpulz/mind-vault');
+    await wrapper.find('[data-testid="github-repo-input"]').setValue('example-user/mind-vault');
     await wrapper.find('[data-testid="github-branch-input"]').setValue('main');
     await wrapper.find('[data-testid="github-test-btn"]').trigger('click');
 
     expect(wrapper.emitted('test-connection')?.[0]).toEqual([
       {
-        repository: 'luizGDpulz/mind-vault',
+        repository: 'example-user/mind-vault',
         branch: 'main',
         token: 'ghp_secret_test_123',
       },
@@ -42,7 +42,7 @@ describe('@mind-hub/web — GitHubSyncWizard & Topbar Sync Status (Refs #91)', (
 
     expect(wrapper.emitted('configure')?.[0]).toEqual([
       {
-        repository: 'luizGDpulz/mind-vault',
+        repository: 'example-user/mind-vault',
         branch: 'main',
         token: 'ghp_secret_test_123',
         strategy: 'merge',
@@ -56,7 +56,7 @@ describe('@mind-hub/web — GitHubSyncWizard & Topbar Sync Status (Refs #91)', (
     const connectedStatus: GitHubSyncStatus = {
       state: 'connected',
       configured: true,
-      repository: 'luizGDpulz/mind-vault',
+      repository: 'example-user/mind-vault',
       branch: 'main',
       autoSyncEnabled: true,
       debounceSeconds: 120,
@@ -85,7 +85,7 @@ describe('@mind-hub/web — GitHubSyncWizard & Topbar Sync Status (Refs #91)', (
 
     expect(wrapper.find('[data-testid="github-connected-panel"]').exists()).toBe(true);
     expect(wrapper.find('[data-testid="github-connected-repo"]').text()).toBe(
-      'luizGDpulz/mind-vault',
+      'example-user/mind-vault',
     );
     expect(wrapper.find('[data-testid="github-pending-count"]').text()).toContain('2 pendente(s)');
     expect(wrapper.find('[data-testid="github-sync-history"]').text()).toContain(
@@ -125,7 +125,7 @@ describe('@mind-hub/web — GitHubSyncWizard & Topbar Sync Status (Refs #91)', (
       ...store.gitHubSyncStatus,
       configured: true,
       state: 'connected',
-      repository: 'luizGDpulz/mind-vault',
+      repository: 'example-user/mind-vault',
       pendingChangesCount: 0,
     };
     await wrapper.vm.$nextTick();
@@ -141,13 +141,13 @@ describe('@mind-hub/web — GitHubSyncWizard & Topbar Sync Status (Refs #91)', (
         modelValue: true,
         gitHubTestResult: {
           ok: true,
-          repository: 'luizGDpulz/mind-hub-tests',
+          repository: 'example-user/mind-vault-private',
           branch: 'main',
           isPrivate: true,
           isEmpty: true,
           canPush: true,
           tokenType: 'fine-grained',
-          message: 'Conexão confirmada com repositório privado "luizGDpulz/mind-hub-tests".',
+          message: 'Conexão confirmada com repositório privado "example-user/mind-vault-private".',
         },
       },
       global: {

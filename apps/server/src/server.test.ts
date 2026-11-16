@@ -2,9 +2,10 @@ import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { buildApp } from './app.js';
-import { DurableFilePageRepository } from './repository.js';
+import { GitSyncService } from './git-sync-service.js';
+import { DurableFilePageRepository, InMemoryPageRepository } from './repository.js';
 
 describe('@mind-hub/server — Fastify API, Soft Delete, Durable Persistence, MCP & AI Integration', () => {
   it('responds to /healthz and /api/workspace/bootstrap in under 50ms', async () => {
@@ -681,5 +682,201 @@ describe('@mind-hub/server — Fastify API, Soft Delete, Durable Persistence, MC
 
     await app.close();
     rmSync(baseDir, { recursive: true, force: true });
+  });
+
+  it('validates private repository permissions via GitHub REST API and detects Fine-Grained vs Classic tokens', async () => {
+    const app = await buildApp();
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
+      const url = String(input);
+      if (url === 'https://api.github.com/repos/luizGDpulz/mind-hub-tests') {
+        return new Response(
+          JSON.stringify({
+            private: true,
+            default_branch: 'main',
+            permissions: { pull: true, push: true },
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } },
+        );
+      }
+      if (url === 'https://api.github.com/repos/luizGDpulz/mind-hub-tests/branches?per_page=100') {
+        return new Response(JSON.stringify([]), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
+      if (url === 'https://api.github.com/repos/luizGDpulz/readonly-repo') {
+        return new Response(
+          JSON.stringify({
+            private: true,
+            default_branch: 'main',
+            permissions: { pull: true, push: false },
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } },
+        );
+      }
+      return new Response(JSON.stringify({ message: 'Not Found' }), { status: 404 });
+    });
+
+    try {
+      const fineGrainedRes = await app.inject({
+        method: 'POST',
+        url: '/api/sync/github/test-connection',
+        payload: {
+          repository: 'luizGDpulz/mind-hub-tests',
+          branch: 'main',
+          token: 'github_pat_exclusive_test_123',
+        },
+      });
+      expect(fineGrainedRes.statusCode).toBe(200);
+      expect(fineGrainedRes.json()).toMatchObject({
+        ok: true,
+        repository: 'luizGDpulz/mind-hub-tests',
+        isPrivate: true,
+        isEmpty: true,
+        canPush: true,
+        tokenType: 'fine-grained',
+      });
+
+      const readOnlyRes = await app.inject({
+        method: 'POST',
+        url: '/api/sync/github/test-connection',
+        payload: {
+          repository: 'luizGDpulz/readonly-repo',
+          branch: 'main',
+          token: 'ghp_readonly_test_123',
+        },
+      });
+      expect(readOnlyRes.statusCode).toBe(200);
+      expect(readOnlyRes.json()).toMatchObject({
+        ok: false,
+        isPrivate: true,
+        canPush: false,
+        tokenType: 'classic',
+      });
+
+      const notFoundRes = await app.inject({
+        method: 'POST',
+        url: '/api/sync/github/test-connection',
+        payload: {
+          repository: 'luizGDpulz/inaccessible-private',
+          branch: 'main',
+          token: 'github_pat_wrong_repo',
+        },
+      });
+      expect(notFoundRes.statusCode).toBe(200);
+      expect(notFoundRes.json<{ ok: boolean; message: string }>().ok).toBe(false);
+      expect(notFoundRes.json<{ message: string }>().message).toContain('repositório privado');
+    } finally {
+      fetchSpy.mockRestore();
+      await app.close();
+    }
+  });
+
+  it('preserves pending sync hashes when push fails and completes push on retry + supports API fallback when git binary is missing', async () => {
+    const baseDir = join(tmpdir(), `mind-hub-gitsync-recovery-${Date.now()}`);
+    const bareRepo = join(baseDir, 'remote.git');
+    const vaultWork = join(baseDir, 'git-vault');
+    mkdirSync(bareRepo, { recursive: true });
+    execFileSync('git', ['init', '--bare', '-b', 'main', bareRepo]);
+
+    const repo = new InMemoryPageRepository();
+    const service = new GitSyncService({ repository: repo, gitVaultDir: vaultWork });
+
+    await service.configure({
+      repository: bareRepo,
+      branch: 'main',
+      token: '',
+      strategy: 'push_initial',
+      autoSyncEnabled: false,
+    });
+
+    // Create a new page, then temporarily break origin so push fails after local commit
+    await repo.createPage({
+      title: 'Nota Pendente Push',
+      contentMarkdown: 'Conteúdo aguardando push.',
+    });
+    expect(await repo.getPendingSyncCount()).toBeGreaterThan(0);
+
+    // Point remote temporarily to nonexistent directory to simulate push failure
+    const missingRemote = join(baseDir, 'missing-remote.git');
+    const cfg = await repo.getSyncConfig();
+    await repo.saveSyncConfig({ ...cfg!, repository: missingRemote });
+
+    // Remove the .repo marker and test with direct sync failure: push fails -> pending count MUST stay > 0
+    await expect(service.syncNow('bidirectional')).rejects.toThrow();
+    expect(await repo.getPendingSyncCount()).toBeGreaterThan(0);
+
+    // Restore valid remote and verify retry pushes cleanly and clears pendingChangesCount
+    const cfgAfterErr = await repo.getSyncConfig();
+    await repo.saveSyncConfig({ ...cfgAfterErr!, repository: bareRepo, lastError: null });
+    const retryRes = await service.syncNow('bidirectional');
+    expect(retryRes.ok).toBe(true);
+    expect(await repo.getPendingSyncCount()).toBe(0);
+
+    // Verify GitHub REST API fallback handles ENOENT without throwing spawn git ENOENT
+    const apiVault = join(baseDir, 'api-vault');
+    const apiRepo = new InMemoryPageRepository();
+    const apiService = new GitSyncService({ repository: apiRepo, gitVaultDir: apiVault });
+    vi.spyOn(
+      apiService as unknown as { runGit: () => Promise<never> },
+      'runGit',
+    ).mockRejectedValue(Object.assign(new Error('spawn git ENOENT'), { code: 'ENOENT' }));
+
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
+      const url = String(input);
+      const method = (init?.method ?? 'GET').toUpperCase();
+      if (url === 'https://api.github.com/repos/luizGDpulz/mind-hub-tests') {
+        return new Response(
+          JSON.stringify({ private: true, default_branch: 'main', permissions: { push: true } }),
+          { status: 200 },
+        );
+      }
+      if (url === 'https://api.github.com/repos/luizGDpulz/mind-hub-tests/branches?per_page=100') {
+        return new Response(JSON.stringify([]), { status: 200 });
+      }
+      if (url.endsWith('/git/ref/heads/main') && method === 'GET') {
+        return new Response(JSON.stringify({ message: 'Not Found' }), { status: 404 });
+      }
+      if (url.endsWith('/contents/index.md') && method === 'PUT') {
+        return new Response(
+          JSON.stringify({ commit: { sha: 'initcommit123', tree: { sha: 'inittree123' } } }),
+          { status: 201 },
+        );
+      }
+      if (url.endsWith('/git/blobs') && method === 'POST') {
+        return new Response(JSON.stringify({ sha: `blob-${Math.random().toString(16).slice(2, 8)}` }), {
+          status: 201,
+        });
+      }
+      if (url.endsWith('/git/trees') && method === 'POST') {
+        return new Response(JSON.stringify({ sha: 'newtree456' }), { status: 201 });
+      }
+      if (url.endsWith('/git/commits') && method === 'POST') {
+        return new Response(JSON.stringify({ sha: 'finalcommit789' }), { status: 201 });
+      }
+      if (url.endsWith('/git/refs/heads/main') && method === 'PATCH') {
+        return new Response(JSON.stringify({ ref: 'refs/heads/main' }), { status: 200 });
+      }
+      return new Response(JSON.stringify({ message: `Unexpected ${method} ${url}` }), { status: 500 });
+    });
+
+    try {
+      const apiConfigured = await apiService.configure({
+        repository: 'luizGDpulz/mind-hub-tests',
+        branch: 'main',
+        token: 'github_pat_api_fallback_123',
+        strategy: 'push_initial',
+        autoSyncEnabled: false,
+      });
+      expect(apiConfigured.status.configured).toBe(true);
+      expect(apiConfigured.status.isPrivate).toBe(true);
+      expect(apiConfigured.initialSync.ok).toBe(true);
+      expect(apiConfigured.initialSync.commitSha).toBe('finalcommit789');
+      expect(await apiRepo.getPendingSyncCount()).toBe(0);
+    } finally {
+      fetchSpy.mockRestore();
+      vi.restoreAllMocks();
+      rmSync(baseDir, { recursive: true, force: true });
+    }
   });
 });

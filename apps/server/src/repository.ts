@@ -43,6 +43,7 @@ export interface StoredSyncConfig {
   provider: 'github';
   repository: string;
   branch: string;
+  isPrivate?: boolean;
   token: string;
   autoSyncEnabled: boolean;
   debounceSeconds: number;

@@ -448,6 +448,7 @@ export interface GitHubSyncStatus {
   configured: boolean;
   repository: string | null;
   branch: string;
+  isPrivate?: boolean;
   autoSyncEnabled: boolean;
   debounceSeconds: number;
   pendingChangesCount: number;
@@ -469,6 +470,9 @@ export interface GitHubTestConnectionResult {
   branch: string;
   defaultBranch?: string;
   isEmpty?: boolean;
+  isPrivate?: boolean;
+  canPush?: boolean;
+  tokenType?: 'fine-grained' | 'classic' | 'local';
   message: string;
 }
 

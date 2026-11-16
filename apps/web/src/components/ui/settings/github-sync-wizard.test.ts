@@ -3,6 +3,7 @@ import { mount } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
 import type { GitHubSyncStatus } from '@mind-hub/shared';
 import GitHubSyncWizard from './GitHubSyncWizard.vue';
+import MindSettingsModal from '../MindSettingsModal.vue';
 import MindTopbar from '../../shell/MindTopbar.vue';
 import { useMindStore } from '../../../stores/mind-store.js';
 
@@ -132,5 +133,60 @@ describe('@mind-hub/web — GitHubSyncWizard & Topbar Sync Status (Refs #91)', (
 
     await pill.trigger('click');
     expect(wrapper.emitted('open-sync-settings')?.length).toBe(1);
+  });
+
+  it('navigates macro Synchronization Hub -> GitHub view and switches Fine-Grained vs Classic PAT guides', async () => {
+    const wrapper = mount(MindSettingsModal, {
+      props: {
+        modelValue: true,
+        gitHubTestResult: {
+          ok: true,
+          repository: 'luizGDpulz/mind-hub-tests',
+          branch: 'main',
+          isPrivate: true,
+          isEmpty: true,
+          canPush: true,
+          tokenType: 'fine-grained',
+          message: 'Conexão confirmada com repositório privado "luizGDpulz/mind-hub-tests".',
+        },
+      },
+      global: {
+        stubs: {
+          Teleport: true,
+          Transition: false,
+        },
+      },
+    });
+
+    // Click macro Synchronization menu item -> shows provider cards with GitHub as main
+    await wrapper.find('[data-testid="settings-tab-sync"]').trigger('click');
+    expect(wrapper.find('[data-testid="sync-hub-github-card"]').exists()).toBe(true);
+    expect(wrapper.find('[data-testid="github-sync-wizard"]').exists()).toBe(false);
+
+    // Enter dedicated GitHub view via CTA button
+    await wrapper.find('[data-testid="open-github-sync-view-btn"]').trigger('click');
+    expect(wrapper.find('[data-testid="github-sync-wizard"]').exists()).toBe(true);
+
+    // Fine-grained guide is shown by default; switch to Classic PAT guide
+    expect(wrapper.find('[data-testid="github-create-fine-grained-token-link"]').exists()).toBe(
+      true,
+    );
+    await wrapper.find('[data-testid="token-mode-classic"]').trigger('click');
+    expect(wrapper.find('[data-testid="github-create-token-link"]').exists()).toBe(true);
+
+    // Advance to Step 2 and verify private repo badge in test feedback
+    await wrapper.find('[data-testid="github-token-input"]').setValue('github_pat_test_123');
+    await wrapper.find('[data-testid="github-step1-next-btn"]').trigger('click');
+    const feedback = wrapper.find('[data-testid="github-test-feedback"]');
+    expect(feedback.exists()).toBe(true);
+    expect(feedback.text()).toContain('Privado');
+
+    // Return to macro Sync Hub overview
+    await wrapper.find('[data-testid="github-back-to-sync-hub-btn"]').trigger('click');
+    expect(wrapper.find('[data-testid="sync-hub-github-card"]').exists()).toBe(true);
+
+    // Direct entry via indented GitHub sidebar sub-item
+    await wrapper.find('[data-testid="settings-tab-sync-github"]').trigger('click');
+    expect(wrapper.find('[data-testid="github-sync-wizard"]').exists()).toBe(true);
   });
 });

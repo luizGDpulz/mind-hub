@@ -852,7 +852,7 @@ async function handleConfirmMovePage(pageId: string, targetParentId: string | nu
 }
 
 .sidebar-search-area {
-  padding: 8px 10px 4px;
+  padding: 0 10px 4px;
 }
 
 .sidebar-mini-btn {

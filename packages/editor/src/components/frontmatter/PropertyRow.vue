@@ -24,7 +24,7 @@
         class="prop-key-input"
         :data-testid="`prop-key-input-${propKey}`"
         :value="propKey"
-        :readonly="readOnly"
+        :readonly="readOnly || isSystemAutoField"
         aria-label="Nome da propriedade"
         @change="emit('renameKey', ($event.target as HTMLInputElement).value)"
         @keydown.enter.prevent="($event.target as HTMLInputElement).blur()"
@@ -60,14 +60,20 @@
 
       <!-- DATE -->
       <template v-else-if="resolvedType === 'date'">
-        <input
-          type="date"
-          class="prop-text-input prop-date-input"
-          :data-testid="`prop-value-input-${propKey}`"
-          :value="formatDateValue(value)"
-          :readonly="readOnly"
-          @change="emit('updateValue', ($event.target as HTMLInputElement).value)"
-        >
+        <div class="prop-date-row">
+          <input
+            type="date"
+            class="prop-text-input prop-date-input"
+            :class="{ 'is-auto-readonly': isSystemAutoField }"
+            :data-testid="`prop-value-input-${propKey}`"
+            :value="formatDateValue(value)"
+            :readonly="readOnly || isSystemAutoField"
+            @change="emit('updateValue', ($event.target as HTMLInputElement).value)"
+          >
+          <span v-if="isSystemAutoField" class="prop-auto-tag" title="Atualizado automaticamente">
+            auto
+          </span>
+        </div>
       </template>
 
       <!-- DATETIME -->
@@ -268,6 +274,11 @@ const emit = defineEmits<{
 const listInputDraft = ref('');
 const isListFocused = ref(false);
 const isTextFocused = ref(false);
+
+const isSystemAutoField = computed(() => {
+  const k = props.propKey.toLowerCase();
+  return k === 'created' || k === 'updated';
+});
 
 const isTag = computed(() => isTagKey(props.propKey));
 const stringArrayValue = computed(() => asStringArray(props.value));
@@ -556,6 +567,27 @@ function handleTextBlur(): void {
 .facilitator-dropdown.is-compact {
   min-width: 160px;
   padding: 4px;
+}
+
+.prop-date-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.prop-date-input.is-auto-readonly {
+  color: #868e96;
+  cursor: default;
+}
+
+.prop-auto-tag {
+  font-size: 10.5px;
+  font-weight: 500;
+  color: #868e96;
+  background: #f1f3f5;
+  border-radius: 4px;
+  padding: 1px 6px;
+  user-select: none;
 }
 
 .facilitator-section-title {

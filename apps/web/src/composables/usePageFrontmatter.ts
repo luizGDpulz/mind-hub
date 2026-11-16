@@ -48,9 +48,19 @@ export function usePageFrontmatter(options: UsePageFrontmatterOptions) {
     const current = options.activePage.value;
     if (!current) return {};
     const extra = pagePropertiesById[current.id] ?? {};
-    const next: EditorFrontmatter = { ...extra };
+    const next: EditorFrontmatter = {};
     if (current.tags && current.tags.length > 0) {
       next.tags = [...current.tags];
+    }
+    for (const [key, val] of Object.entries(extra)) {
+      if (key === 'created' || key === 'updated') continue;
+      next[key] = val;
+    }
+    if (current.createdAt) {
+      next.created = current.createdAt.slice(0, 10);
+    }
+    if (current.updatedAt) {
+      next.updated = current.updatedAt.slice(0, 10);
     }
     return next;
   });
@@ -58,7 +68,7 @@ export function usePageFrontmatter(options: UsePageFrontmatterOptions) {
   const isActivePagePropertiesVisible = computed<boolean>(() => {
     if (showPropertiesOverride.value) return true;
     for (const [key, val] of Object.entries(activePageFrontmatter.value)) {
-      if (key === 'title' || val === undefined) continue;
+      if (key === 'title' || key === 'created' || key === 'updated' || val === undefined) continue;
       if (key === 'tags' && Array.isArray(val) && val.length === 0) continue;
       return true;
     }
@@ -75,7 +85,15 @@ export function usePageFrontmatter(options: UsePageFrontmatterOptions) {
 
     const nextExtra: EditorFrontmatter = {};
     for (const [key, val] of Object.entries(meta)) {
-      if (key === 'title' || key === 'tags' || val === undefined) continue;
+      if (
+        key === 'title' ||
+        key === 'tags' ||
+        key === 'created' ||
+        key === 'updated' ||
+        val === undefined
+      ) {
+        continue;
+      }
       nextExtra[key] = val;
     }
 

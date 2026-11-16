@@ -87,4 +87,39 @@ describe('packages/editor — Gatekeeper UI & Style Compliance (mind-light-style
       ).toBe(true);
     }
   });
+
+  it('enforces shared block geometry tokens (--mind-block-bleed and --mind-block-full-width) across all block containers including tables', () => {
+    const canvasCssPath = path.join(editorSrcDir, 'components', 'mind-editor-canvas.css');
+    const canvasCss = fs.readFileSync(canvasCssPath, 'utf-8');
+
+    expect(canvasCss).toContain('--mind-block-bleed:');
+    expect(canvasCss).toContain('--mind-block-full-width:');
+    expect(canvasCss).toContain('.tableWrapper');
+    expect(canvasCss).toMatch(/\.tableWrapper[\s\S]*?--mind-block-full-width/);
+    expect(canvasCss).toMatch(/\.tableWrapper[\s\S]*?--mind-block-bleed/);
+
+    const blockViewFiles = [
+      'CalloutBlockView.vue',
+      'SubpageBlockView.vue',
+      'MermaidBlockView.vue',
+    ];
+    for (const fileName of blockViewFiles) {
+      const content = fs.readFileSync(
+        path.join(editorSrcDir, 'components', fileName),
+        'utf-8'
+      );
+      expect(
+        content.includes('--mind-block-full-width'),
+        `${fileName} deve usar --mind-block-full-width para alinhar às mesmas margens`
+      ).toBe(true);
+      expect(
+        content.includes('--mind-block-bleed'),
+        `${fileName} deve usar --mind-block-bleed para sangria simétrica`
+      ).toBe(true);
+    }
+
+    const axisMenuPath = path.join(editorSrcDir, 'components', 'table', 'TableAxisContextMenu.vue');
+    const axisMenuContent = fs.readFileSync(axisMenuPath, 'utf-8');
+    expect(axisMenuContent).toMatch(/\.table-axis-popover[\s\S]*?pointer-events:\s*auto/);
+  });
 });

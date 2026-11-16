@@ -218,7 +218,9 @@ onMounted(renderDiagram);
 
 <style scoped>
 .mind-mermaid-shell {
-  margin: 1.25rem 0;
+  width: var(--mind-block-full-width, calc(100% + 20px));
+  margin: 12px calc(-1 * var(--mind-block-bleed, 10px));
+  box-sizing: border-box;
   border: 1px solid #e9ecef;
   border-radius: 8px;
   background-color: #ffffff;

@@ -257,8 +257,9 @@ onBeforeUnmount(() => {
   border-width: 1px;
   border-style: solid;
   border-radius: 8px;
+  width: var(--mind-block-full-width, calc(100% + 20px));
   padding: 12px 14px;
-  margin: 0 -10px;
+  margin: 0 calc(-1 * var(--mind-block-bleed, 10px));
   box-sizing: border-box;
   transition: border-color 0.15s ease, background-color 0.15s ease;
 }

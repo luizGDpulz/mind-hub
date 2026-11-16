@@ -192,7 +192,9 @@ onBeforeUnmount(() => {
 <style scoped>
 .mind-subpage-block-wrapper {
   position: relative;
-  margin: 2px -10px;
+  width: var(--mind-block-full-width, calc(100% + 20px));
+  margin: 2px calc(-1 * var(--mind-block-bleed, 10px));
+  box-sizing: border-box;
   user-select: none;
 }
 

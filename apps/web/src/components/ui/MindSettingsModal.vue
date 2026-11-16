@@ -130,7 +130,7 @@ const props = withDefaults(
   }>(),
   {
     initialTab: 'general',
-    workspaceName: 'Mind de Luiz Pulz',
+    workspaceName: 'Mind Hub Workspace',
     backendConnected: true,
     activePagesCount: 0,
     deletedPagesCount: 0,

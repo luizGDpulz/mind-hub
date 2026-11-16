@@ -19,11 +19,11 @@
     <div class="mind-setting-row">
       <div class="mind-setting-meta">
         <label class="mind-setting-label">Usuário Responsável</label>
-        <span class="mind-setting-desc">Luiz Pulz (Workspace Admin)</span>
+        <span class="mind-setting-desc">Mind Hub (Workspace Admin)</span>
       </div>
       <div class="setting-user-pill">
-        <div class="user-avatar-mini">LP</div>
-        <span class="user-email-text">luizg.pulz@gmail.com</span>
+        <div class="user-avatar-mini">MH</div>
+        <span class="user-email-text">workspace@mindhub.local</span>
       </div>
     </div>
 

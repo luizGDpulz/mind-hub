@@ -187,9 +187,9 @@
           title="Clique para abrir opções da conta e configurações"
           @click="$emit('toggle-workspace-menu')"
         >
-          <div class="sidebar-user-avatar">LP</div>
+          <div class="sidebar-user-avatar">MH</div>
           <div class="sidebar-user-meta">
-            <span class="sidebar-user-name">Luiz Pulz</span>
+            <span class="sidebar-user-name">Mind Hub</span>
             <span class="sidebar-user-role">Workspace Admin · v{{ store.currentVersion }}</span>
           </div>
         </div>
@@ -427,9 +427,9 @@
         data-testid="sidebar-user-card-btn"
         @click="$emit('toggle-workspace-menu')"
       >
-        <div class="sidebar-user-avatar">LP</div>
+        <div class="sidebar-user-avatar">MH</div>
         <div class="sidebar-user-meta">
-          <span class="sidebar-user-name">Luiz Pulz</span>
+          <span class="sidebar-user-name">Mind Hub</span>
           <span class="sidebar-user-role">Workspace Admin · v{{ store.currentVersion }}</span>
         </div>
       </div>
@@ -674,7 +674,7 @@ function handleTreeContextMenu(
     icon: node.icon,
     isFavorite: Boolean(node.isFavorite),
     updatedAt: node.updatedAt,
-    authorName: 'Luiz Gustavo Dias Pulz',
+    authorName: 'Mind Hub',
   };
   treeContextMenuCoords.x = event.clientX;
   treeContextMenuCoords.y = event.clientY;

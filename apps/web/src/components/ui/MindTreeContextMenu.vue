@@ -64,7 +64,7 @@ const emit = defineEmits<{
   (e: 'close'): void;
 }>();
 
-const authorDisplayName = computed(() => props.page.authorName || 'Luiz Gustavo Dias Pulz');
+const authorDisplayName = computed(() => props.page.authorName || 'Mind Hub');
 const authorInitial = computed(() => (authorDisplayName.value[0] || 'L').toUpperCase());
 
 const formattedUpdatedAt = computed(() => {

@@ -273,7 +273,7 @@ describe('MindTreeContextMenu — Ações Rápidas no Nó do Arquivo', () => {
           title: 'Nota Arquivada',
           isFavorite: false,
           updatedAt: '2026-11-12T15:30:00.000Z',
-          authorName: 'Luiz Gustavo Dias Pulz',
+          authorName: 'Mind Hub',
         },
         x: 100,
         y: 150,
@@ -289,8 +289,8 @@ describe('MindTreeContextMenu — Ações Rápidas no Nó do Arquivo', () => {
 
     // Valida Footer de Auditoria estilo Notion
     expect(wrapper.find('.audit-caption').text()).toBe('Última edição');
-    expect(wrapper.find('.audit-author-name').text()).toBe('Luiz Gustavo Dias Pulz');
-    expect(wrapper.find('.audit-avatar').text()).toBe('L');
+    expect(wrapper.find('.audit-author-name').text()).toBe('Mind Hub');
+    expect(wrapper.find('.audit-avatar').text()).toBe('M');
 
     // Valida divisores de seção
     expect(wrapper.findAll('.mind-dropdown-divider').length).toBeGreaterThan(0);

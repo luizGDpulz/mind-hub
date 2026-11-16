@@ -315,7 +315,7 @@ const pageMetadata = computed<ActionMenuPageMeta>(() => {
   }
 
   return {
-    lastEditedAuthor: 'Luiz Pulz',
+    lastEditedAuthor: 'Mind Hub',
     lastEditedDate: formattedDate,
     wordCount: words,
     characterCount: chars,

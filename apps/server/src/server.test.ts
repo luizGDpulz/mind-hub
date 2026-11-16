@@ -167,7 +167,7 @@ describe('@mind-hub/server — Fastify API, Soft Delete, Durable Persistence, MC
       method: 'POST',
       url: '/api/pages/page-manifesto/comments',
       payload: {
-        authorName: 'Luiz Pulz',
+        authorName: 'Mind Hub',
         quotedText: 'Fastify + Drizzle ORM',
         body: 'Latência sub-milissegundo validada.',
       },
@@ -176,7 +176,7 @@ describe('@mind-hub/server — Fastify API, Soft Delete, Durable Persistence, MC
     const createdThread = commentRes.json<{
       comment: { id: string; authorInitials: string; replies: unknown[] };
     }>().comment;
-    expect(createdThread.authorInitials).toBe('LP');
+    expect(createdThread.authorInitials).toBe('MH');
 
     const replyRes = await app.inject({
       method: 'POST',
@@ -209,7 +209,7 @@ describe('@mind-hub/server — Fastify API, Soft Delete, Durable Persistence, MC
       method: 'POST',
       url: '/api/auth/login',
       payload: {
-        email: 'luiz@pulz.dev.br',
+        email: 'workspace@mindhub.local',
         ssoProvider: 'Okta',
       },
     });

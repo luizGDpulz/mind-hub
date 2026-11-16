@@ -30,7 +30,7 @@
     <MindSettingsModal
       v-model="store.isMcpModalOpen"
       v-model:initial-tab="store.settingsActiveTab"
-      :workspace-name="'Mind de Luiz Gustavo Dias Pulz'"
+      :workspace-name="'Mind Hub Workspace'"
       :backend-connected="store.backendConnected"
       :active-pages-count="store.activePages.length"
       :deleted-pages-count="store.deletedPages.length"
@@ -75,8 +75,8 @@
 
     <MindWorkspaceMenu
       v-model="isWorkspaceMenuOpen"
-      :workspace-name="'Mind de Luiz Gustavo Dias Pulz'"
-      :user-email="'luizg.pulz@gmail.com'"
+      :workspace-name="'Mind Hub Workspace'"
+      :user-email="'workspace@mindhub.local'"
       :current-version="store.currentVersion"
       :repo-url="store.repoUrl"
       :bottom="56"

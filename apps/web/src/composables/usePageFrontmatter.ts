@@ -114,7 +114,7 @@ export function usePageFrontmatter(options: UsePageFrontmatterOptions) {
   function requestOpenProperties(editorHandle?: { openProperties: (focus?: boolean) => void } | null): void {
     if (options.editorReadMode.value) return;
     showPropertiesOverride.value = true;
-    editorHandle?.openProperties(true);
+    editorHandle?.openProperties(false);
   }
 
   return {

@@ -5,7 +5,6 @@ import type { NodeViewProps } from '@tiptap/core';
 import StarterKit from '@tiptap/starter-kit';
 import TaskList from '@tiptap/extension-task-list';
 import TaskItem from '@tiptap/extension-task-item';
-import Table from '@tiptap/extension-table';
 import TableRow from '@tiptap/extension-table-row';
 import TableHeader from '@tiptap/extension-table-header';
 import TableCell from '@tiptap/extension-table-cell';
@@ -23,6 +22,7 @@ import {
 import FrontmatterHeader from './FrontmatterHeader.vue';
 import NoteTitleBar from './NoteTitleBar.vue';
 import BlockGutter from './BlockGutter.vue';
+import TableControlsOverlay from './table/TableControlsOverlay.vue';
 import SlashMenu from './SlashMenu.vue';
 import PageMentionPopover from './PageMentionPopover.vue';
 import BubbleFormattingMenu from './BubbleFormattingMenu.vue';
@@ -42,6 +42,7 @@ import {
   setBlockSelection,
 } from '../extensions/block-selection.js';
 import { BlockColor, normalizeContainerBlockColors } from '../extensions/block-color.js';
+import { MindTable } from '../extensions/table-operations.js';
 import { SlashCommand, executeSlashItem } from '../extensions/slash-command.js';
 import { createDefaultSlashItems } from '../extensions/slash-items.js';
 import { PageMention } from '../extensions/page-mention.js';
@@ -164,7 +165,7 @@ const editor = useEditor({
       nested: true,
       HTMLAttributes: { 'data-type': 'taskItem' },
     }),
-    Table.configure({ resizable: true }),
+    MindTable,
     TableRow,
     TableHeader,
     TableCell,
@@ -277,6 +278,8 @@ const gutterCoordinator = useBlockGutterCoordinator({
 
 const {
   gutterState,
+  gutterTableMeta,
+  tableMenuHighlightPos,
   isGutterHovered,
   activeGutterSelectedCount,
   resetGutterState,
@@ -285,6 +288,7 @@ const {
   handleAddBlockBelow,
   handleGutterAction,
   handleGutterSetColor,
+  handleGutterTableAction,
   handleGutterTurnInto,
 } = gutterCoordinator;
 
@@ -503,12 +507,23 @@ defineExpose({
         :node-bg-color="gutterState.bgColor"
         :basic-blocks-only="basicBlocksOnly"
         :selected-count="activeGutterSelectedCount"
+        :table-header-row="gutterTableMeta?.headerRow ?? false"
+        :table-header-column="gutterTableMeta?.headerColumn ?? false"
+        :table-full-width="gutterTableMeta?.fullWidth ?? true"
         @add-block="handleAddBlockBelow"
         @action="handleGutterAction"
         @turn-into="handleGutterTurnInto"
         @set-color="handleGutterSetColor"
+        @table-action="handleGutterTableAction"
         @hover="handleGutterHover"
         @menu-toggle="handleGutterMenuToggle"
+      />
+
+      <TableControlsOverlay
+        v-if="editor && !readOnly"
+        :editor="editor"
+        :read-only="readOnly"
+        :menu-highlighted-table-pos="tableMenuHighlightPos"
       />
 
       <BubbleFormattingMenu

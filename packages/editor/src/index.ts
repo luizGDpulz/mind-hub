@@ -10,6 +10,8 @@ export { default as MermaidBlockView } from './components/MermaidBlockView.vue';
 export { default as CalloutBlockView } from './components/CalloutBlockView.vue';
 export { default as SubpageBlockView } from './components/SubpageBlockView.vue';
 export { default as BubbleFormattingMenu } from './components/BubbleFormattingMenu.vue';
+export { default as TableControlsOverlay } from './components/table/TableControlsOverlay.vue';
+export { default as TableAxisContextMenu } from './components/table/TableAxisContextMenu.vue';
 export { default as MindEditor } from './components/MindEditor.vue';
 export {
   GlobalDragHandle,
@@ -139,5 +141,32 @@ export {
   syncBlockColorsAtSelection,
   normalizeContainerBlockColors,
 } from './extensions/block-color.js';
+export {
+  MindTable,
+  MindTableView,
+  getTableMetadata,
+  findEnclosingTablePos,
+  toggleTableHeaderRow,
+  toggleTableHeaderColumn,
+  toggleTableFullWidth,
+  setTableCountDimensions,
+  insertTableRowAt,
+  duplicateTableRowAt,
+  clearTableRowContentsAt,
+  deleteTableRowAt,
+  moveTableRow,
+  insertTableColumnAt,
+  duplicateTableColumnAt,
+  clearTableColumnContentsAt,
+  deleteTableColumnAt,
+  moveTableColumn,
+  setTableRowColor,
+  getTableRowColors,
+  setTableColumnColor,
+  getTableColumnColors,
+  setTableAllCellsColor,
+  getTableAllCellsColors,
+  type TableMetadata,
+} from './extensions/table-operations.js';
 
 

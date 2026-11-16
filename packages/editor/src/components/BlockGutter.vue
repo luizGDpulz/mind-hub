@@ -27,7 +27,7 @@
 
       <div
         v-if="isAddHovered && !showMenu"
-        class="gutter-add-tooltip"
+        class="gutter-tooltip gutter-add-tooltip"
         data-testid="gutter-add-tooltip"
       >
         <div class="tooltip-row"><strong>Clique</strong> para adicionar abaixo</div>
@@ -308,27 +308,7 @@ onBeforeUnmount(() => {
 }
 
 .gutter-add-tooltip {
-  position: absolute;
-  top: 100%;
-  left: 50%;
-  transform: translateX(-50%);
-  margin-top: 6px;
-  background-color: #25262b;
-  color: #dee2e6;
-  padding: 7px 11px;
-  border-radius: 6px;
-  font-size: 12px;
-  line-height: 1.45;
-  white-space: nowrap;
-  pointer-events: none;
-  z-index: 160;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.18);
   text-align: center;
-}
-
-.gutter-add-tooltip strong {
-  color: #ffffff;
-  font-weight: 600;
 }
 
 .gutter-grip-btn {

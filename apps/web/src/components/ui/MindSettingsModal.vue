@@ -42,31 +42,16 @@
           </div>
 
           <div class="settings-nav-group">
-            <div class="settings-nav-group-label">Sincronização &amp; Conexões</div>
+            <div class="settings-nav-group-label">Conexões &amp; Sincronização</div>
             <button
               type="button"
               class="settings-nav-tab"
-              :class="{ 'is-active': activeTab === 'sync' && syncSubView === 'overview' }"
+              :class="{ 'is-active': activeTab === 'sync' }"
               data-testid="settings-tab-sync"
               @click="selectSyncView('overview')"
             >
               <RefreshCw :size="16" class="tab-icon" />
               <span>Sincronização</span>
-            </button>
-
-            <button
-              type="button"
-              class="settings-nav-subtab"
-              :class="{ 'is-active': activeTab === 'sync' && syncSubView === 'github' }"
-              data-testid="settings-tab-sync-github"
-              @click="selectSyncView('github')"
-            >
-              <GitBranch :size="14" class="tab-icon" />
-              <span class="subtab-label">GitHub</span>
-              <span class="subtab-right">
-                <span class="sync-sidebar-dot" :class="gitHubDotClass" />
-                <span class="subtab-badge">Principal</span>
-              </span>
             </button>
           </div>
 
@@ -157,7 +142,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
 import {
-  GitBranch,
   HardDrive,
   Keyboard,
   Palette,
@@ -250,15 +234,6 @@ const workspaceInitials = computed(() => {
   if (!first) return 'MH';
   if (!second) return first.slice(0, 2).toUpperCase();
   return `${first[0] ?? ''}${second[0] ?? ''}`.toUpperCase();
-});
-
-const gitHubDotClass = computed(() => {
-  const state = props.gitHubStatus?.state;
-  if (!props.gitHubStatus?.configured) return 'is-disconnected';
-  if (state === 'syncing') return 'is-syncing';
-  if (state === 'error') return 'is-error';
-  if (state === 'conflict') return 'is-conflict';
-  return 'is-connected';
 });
 
 const workspaceTabs = [
@@ -363,8 +338,7 @@ function selectSyncView(view: SyncSubView): void {
   letter-spacing: 0.01em;
 }
 
-.settings-nav-tab,
-.settings-nav-subtab {
+.settings-nav-tab {
   display: flex;
   align-items: center;
   gap: 9px;
@@ -381,19 +355,12 @@ function selectSyncView(view: SyncSubView): void {
   transition: background-color 0.12s ease, color 0.12s ease;
 }
 
-.settings-nav-subtab {
-  padding-left: 26px;
-  font-size: 13px;
-}
-
-.settings-nav-tab:hover,
-.settings-nav-subtab:hover {
+.settings-nav-tab:hover {
   background: var(--mind-bg-hover, #f1f3f5);
   color: var(--mind-text-primary, #111827);
 }
 
-.settings-nav-tab.is-active,
-.settings-nav-subtab.is-active {
+.settings-nav-tab.is-active {
   background: var(--mind-bg-active, #e9ecef);
   color: var(--mind-text-primary, #111827);
   font-weight: 600;
@@ -404,56 +371,8 @@ function selectSyncView(view: SyncSubView): void {
   flex-shrink: 0;
 }
 
-.settings-nav-tab.is-active .tab-icon,
-.settings-nav-subtab.is-active .tab-icon {
+.settings-nav-tab.is-active .tab-icon {
   color: var(--mind-accent-primary, #1971c2);
-}
-
-.subtab-label {
-  flex: 1;
-  min-width: 0;
-}
-
-.subtab-right {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-}
-
-.sync-sidebar-dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 999px;
-  flex-shrink: 0;
-}
-
-.sync-sidebar-dot.is-connected {
-  background: #2b8a3e;
-}
-
-.sync-sidebar-dot.is-syncing {
-  background: #1971c2;
-}
-
-.sync-sidebar-dot.is-conflict {
-  background: #e67700;
-}
-
-.sync-sidebar-dot.is-error {
-  background: #c92a2a;
-}
-
-.sync-sidebar-dot.is-disconnected {
-  background: #adb5bd;
-}
-
-.subtab-badge {
-  font-size: 10px;
-  font-weight: 600;
-  padding: 1px 6px;
-  border-radius: 999px;
-  background: #e7f5ff;
-  color: #1971c2;
 }
 
 .settings-main-stage {

@@ -135,7 +135,7 @@ describe('@mind-hub/web — GitHubSyncWizard & Topbar Sync Status (Refs #91)', (
     expect(wrapper.emitted('open-sync-settings')?.length).toBe(1);
   });
 
-  it('navigates macro Synchronization Hub -> GitHub view and switches Fine-Grained vs Classic PAT guides', async () => {
+  it('enforces entry through modular Synchronization Hub without GitHub in settings sidebar and supports modular GitHub modes', async () => {
     const wrapper = mount(MindSettingsModal, {
       props: {
         modelValue: true,
@@ -158,21 +158,41 @@ describe('@mind-hub/web — GitHubSyncWizard & Topbar Sync Status (Refs #91)', (
       },
     });
 
-    // Click macro Synchronization menu item -> shows provider cards with GitHub as main
+    // GitHub must NOT be directly in the settings sidebar
+    expect(wrapper.find('[data-testid="settings-tab-sync-github"]').exists()).toBe(false);
+
+    // Click macro Synchronization menu item -> shows modular connections grid with GitHub
     await wrapper.find('[data-testid="settings-tab-sync"]').trigger('click');
     expect(wrapper.find('[data-testid="sync-hub-github-card"]').exists()).toBe(true);
     expect(wrapper.find('[data-testid="github-sync-wizard"]').exists()).toBe(false);
+
+    // Filter connections via search input
+    await wrapper.find('[data-testid="sync-hub-search-input"]').setValue('github');
+    expect(wrapper.find('[data-testid="sync-hub-github-card"]').exists()).toBe(true);
+    expect(wrapper.find('[data-testid="sync-hub-google-drive-card"]').exists()).toBe(false);
+    await wrapper.find('[data-testid="sync-hub-search-input"]').setValue('');
 
     // Enter dedicated GitHub view via CTA button
     await wrapper.find('[data-testid="open-github-sync-view-btn"]').trigger('click');
     expect(wrapper.find('[data-testid="github-sync-wizard"]').exists()).toBe(true);
 
-    // Fine-grained guide is shown by default; switch to Classic PAT guide
+    // Fine-grained guide mentions Add permissions -> Contents -> Read and write
     expect(wrapper.find('[data-testid="github-create-fine-grained-token-link"]').exists()).toBe(
       true,
     );
+    expect(wrapper.text()).toContain('Add permissions');
+    expect(wrapper.text()).toContain('Read and write');
+
+    // Switch to Classic PAT guide
     await wrapper.find('[data-testid="token-mode-classic"]').trigger('click');
     expect(wrapper.find('[data-testid="github-create-token-link"]').exists()).toBe(true);
+
+    // Switch to future modular modes (Dev Sync & AI/MCP) and verify separate token scope note
+    await wrapper.find('[data-testid="github-mode-tab-dev_sync"]').trigger('click');
+    expect(wrapper.find('[data-testid="github-future-mode-dev_sync"]').exists()).toBe(true);
+    expect(wrapper.text()).toContain('Separação de Chaves');
+
+    await wrapper.find('[data-testid="github-mode-tab-vault_okf"]').trigger('click');
 
     // Advance to Step 2 and verify private repo badge in test feedback
     await wrapper.find('[data-testid="github-token-input"]').setValue('github_pat_test_123');
@@ -184,9 +204,5 @@ describe('@mind-hub/web — GitHubSyncWizard & Topbar Sync Status (Refs #91)', (
     // Return to macro Sync Hub overview
     await wrapper.find('[data-testid="github-back-to-sync-hub-btn"]').trigger('click');
     expect(wrapper.find('[data-testid="sync-hub-github-card"]').exists()).toBe(true);
-
-    // Direct entry via indented GitHub sidebar sub-item
-    await wrapper.find('[data-testid="settings-tab-sync-github"]').trigger('click');
-    expect(wrapper.find('[data-testid="github-sync-wizard"]').exists()).toBe(true);
   });
 });

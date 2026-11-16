@@ -53,6 +53,14 @@ export interface AiChatEntry {
   createdAt: string;
 }
 
+export interface MindToastNotification {
+  id: string;
+  message: string;
+  actionLabel?: string;
+  targetPageId?: string | null;
+  undoRestorePageId?: string | null;
+}
+
 const IS_TEST_RUNTIME =
   Boolean(import.meta.env?.VITEST || import.meta.env?.MODE === 'test') ||
   (typeof process !== 'undefined' && Boolean(process.env?.VITEST));
@@ -62,8 +70,26 @@ export const useMindStore = defineStore('mindHub', () => {
   const pages = ref<MindPage[]>(IS_TEST_RUNTIME ? createInitialSeedPages() : []);
   const activePageId = ref<string>(IS_TEST_RUNTIME ? 'page-teste' : '');
   const darkMode = ref<boolean>(false);
-  const activeSurface = ref<'editor' | 'database' | 'login'>('editor');
+  const activeSurface = ref<'editor' | 'library' | 'database' | 'login'>('editor');
   const editorReadMode = ref<boolean>(false);
+  const activeToast = ref<MindToastNotification | null>(null);
+  let toastTimer: ReturnType<typeof setTimeout> | null = null;
+
+  function showToast(payload: Omit<MindToastNotification, 'id'>): void {
+    if (toastTimer) clearTimeout(toastTimer);
+    activeToast.value = {
+      id: `toast-${Date.now()}`,
+      ...payload,
+    };
+    toastTimer = setTimeout(() => {
+      activeToast.value = null;
+    }, 4500);
+  }
+
+  function dismissToast(): void {
+    if (toastTimer) clearTimeout(toastTimer);
+    activeToast.value = null;
+  }
   const rightDrawerMode = ref<'comments' | 'ai'>('comments');
   const isCommentsDrawerOpen = ref<boolean>(false);
   const showEmbeddedDatabase = ref<boolean>(false);
@@ -341,9 +367,164 @@ export const useMindStore = defineStore('mindHub', () => {
 
   let patchDebounceTimer: ReturnType<typeof setTimeout> | null = null;
 
+  function extractSubpageIdsFromDoc(doc: TiptapDoc | undefined): string[] {
+    if (!doc || !Array.isArray(doc.content)) return [];
+    const ids: string[] = [];
+    for (const node of doc.content) {
+      if (node.type === 'subpageBlock' && node.attrs?.pageId) {
+        ids.push(String(node.attrs.pageId));
+      }
+    }
+    return ids;
+  }
+
+  async function persistPageDocChange(targetPage: MindPage, nextDoc: TiptapDoc): Promise<void> {
+    const nextMarkdown = tiptapToMarkdown(nextDoc);
+    const embedding = generateDeterministicEmbedding(
+      `${targetPage.title} ${targetPage.tags.join(' ')} ${nextMarkdown}`,
+    );
+    const updatedPage: MindPage = {
+      ...targetPage,
+      contentJson: nextDoc,
+      contentMarkdown: nextMarkdown,
+      embedding,
+      updatedAt: new Date().toISOString(),
+    };
+    pages.value = pages.value.map((p) => (p.id === targetPage.id ? updatedPage : p));
+    try {
+      await fetch(`/api/pages/${targetPage.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contentJson: nextDoc,
+          contentMarkdown: nextMarkdown,
+        }),
+      });
+    } catch {
+      // Local state already updated
+    }
+  }
+
+  async function ensureSubpageBlockInParent(
+    parentId: string,
+    childPage: MindPage,
+  ): Promise<void> {
+    const parent = pages.value.find((p) => p.id === parentId && p.deletedAt === null);
+    if (!parent) return;
+
+    const existingNodes = Array.isArray(parent.contentJson?.content)
+      ? parent.contentJson.content
+      : [];
+    const alreadyLinked = existingNodes.some(
+      (n) => n.type === 'subpageBlock' && String(n.attrs?.pageId) === childPage.id,
+    );
+    if (alreadyLinked) return;
+
+    const subpageNode: MindNode = {
+      type: 'subpageBlock',
+      attrs: {
+        pageId: childPage.id,
+        title: childPage.title,
+        icon: childPage.icon || '',
+        href: `#/page/${childPage.id}`,
+        color: 'default',
+      },
+    };
+    const filteredNodes = existingNodes.filter(
+      (n) =>
+        !(
+          n.type === 'paragraph' &&
+          (!n.content || n.content.length === 0) &&
+          existingNodes.length === 1
+        ),
+    );
+    const nextDoc: TiptapDoc = {
+      type: 'doc',
+      content: [...filteredNodes, subpageNode],
+    };
+    await persistPageDocChange(parent, nextDoc);
+  }
+
+  async function removeSubpageBlocksEverywhere(
+    childPageIds: ReadonlySet<string>,
+  ): Promise<void> {
+    if (childPageIds.size === 0) return;
+    const candidates = pages.value.filter((p) => p.deletedAt === null);
+    for (const host of candidates) {
+      const nodes = Array.isArray(host.contentJson?.content) ? host.contentJson.content : [];
+      const hasMatchingBlock = nodes.some(
+        (n) => n.type === 'subpageBlock' && childPageIds.has(String(n.attrs?.pageId ?? '')),
+      );
+      if (!hasMatchingBlock) continue;
+
+      const remaining = nodes.filter(
+        (n) => !(n.type === 'subpageBlock' && childPageIds.has(String(n.attrs?.pageId ?? ''))),
+      );
+      const nextDoc: TiptapDoc = {
+        type: 'doc',
+        content: remaining.length > 0 ? remaining : [{ type: 'paragraph' }],
+      };
+      await persistPageDocChange(host, nextDoc);
+    }
+  }
+
+  async function syncSubpageBlockOrderInParent(parentId: string): Promise<void> {
+    const parent = pages.value.find((p) => p.id === parentId && p.deletedAt === null);
+    if (!parent || !Array.isArray(parent.contentJson?.content)) return;
+
+    const childOrderMap = new Map<string, number>();
+    const activeChildren = pages.value
+      .filter((p) => p.parentId === parentId && p.deletedAt === null)
+      .sort((a, b) => a.sortOrder - b.sortOrder);
+    activeChildren.forEach((child, index) => {
+      childOrderMap.set(child.id, index);
+    });
+
+    const nodes = [...parent.contentJson.content];
+    const subpageIndices: number[] = [];
+    const subpageNodes: MindNode[] = [];
+
+    nodes.forEach((node, idx) => {
+      const pid = String(node.attrs?.pageId ?? '');
+      if (node.type === 'subpageBlock' && childOrderMap.has(pid)) {
+        subpageIndices.push(idx);
+        subpageNodes.push(node);
+      }
+    });
+
+    if (subpageNodes.length <= 1) return;
+
+    subpageNodes.sort((a, b) => {
+      const oa = childOrderMap.get(String(a.attrs?.pageId ?? '')) ?? 9999;
+      const ob = childOrderMap.get(String(b.attrs?.pageId ?? '')) ?? 9999;
+      return oa - ob;
+    });
+
+    let changed = false;
+    subpageIndices.forEach((docIdx, i) => {
+      const replacement = subpageNodes[i];
+      if (replacement && nodes[docIdx] !== replacement) {
+        nodes[docIdx] = replacement;
+        changed = true;
+      }
+    });
+
+    if (changed) {
+      await persistPageDocChange(parent, { type: 'doc', content: nodes });
+    }
+  }
+
   async function updatePageContentById(pageId: string, doc: TiptapDoc): Promise<void> {
     const current = pages.value.find((p) => p.id === pageId && p.deletedAt === null);
     if (!current) return;
+
+    const prevSubIds = extractSubpageIdsFromDoc(current.contentJson);
+    const nextSubIds = new Set(extractSubpageIdsFromDoc(doc));
+    const removedChildIds = prevSubIds.filter(
+      (subId) =>
+        !nextSubIds.has(subId) &&
+        pages.value.some((p) => p.id === subId && p.parentId === pageId && p.deletedAt === null),
+    );
 
     const t0 = performance.now();
     const markdown = tiptapToMarkdown(doc);
@@ -362,6 +543,12 @@ export const useMindStore = defineStore('mindHub', () => {
 
     pages.value = pages.value.map((p) => (p.id === current.id ? updated : p));
     lastLatencyMs.value = Number((performance.now() - t0).toFixed(2));
+
+    if (removedChildIds.length > 0) {
+      for (const removedId of removedChildIds) {
+        await softDeletePage(removedId, { skipParentDocCleanup: true });
+      }
+    }
 
     if (patchDebounceTimer) {
       clearTimeout(patchDebounceTimer);
@@ -403,48 +590,8 @@ export const useMindStore = defineStore('mindHub', () => {
       { select: !options.openInModal },
     );
 
+    await ensureSubpageBlockInParent(parentId, newSub);
     const parent = pages.value.find((p) => p.id === parentId && p.deletedAt === null);
-    if (parent) {
-      const subpageNode: MindNode = {
-        type: 'subpageBlock',
-        attrs: {
-          pageId: newSub.id,
-          title: newSub.title,
-          icon: newSub.icon || '',
-          href: `#/page/${newSub.id}`,
-          color: 'default',
-        },
-      };
-      const existingNodes = Array.isArray(parent.contentJson?.content)
-        ? parent.contentJson.content.filter(
-            (n) => !(n.type === 'paragraph' && (!n.content || n.content.length === 0) && parent.contentJson.content.length === 1),
-          )
-        : [];
-      const nextDoc: TiptapDoc = {
-        type: 'doc',
-        content: [...existingNodes, subpageNode],
-      };
-      const nextMarkdown = tiptapToMarkdown(nextDoc);
-      const updatedParent: MindPage = {
-        ...parent,
-        contentJson: nextDoc,
-        contentMarkdown: nextMarkdown,
-        updatedAt: new Date().toISOString(),
-      };
-      pages.value = pages.value.map((p) => (p.id === parent.id ? updatedParent : p));
-      try {
-        await fetch(`/api/pages/${parent.id}`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            contentJson: nextDoc,
-            contentMarkdown: nextMarkdown,
-          }),
-        });
-      } catch {
-        // Local state already updated
-      }
-    }
 
     if (options.openInModal) {
       if (parent) {
@@ -511,6 +658,7 @@ export const useMindStore = defineStore('mindHub', () => {
       description: input.description !== undefined ? input.description : target.description,
       pageType: input.pageType !== undefined ? input.pageType : target.pageType,
       parentId: input.parentId !== undefined ? input.parentId : target.parentId,
+      sortOrder: input.sortOrder !== undefined ? input.sortOrder : target.sortOrder,
       isFavorite: input.isFavorite ?? target.isFavorite,
       tags: input.tags ? [...input.tags] : target.tags,
       updatedAt: new Date().toISOString(),
@@ -578,6 +726,21 @@ export const useMindStore = defineStore('mindHub', () => {
     return false;
   }
 
+  function getDescendantIds(rootId: string, includeDeleted = false): string[] {
+    const result: string[] = [];
+    const queue = [rootId];
+    while (queue.length > 0) {
+      const currentId = queue.shift()!;
+      for (const page of pages.value) {
+        if (page.parentId === currentId && (includeDeleted || page.deletedAt === null)) {
+          result.push(page.id);
+          queue.push(page.id);
+        }
+      }
+    }
+    return result;
+  }
+
   async function duplicatePage(
     id: string,
     options: { withChildren?: boolean } = { withChildren: true },
@@ -601,6 +764,10 @@ export const useMindStore = defineStore('mindHub', () => {
       isFavorite: false,
     });
 
+    if (duplicated.parentId) {
+      await ensureSubpageBlockInParent(duplicated.parentId, duplicated);
+    }
+
     if (options.withChildren) {
       const children = pages.value.filter((p) => p.parentId === id && p.deletedAt === null);
       for (const child of children) {
@@ -616,17 +783,39 @@ export const useMindStore = defineStore('mindHub', () => {
     if (!child) return;
 
     const newChildId = `page-${Math.random().toString(36).slice(2, 10)}`;
-    const newChild = await createPage({
-      id: newChildId,
-      title: child.title,
-      slug: `${child.slug}-${Math.random().toString(36).slice(2, 6)}`,
-      icon: child.icon,
-      parentId: newParentId,
-      tags: [...child.tags],
-      contentMarkdown: child.contentMarkdown,
-      contentJson: JSON.parse(JSON.stringify(child.contentJson)),
-      isFavorite: false,
-    });
+    const newChild = await createPage(
+      {
+        id: newChildId,
+        title: child.title,
+        slug: `${child.slug}-${Math.random().toString(36).slice(2, 6)}`,
+        icon: child.icon,
+        parentId: newParentId,
+        tags: [...child.tags],
+        contentMarkdown: child.contentMarkdown,
+        contentJson: JSON.parse(JSON.stringify(child.contentJson)),
+        isFavorite: false,
+      },
+      { select: false },
+    );
+
+    const parent = pages.value.find((p) => p.id === newParentId && p.deletedAt === null);
+    if (parent && Array.isArray(parent.contentJson?.content)) {
+      const rewrittenContent = parent.contentJson.content.map((node) => {
+        if (node.type === 'subpageBlock' && String(node.attrs?.pageId) === childId) {
+          return {
+            ...node,
+            attrs: {
+              ...node.attrs,
+              pageId: newChild.id,
+              title: newChild.title,
+              href: `#/page/${newChild.id}`,
+            },
+          };
+        }
+        return node;
+      });
+      await persistPageDocChange(parent, { type: 'doc', content: rewrittenContent });
+    }
 
     const grandChildren = pages.value.filter((p) => p.parentId === childId && p.deletedAt === null);
     for (const gc of grandChildren) {
@@ -646,36 +835,131 @@ export const useMindStore = defineStore('mindHub', () => {
     await updatePageMeta(id, { isFavorite: !target.isFavorite });
   }
 
-  async function movePage(id: string, newParentId: string | null): Promise<boolean> {
+  async function movePage(
+    id: string,
+    newParentId: string | null,
+    options?: {
+      targetSiblingId?: string;
+      position?: 'before' | 'after' | 'inside';
+      silentToast?: boolean;
+    },
+  ): Promise<boolean> {
+    const target = pages.value.find((p) => p.id === id && p.deletedAt === null);
+    if (!target) return false;
     if (newParentId === id) return false;
     if (newParentId && isDescendantOf(newParentId, id)) {
       // Loop protection: cannot move a parent inside its own child!
       return false;
     }
-    await updatePageMeta(id, { parentId: newParentId });
+
+    const prevParentId = target.parentId;
+    const siblings = pages.value
+      .filter((p) => p.parentId === newParentId && p.deletedAt === null && p.id !== id)
+      .sort((a, b) => a.sortOrder - b.sortOrder);
+
+    let orderedSiblings: MindPage[];
+    if (options?.targetSiblingId && (options.position === 'before' || options.position === 'after')) {
+      const targetIdx = siblings.findIndex((s) => s.id === options.targetSiblingId);
+      if (targetIdx >= 0) {
+        const insertIdx = options.position === 'before' ? targetIdx : targetIdx + 1;
+        orderedSiblings = [
+          ...siblings.slice(0, insertIdx),
+          target,
+          ...siblings.slice(insertIdx),
+        ];
+      } else {
+        orderedSiblings = [...siblings, target];
+      }
+    } else {
+      orderedSiblings = [...siblings, target];
+    }
+
+    let nextTargetSortOrder = (orderedSiblings.findIndex((s) => s.id === id) + 1) * 10;
+    if (nextTargetSortOrder <= 0) {
+      nextTargetSortOrder = (siblings.length + 1) * 10;
+    }
+
+    for (let idx = 0; idx < orderedSiblings.length; idx += 1) {
+      const sib = orderedSiblings[idx]!;
+      const desiredOrder = (idx + 1) * 10;
+      if (sib.id !== id && sib.sortOrder !== desiredOrder) {
+        await updatePageMeta(sib.id, { sortOrder: desiredOrder });
+      }
+    }
+
+    await updatePageMeta(id, {
+      parentId: newParentId,
+      sortOrder: nextTargetSortOrder,
+    });
+
+    const updatedTarget = pages.value.find((p) => p.id === id && p.deletedAt === null);
+
+    if (prevParentId && prevParentId !== newParentId) {
+      await removeSubpageBlocksEverywhere(new Set([id]));
+    }
+
+    if (newParentId && updatedTarget) {
+      await ensureSubpageBlockInParent(newParentId, updatedTarget);
+      await syncSubpageBlockOrderInParent(newParentId);
+    }
+
+    if (!options?.silentToast) {
+      showToast({
+        message: 'Moveu 1 nota',
+        actionLabel: 'Visitar',
+        targetPageId: newParentId ?? id,
+      });
+    }
+
     return true;
   }
 
-  async function softDeletePage(id: string): Promise<void> {
+  async function softDeletePage(
+    id: string,
+    options?: { skipParentDocCleanup?: boolean },
+  ): Promise<void> {
     const target = pages.value.find((p) => p.id === id && p.deletedAt === null);
     if (!target) return;
 
+    const descendantIds = getDescendantIds(id, false);
+    const idsToDelete = new Set<string>([id, ...descendantIds]);
+
     const now = new Date().toISOString();
     pages.value = pages.value.map((p) =>
-      p.id === id ? { ...p, deletedAt: now, updatedAt: now } : p,
+      idsToDelete.has(p.id) ? { ...p, deletedAt: now, updatedAt: now } : p,
     );
 
-    if (activePageId.value === id) {
-      const nextPage = pages.value.find((p) => p.id !== id && p.deletedAt === null);
+    if (!options?.skipParentDocCleanup) {
+      await removeSubpageBlocksEverywhere(idsToDelete);
+    }
+
+    if (idsToDelete.has(activePageId.value)) {
+      const parentCandidate = target.parentId
+        ? pages.value.find((p) => p.id === target.parentId && p.deletedAt === null)
+        : undefined;
+      const nextPage =
+        parentCandidate ?? pages.value.find((p) => !idsToDelete.has(p.id) && p.deletedAt === null);
       if (nextPage) {
         activePageId.value = nextPage.id;
       }
     }
 
-    try {
-      await fetch(`/api/pages/${id}`, { method: 'DELETE' });
-    } catch {
-      // Offline resilient
+    if (noteModalPageId.value && idsToDelete.has(noteModalPageId.value)) {
+      noteModalPageId.value = null;
+    }
+
+    showToast({
+      message: 'Nota movida para a lixeira',
+      actionLabel: 'Desfazer',
+      undoRestorePageId: id,
+    });
+
+    for (const delId of idsToDelete) {
+      try {
+        await fetch(`/api/pages/${delId}`, { method: 'DELETE' });
+      } catch {
+        // Offline resilient
+      }
     }
   }
 
@@ -683,16 +967,56 @@ export const useMindStore = defineStore('mindHub', () => {
     const target = pages.value.find((p) => p.id === id && p.deletedAt !== null);
     if (!target) return;
 
+    const descendantIds = getDescendantIds(id, true);
+    const idsToRestore = new Set<string>([id, ...descendantIds]);
+    const parentStillActive = target.parentId
+      ? pages.value.some((p) => p.id === target.parentId && p.deletedAt === null)
+      : false;
+    const resolvedParentId = target.parentId && parentStillActive ? target.parentId : null;
+
     const now = new Date().toISOString();
-    pages.value = pages.value.map((p) =>
-      p.id === id ? { ...p, deletedAt: null, updatedAt: now } : p,
-    );
+    pages.value = pages.value.map((p) => {
+      if (!idsToRestore.has(p.id)) return p;
+      return {
+        ...p,
+        parentId: p.id === id ? resolvedParentId : p.parentId,
+        deletedAt: null,
+        updatedAt: now,
+      };
+    });
+
+    const restoredTarget = pages.value.find((p) => p.id === id && p.deletedAt === null);
+    if (resolvedParentId && restoredTarget) {
+      await ensureSubpageBlockInParent(resolvedParentId, restoredTarget);
+    }
+
     activePageId.value = id;
 
-    try {
-      await fetch(`/api/pages/${id}/restore`, { method: 'POST' });
-    } catch {
-      // Offline resilient
+    for (const restId of idsToRestore) {
+      try {
+        await fetch(`/api/pages/${restId}/restore`, { method: 'POST' });
+        if (restId === id && resolvedParentId !== target.parentId) {
+          await fetch(`/api/pages/${restId}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ parentId: resolvedParentId }),
+          });
+        }
+      } catch {
+        // Offline resilient
+      }
+    }
+  }
+
+  async function triggerToastAction(): Promise<void> {
+    const toast = activeToast.value;
+    if (!toast) return;
+    dismissToast();
+    if (toast.undoRestorePageId) {
+      await restorePage(toast.undoRestorePageId);
+    } else if (toast.targetPageId) {
+      activeSurface.value = 'editor';
+      selectPage(toast.targetPageId);
     }
   }
 
@@ -1298,6 +1622,10 @@ export const useMindStore = defineStore('mindHub', () => {
     noteModalPage,
     openNoteModal,
     closeNoteModal,
+    activeToast,
+    showToast,
+    dismissToast,
+    triggerToastAction,
     gitHubSyncStatus,
     lastGitHubSyncResult,
     isGitHubSyncBusy,

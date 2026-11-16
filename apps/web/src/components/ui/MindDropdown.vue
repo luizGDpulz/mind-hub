@@ -4,6 +4,7 @@
       v-if="modelValue"
       ref="dropdownRef"
       class="mind-dropdown-menu"
+      :class="{ 'is-flipped-up': isFlippedUp }"
       :style="menuStyle"
       role="menu"
       tabindex="-1"
@@ -104,6 +105,7 @@ const dropdownRef = ref<HTMLDivElement | null>(null);
 const focusedIndex = ref<number>(-1);
 const adjustedX = ref(props.x);
 const adjustedY = ref(props.y);
+const isFlippedUp = ref(false);
 
 const sections = computed(() => {
   const result: Record<string, DropdownMenuItem[]> = {
@@ -155,20 +157,31 @@ function calculatePosition(): void {
   const el = dropdownRef.value;
   let posX = props.x;
   let posY = props.y;
+  let flipped = false;
 
   if (el) {
     const rect = el.getBoundingClientRect();
     const viewportW = window.innerWidth;
     const viewportH = window.innerHeight;
+    const estHeight = rect.height > 0 ? rect.height : 320;
+    const estWidth = rect.width > 0 ? rect.width : 260;
 
-    if (posX + rect.width > viewportW - 12) {
-      posX = Math.max(12, viewportW - rect.width - 12);
+    if (posX + estWidth > viewportW - 12) {
+      posX = Math.max(12, viewportW - estWidth - 12);
     }
-    if (posY + rect.height > viewportH - 12) {
-      posY = Math.max(12, viewportH - rect.height - 12);
+    if (posY + estHeight > viewportH - 12) {
+      // Flip upward above the click point if there is room above
+      const candidateAbove = props.y - estHeight - 6;
+      if (candidateAbove >= 12) {
+        posY = candidateAbove;
+        flipped = true;
+      } else {
+        posY = Math.max(12, viewportH - estHeight - 12);
+      }
     }
   }
 
+  isFlippedUp.value = flipped;
   adjustedX.value = posX;
   adjustedY.value = posY;
 }
@@ -212,8 +225,8 @@ function handleDocumentClick(e: MouseEvent): void {
 }
 
 watch(
-  () => props.modelValue,
-  (val) => {
+  [() => props.modelValue, () => props.x, () => props.y],
+  ([val]) => {
     if (val) {
       focusedIndex.value = -1;
       adjustedX.value = props.x;
@@ -247,8 +260,13 @@ onBeforeUnmount(() => {
   padding: 4px;
   outline: none;
   font-family: inherit;
+  transform-origin: top left;
   animation: mind-dropdown-pop 0.12s cubic-bezier(0.16, 1, 0.3, 1);
   user-select: none;
+}
+
+.mind-dropdown-menu.is-flipped-up {
+  transform-origin: bottom left;
 }
 
 @keyframes mind-dropdown-pop {
@@ -301,7 +319,7 @@ onBeforeUnmount(() => {
 .mind-dropdown-item:hover,
 .mind-dropdown-item.is-focused {
   background: var(--mind-bg-hover, #f1f3f5);
-  color: var(--mind-text-primary, #111827);
+  color: var(--mind-text-primary, #212529);
 }
 
 .dropdown-item-left {

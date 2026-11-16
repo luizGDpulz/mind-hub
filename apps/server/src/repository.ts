@@ -233,7 +233,7 @@ export class InMemoryPageRepository implements PageRepository {
   async createPage(input: CreatePageInput): Promise<MindPage> {
     const now = new Date().toISOString();
     const id = input.id ?? `page-${randomUUID().slice(0, 8)}`;
-    const title = input.title.trim() || 'Sem Título';
+    const title = input.title.trim() || 'Nova Nota';
     const slug = input.slug ?? this.resolveUniqueSlug(title, id);
 
     const contentJson = input.contentJson
@@ -251,14 +251,14 @@ export class InMemoryPageRepository implements PageRepository {
     const computedHash =
       input.sourceHash ??
       computeMarkdownHash(
-        `${slug}::${title}::${input.icon ?? '📄'}::${input.coverUrl ?? ''}::${tags.join(',')}::${contentMarkdown}`,
+        `${slug}::${title}::${input.icon ?? ''}::${input.coverUrl ?? ''}::${tags.join(',')}::${contentMarkdown}`,
       );
 
     const page: MindPage = {
       id,
       slug,
       title,
-      icon: input.icon ?? '📄',
+      icon: input.icon ?? '',
       pageType: input.pageType ?? 'concept',
       description: input.description ?? '',
       coverUrl: input.coverUrl ?? null,
@@ -300,7 +300,7 @@ export class InMemoryPageRepository implements PageRepository {
     }
 
     const updatedTitle =
-      input.title !== undefined ? input.title.trim() || 'Sem Título' : existing.title;
+      input.title !== undefined ? input.title.trim() || 'Nova Nota' : existing.title;
     const updatedSlug =
       input.title !== undefined && input.title !== existing.title
         ? this.resolveUniqueSlug(updatedTitle, id)

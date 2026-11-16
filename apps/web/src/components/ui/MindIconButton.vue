@@ -70,7 +70,7 @@ function handleClick(e: MouseEvent): void {
   padding: 5px 8px;
   border: 1px solid transparent;
   background: transparent;
-  color: var(--mind-text-secondary);
+  color: var(--mind-text-muted, #868e96);
   border-radius: 6px;
   font-size: 13px;
   font-weight: 500;
@@ -80,9 +80,15 @@ function handleClick(e: MouseEvent): void {
   white-space: nowrap;
 }
 
-.mind-icon-btn:hover:not(.is-disabled) {
+.mind-icon-btn-text {
+  color: var(--mind-text-secondary, #495057);
+  transition: color 0.12s ease;
+}
+
+.mind-icon-btn:hover:not(.is-disabled),
+.mind-icon-btn:hover:not(.is-disabled) .mind-icon-btn-text {
   background: var(--mind-bg-hover);
-  color: var(--mind-text-primary);
+  color: var(--mind-text-primary, #212529);
 }
 
 .mind-icon-btn:active:not(.is-disabled) {

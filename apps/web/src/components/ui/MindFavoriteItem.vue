@@ -44,7 +44,7 @@
         data-testid="fav-add-child-btn"
         @click.stop="$emit('create-child', page.id)"
       >
-        <Plus :size="14" />
+        <Plus :size="14" :stroke-width="1.75" />
       </button>
       <button
         type="button"
@@ -54,7 +54,7 @@
         data-testid="fav-more-options-btn"
         @click.stop="handleContextMenu($event)"
       >
-        <MoreHorizontal :size="14" />
+        <MoreHorizontal :size="14" :stroke-width="1.75" />
       </button>
     </div>
   </div>

@@ -1,11 +1,221 @@
 <template>
-  <!-- Edge Peek Zone when sidebar is collapsed (Issue #28) -->
+  <!-- Edge Peek Zone when sidebar is collapsed (Issue #28 & #103) -->
   <div
     v-if="!drawerOpen"
     class="sidebar-edge-peek-zone"
-    title="Passe o mouse para abrir a barra lateral"
-    @mouseenter="drawerOpen = true"
+    data-testid="sidebar-edge-peek-zone"
+    title="Passe o mouse para espiar a barra lateral"
+    @mouseenter="openPeekIsland"
   />
+
+  <!-- Floating Dynamic Island Sidebar when collapsed and hovered (Image 4, Issue #103) -->
+  <Transition name="mind-peek-island">
+    <aside
+      v-if="!drawerOpen && isPeekOpen"
+      class="mind-sidebar-floating-island column no-wrap"
+      data-testid="sidebar-floating-island"
+      @mouseenter="cancelPeekCloseTimer"
+      @mouseleave="schedulePeekClose"
+    >
+      <!-- Top Row of Floating Island: Search + Quick Icons (Image 4) -->
+      <div class="floating-island-header">
+        <div class="floating-island-search-wrap">
+          <MindSidebarSearch @open="$emit('open-search')" />
+        </div>
+        <div class="sidebar-top-actions">
+          <button
+            type="button"
+            class="sidebar-top-icon-btn"
+            :class="{ 'is-active': store.activeSurface === 'library' }"
+            title="Biblioteca de Notas"
+            aria-label="Biblioteca de Notas"
+            @click="store.activeSurface = 'library'"
+          >
+            <component :is="Library" :size="16" :stroke-width="1.75" />
+          </button>
+          <button
+            type="button"
+            class="sidebar-top-icon-btn is-muted-setup"
+            title="Visualização em Grafo (Em breve)"
+            aria-label="Visualização em Grafo"
+          >
+            <component :is="Waypoints" :size="16" :stroke-width="1.75" />
+          </button>
+          <button
+            type="button"
+            class="sidebar-top-icon-btn"
+            title="Caixa de entrada / Inbox"
+            aria-label="Inbox"
+            @click="handleOpenInbox"
+          >
+            <component :is="Inbox" :size="16" :stroke-width="1.75" />
+          </button>
+          <button
+            type="button"
+            class="sidebar-top-icon-btn"
+            title="Nova nota na raiz"
+            aria-label="Nova nota na raiz"
+            @click="handleCreateRootPage"
+          >
+            <component :is="SquarePen" :size="16" :stroke-width="1.75" />
+          </button>
+        </div>
+      </div>
+
+      <!-- Quick Utility Nav Items -->
+      <nav class="sidebar-utility-nav" aria-label="Space navigation">
+        <div
+          class="sidebar-nav-item"
+          :class="{ 'is-active': store.activeSurface === 'editor' && !isTrashModalOpen }"
+          @click="store.activeSurface = 'editor'"
+        >
+          <component :is="Home" :size="16" :stroke-width="1.75" class="nav-item-lucide" />
+          <span>Página inicial</span>
+        </div>
+        <div
+          class="sidebar-nav-item"
+          :class="{ 'is-active': store.activeSurface === 'library' }"
+          @click="store.activeSurface = 'library'"
+        >
+          <component :is="Library" :size="16" :stroke-width="1.75" class="nav-item-lucide" />
+          <span>Biblioteca</span>
+        </div>
+        <div
+          class="sidebar-nav-item"
+          @click="store.isMcpModalOpen = true"
+        >
+          <component :is="Settings" :size="16" :stroke-width="1.75" class="nav-item-lucide" />
+          <span>Configurações</span>
+        </div>
+      </nav>
+
+      <!-- Favorites Section -->
+      <div
+        v-if="store.favoritePages.length > 0"
+        class="sidebar-section-container"
+      >
+        <div class="pages-section-header" @click="isFavoritesCollapsed = !isFavoritesCollapsed">
+          <span class="sidebar-section-label">Favoritos</span>
+          <div class="pages-section-actions">
+            <button
+              type="button"
+              class="sidebar-mini-btn"
+              :title="isFavoritesCollapsed ? 'Expandir favoritos' : 'Recolher favoritos'"
+              @click.stop="isFavoritesCollapsed = !isFavoritesCollapsed"
+            >
+              <component
+                :is="isFavoritesCollapsed ? ChevronRight : ChevronDown"
+                :size="14"
+                :stroke-width="1.75"
+              />
+            </button>
+          </div>
+        </div>
+
+        <div v-if="!isFavoritesCollapsed" class="favorites-list">
+          <MindFavoriteItem
+            v-for="fav in store.favoritePages"
+            :key="fav.id"
+            :page="fav"
+            :active-page-id="store.activePageId"
+            :renaming-id="renamingFavPageId"
+            @select="selectEditorPage"
+            @create-child="handleCreateChildPage"
+            @contextmenu="(ev, page) => handleTreeContextMenu(ev, page, 'favorites')"
+            @rename-save="handleRenameSave"
+          />
+        </div>
+      </div>
+
+      <!-- Minhas Notas Section Header -->
+      <div class="pages-section-header">
+        <span class="sidebar-section-label">Minhas Notas</span>
+        <div class="pages-section-actions">
+          <button
+            type="button"
+            class="sidebar-mini-btn"
+            :title="treeForceExpanded ? 'Recolher todas as notas' : 'Expandir todas as notas'"
+            @click="toggleTreeExpandAll"
+          >
+            <component
+              :is="treeForceExpanded ? ChevronsDownUp : ChevronsUpDown"
+              :size="14"
+              :stroke-width="1.75"
+            />
+          </button>
+          <button
+            type="button"
+            class="sidebar-mini-btn"
+            title="Nova nota"
+            aria-label="Criar nota"
+            @click="handleCreateRootPage"
+          >
+            <component :is="Plus" :size="14" :stroke-width="1.75" />
+          </button>
+        </div>
+      </div>
+
+      <!-- Hierarchical Page Tree -->
+      <div
+        class="col scroll sidebar-tree-container"
+        @dragover.prevent
+        @drop.prevent="handleRootTreeDrop($event)"
+      >
+        <PageTreeItem
+          v-for="node in store.pageTree"
+          :key="node.id"
+          :node="node"
+          :active-page-id="store.activePageId"
+          :renaming-id="renamingPageId"
+          :dragging-id="draggingPageId"
+          :force-expanded="treeForceExpanded"
+          :depth="0"
+          @select="selectEditorPage"
+          @create-child="handleCreateChildPage"
+          @contextmenu="handleTreeContextMenu"
+          @rename-save="handleRenameSave"
+          @drag-node-start="draggingPageId = $event"
+          @drag-node-end="draggingPageId = ''"
+          @tree-drop="handleTreeDrop"
+        />
+      </div>
+
+      <!-- Sticky Footer inside Floating Island -->
+      <div class="sidebar-sticky-footer is-island-footer">
+        <div
+          class="sidebar-user-card"
+          title="Clique para abrir opções da conta e configurações"
+          @click="$emit('toggle-workspace-menu')"
+        >
+          <div class="sidebar-user-avatar">LP</div>
+          <div class="sidebar-user-meta">
+            <span class="sidebar-user-name">Luiz Pulz</span>
+            <span class="sidebar-user-role">Workspace Admin · v{{ store.currentVersion }}</span>
+          </div>
+        </div>
+        <div class="sidebar-footer-actions">
+          <button
+            type="button"
+            class="sidebar-footer-icon-btn sidebar-footer-help-btn"
+            title="Ajuda, Documentação & Novidades"
+            aria-label="Ajuda e Novidades"
+            @click="$emit('toggle-help-menu')"
+          >
+            <component :is="HelpCircle" :size="16" :stroke-width="1.75" />
+          </button>
+          <button
+            type="button"
+            class="sidebar-footer-icon-btn"
+            title="Mais opções e utilitários (Lixeira, IA, Tarefas)"
+            aria-label="Mais opções e utilitários"
+            @click="$emit('toggle-apps-menu')"
+          >
+            <component :is="LayoutGrid" :size="16" :stroke-width="1.75" />
+          </button>
+        </div>
+      </div>
+    </aside>
+  </Transition>
 
   <!-- Left Sidebar with Resizer, Favorites, Tree & Sticky Footer -->
   <q-drawer
@@ -15,7 +225,7 @@
     :width="sidebarWidth"
     class="mind-sidebar column no-wrap"
   >
-    <!-- Top Notion-Style Header Row -->
+    <!-- Top Notion-Style Header Row (48px aligned with MindTopbar) -->
     <div class="sidebar-top-bar">
       <button
         type="button"
@@ -25,10 +235,30 @@
         data-testid="sidebar-collapse-btn"
         @click="drawerOpen = false"
       >
-        <component :is="PanelLeftClose" :size="16" />
+        <component :is="PanelLeftClose" :size="16" :stroke-width="1.75" />
       </button>
 
       <div class="sidebar-top-actions">
+        <button
+          type="button"
+          class="sidebar-top-icon-btn"
+          :class="{ 'is-active': store.activeSurface === 'library' }"
+          title="Biblioteca de Notas"
+          aria-label="Biblioteca de Notas"
+          data-testid="sidebar-library-btn"
+          @click="store.activeSurface = 'library'"
+        >
+          <component :is="Library" :size="16" :stroke-width="1.75" />
+        </button>
+        <button
+          type="button"
+          class="sidebar-top-icon-btn is-muted-setup"
+          title="Visualização em Grafo (Em breve)"
+          aria-label="Visualização em Grafo"
+          data-testid="sidebar-graph-btn"
+        >
+          <component :is="Waypoints" :size="16" :stroke-width="1.75" />
+        </button>
         <button
           type="button"
           class="sidebar-top-icon-btn"
@@ -37,7 +267,7 @@
           data-testid="sidebar-inbox-btn"
           @click="handleOpenInbox"
         >
-          <component :is="Inbox" :size="16" />
+          <component :is="Inbox" :size="16" :stroke-width="1.75" />
         </button>
         <button
           type="button"
@@ -47,12 +277,12 @@
           data-testid="sidebar-new-root-note-btn"
           @click="handleCreateRootPage"
         >
-          <component :is="SquarePen" :size="16" />
+          <component :is="SquarePen" :size="16" :stroke-width="1.75" />
         </button>
       </div>
     </div>
 
-    <!-- Minimalist Search Trigger Bar in Sidebar -->
+    <!-- Minimalist Search Trigger Bar in Sidebar (Aligned with Page Body Header) -->
     <div class="sidebar-search-area">
       <MindSidebarSearch @open="$emit('open-search')" />
     </div>
@@ -64,22 +294,31 @@
         :class="{ 'is-active': store.activeSurface === 'editor' && !isTrashModalOpen }"
         @click="store.activeSurface = 'editor'"
       >
-        <component :is="Home" :size="15" class="nav-item-lucide" />
+        <component :is="Home" :size="16" :stroke-width="1.75" class="nav-item-lucide" />
         <span>Página inicial</span>
+      </div>
+      <div
+        class="sidebar-nav-item"
+        :class="{ 'is-active': store.activeSurface === 'library' }"
+        data-testid="sidebar-nav-library-btn"
+        @click="store.activeSurface = 'library'"
+      >
+        <component :is="Library" :size="16" :stroke-width="1.75" class="nav-item-lucide" />
+        <span>Biblioteca</span>
       </div>
       <div
         class="sidebar-nav-item"
         data-testid="open-search-btn"
         @click="$emit('open-search')"
       >
-        <component :is="SearchIcon" :size="15" class="nav-item-lucide" />
+        <component :is="SearchIcon" :size="16" :stroke-width="1.75" class="nav-item-lucide" />
         <span>Busca rápida</span>
       </div>
       <div
         class="sidebar-nav-item"
         @click="store.isMcpModalOpen = true"
       >
-        <component :is="Settings" :size="15" class="nav-item-lucide" />
+        <component :is="Settings" :size="16" :stroke-width="1.75" class="nav-item-lucide" />
         <span>Configurações</span>
       </div>
     </nav>
@@ -91,7 +330,7 @@
       data-testid="sidebar-favorites-section"
     >
       <div class="pages-section-header" @click="isFavoritesCollapsed = !isFavoritesCollapsed">
-        <span class="sidebar-section-label">Favoritos ({{ store.favoritePages.length }})</span>
+        <span class="sidebar-section-label">Favoritos</span>
         <div class="pages-section-actions">
           <button
             type="button"
@@ -100,7 +339,11 @@
             data-testid="toggle-favorites-collapse-btn"
             @click.stop="isFavoritesCollapsed = !isFavoritesCollapsed"
           >
-            <component :is="isFavoritesCollapsed ? ChevronRight : ChevronDown" :size="12" />
+            <component
+              :is="isFavoritesCollapsed ? ChevronRight : ChevronDown"
+              :size="14"
+              :stroke-width="1.75"
+            />
           </button>
         </div>
       </div>
@@ -120,9 +363,9 @@
       </div>
     </div>
 
-    <!-- Notas Section Header -->
+    <!-- Minhas Notas Section Header (Issue #102) -->
     <div class="pages-section-header">
-      <span class="sidebar-section-label">Notas ({{ store.activePages.length }})</span>
+      <span class="sidebar-section-label" data-testid="sidebar-notes-group-label">Minhas Notas</span>
       <div class="pages-section-actions">
         <button
           type="button"
@@ -131,7 +374,11 @@
           data-testid="toggle-tree-expand-all-btn"
           @click="toggleTreeExpandAll"
         >
-          <component :is="treeForceExpanded ? ChevronsDownUp : ChevronsUpDown" :size="13" />
+          <component
+            :is="treeForceExpanded ? ChevronsDownUp : ChevronsUpDown"
+            :size="14"
+            :stroke-width="1.75"
+          />
         </button>
         <button
           type="button"
@@ -141,30 +388,34 @@
           data-testid="new-page-btn"
           @click="handleCreateRootPage"
         >
-          <component :is="Plus" :size="13" />
+          <component :is="Plus" :size="14" :stroke-width="1.75" />
         </button>
       </div>
     </div>
 
     <!-- Hierarchical Page Tree -->
-    <div class="col scroll sidebar-tree-container">
+    <div
+      class="col scroll sidebar-tree-container"
+      data-testid="sidebar-tree-container"
+      @dragover.prevent
+      @drop.prevent="handleRootTreeDrop($event)"
+    >
       <PageTreeItem
         v-for="node in store.pageTree"
         :key="node.id"
         :node="node"
         :active-page-id="store.activePageId"
         :renaming-id="renamingPageId"
+        :dragging-id="draggingPageId"
         :force-expanded="treeForceExpanded"
         :depth="0"
         @select="selectEditorPage"
         @create-child="handleCreateChildPage"
         @contextmenu="handleTreeContextMenu"
-        @more-options="
-          (id, ev) =>
-            ev &&
-            handleTreeContextMenu(ev, store.pages.find((p) => p.id === id) || node)
-        "
         @rename-save="handleRenameSave"
+        @drag-node-start="draggingPageId = $event"
+        @drag-node-end="draggingPageId = ''"
+        @tree-drop="handleTreeDrop"
       />
     </div>
 
@@ -191,7 +442,7 @@
           data-testid="sidebar-help-versions-btn"
           @click="$emit('toggle-help-menu')"
         >
-          <component :is="HelpCircle" :size="15" />
+          <component :is="HelpCircle" :size="16" :stroke-width="1.75" />
         </button>
         <button
           type="button"
@@ -201,7 +452,7 @@
           data-testid="sidebar-footer-apps-btn"
           @click="$emit('toggle-apps-menu')"
         >
-          <component :is="LayoutGrid" :size="15" />
+          <component :is="LayoutGrid" :size="16" :stroke-width="1.75" />
         </button>
       </div>
     </div>
@@ -237,7 +488,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, reactive, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, reactive, ref, watch } from 'vue';
 import {
   ChevronDown,
   ChevronRight,
@@ -247,15 +498,17 @@ import {
   Home,
   Inbox,
   LayoutGrid,
+  Library,
   PanelLeftClose,
   Plus,
   Search as SearchIcon,
   Settings,
   SquarePen,
+  Waypoints,
 } from 'lucide-vue-next';
 import { useMindStore } from '../../stores/mind-store.js';
 import { useSidebarResizer } from '../../composables/useSidebarResizer.js';
-import PageTreeItem from '../PageTreeItem.vue';
+import PageTreeItem, { type TreeDropPayload } from '../PageTreeItem.vue';
 import MindSidebarSearch from '../ui/MindSidebarSearch.vue';
 import MindFavoriteItem from '../ui/MindFavoriteItem.vue';
 import MindTreeContextMenu from '../ui/MindTreeContextMenu.vue';
@@ -297,12 +550,69 @@ const isFavoritesCollapsed = ref(false);
 const treeForceExpanded = ref<boolean | null>(null);
 const renamingPageId = ref('');
 const renamingFavPageId = ref('');
+const draggingPageId = ref('');
+const isPeekOpen = ref(false);
+let peekCloseTimer: ReturnType<typeof setTimeout> | null = null;
 const contextMenuSource = ref<'tree' | 'favorites'>('tree');
 const isTreeContextMenuOpen = ref(false);
 const treeContextMenuTarget = ref<TreeContextMenuTarget | null>(null);
 const treeContextMenuCoords = reactive({ x: 0, y: 0 });
 const isMovePageModalOpen = ref(false);
 const pageIdToMove = ref('');
+
+watch(
+  drawerOpen,
+  (isOpen) => {
+    if (isOpen) {
+      isPeekOpen.value = false;
+      cancelPeekCloseTimer();
+    }
+  },
+);
+
+function openPeekIsland(): void {
+  cancelPeekCloseTimer();
+  isPeekOpen.value = true;
+}
+
+function cancelPeekCloseTimer(): void {
+  if (peekCloseTimer) {
+    clearTimeout(peekCloseTimer);
+    peekCloseTimer = null;
+  }
+}
+
+function schedulePeekClose(): void {
+  cancelPeekCloseTimer();
+  peekCloseTimer = setTimeout(() => {
+    if (!isTreeContextMenuOpen.value) {
+      isPeekOpen.value = false;
+    }
+  }, 200);
+}
+
+onBeforeUnmount(() => {
+  cancelPeekCloseTimer();
+});
+
+async function handleTreeDrop(payload: TreeDropPayload): Promise<void> {
+  draggingPageId.value = '';
+  if (payload.zone === 'inside') {
+    await store.movePage(payload.draggedId, payload.targetId, { position: 'inside' });
+  } else {
+    await store.movePage(payload.draggedId, payload.targetParentId, {
+      targetSiblingId: payload.targetId,
+      position: payload.zone,
+    });
+  }
+}
+
+async function handleRootTreeDrop(event: DragEvent): Promise<void> {
+  const draggedId = event.dataTransfer?.getData('text/plain') || draggingPageId.value;
+  draggingPageId.value = '';
+  if (!draggedId) return;
+  await store.movePage(draggedId, null);
+}
 
 function selectEditorPage(id: string): void {
   store.activeSurface = 'editor';
@@ -444,21 +754,68 @@ async function handleConfirmMovePage(pageId: string, targetParentId: string | nu
 <style scoped>
 .sidebar-edge-peek-zone {
   position: fixed;
-  top: 0;
+  top: 48px;
   left: 0;
   bottom: 0;
-  width: 14px;
+  width: 16px;
   z-index: 1500;
   cursor: pointer;
   background: transparent;
+}
+
+/* Floating Dynamic Island Sidebar (Image 4, Issue #103) */
+.mind-sidebar-floating-island {
+  position: fixed;
+  top: 54px;
+  left: 10px;
+  bottom: 14px;
+  width: 268px;
+  max-height: calc(100vh - 68px);
+  z-index: 2100;
+  background: var(--mind-bg-canvas, #ffffff);
+  border: 1px solid var(--mind-border-subtle, #e9ecef);
+  border-radius: 12px;
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.11), 0 2px 6px rgba(0, 0, 0, 0.05);
+  overflow: hidden;
+  padding-top: 8px;
+}
+
+.floating-island-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 2px 10px 6px;
+}
+
+.floating-island-search-wrap {
+  flex: 1;
+  min-width: 0;
+}
+
+.floating-island-search-wrap :deep(.mind-sidebar-search-bar) {
+  margin-bottom: 0;
+  padding: 5px 8px;
+}
+
+.mind-peek-island-enter-active,
+.mind-peek-island-leave-active {
+  transition: opacity 0.16s ease, transform 0.16s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.mind-peek-island-enter-from,
+.mind-peek-island-leave-to {
+  opacity: 0;
+  transform: translateX(-10px);
 }
 
 .sidebar-top-bar {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 8px 10px 4px;
-  min-height: 42px;
+  padding: 0 10px;
+  height: 48px;
+  min-height: 48px;
   gap: 4px;
 }
 
@@ -484,13 +841,41 @@ async function handleConfirmMovePage(pageId: string, targetParentId: string | nu
   flex-shrink: 0;
 }
 
-.sidebar-top-icon-btn:hover {
+.sidebar-top-icon-btn:hover,
+.sidebar-top-icon-btn.is-active {
   background: var(--mind-bg-hover, #f1f3f5);
   color: var(--mind-text-primary, #212529);
 }
 
+.sidebar-top-icon-btn.is-muted-setup {
+  opacity: 0.78;
+}
+
 .sidebar-search-area {
-  padding: 0 10px 4px;
+  padding: 8px 10px 4px;
+}
+
+.sidebar-mini-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border: none;
+  background: transparent;
+  color: var(--mind-text-muted, #868e96);
+  border-radius: 5px;
+  cursor: pointer;
+  transition: background-color 0.12s ease, color 0.12s ease;
+}
+
+.sidebar-mini-btn:hover {
+  background: var(--mind-bg-hover, #f1f3f5);
+  color: var(--mind-text-primary, #212529);
+}
+
+.is-island-footer {
+  background: var(--mind-bg-canvas, #ffffff);
 }
 
 .sidebar-utility-nav {

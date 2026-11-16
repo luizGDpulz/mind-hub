@@ -11,12 +11,19 @@
         data-testid="toggle-sidebar-btn"
         @click="$emit('update:leftDrawerOpen', true)"
       >
-        <component :is="Menu" :size="16" />
+        <component :is="Menu" :size="16" :stroke-width="1.75" />
       </button>
 
       <!-- Center Page Breadcrumb -->
       <div
-        v-if="store.activePage"
+        v-if="store.activeSurface === 'library'"
+        class="topbar-breadcrumb gt-xs"
+        :class="{ 'no-sidebar-offset': leftDrawerOpen }"
+      >
+        <span class="crumb-btn is-static">Biblioteca</span>
+      </div>
+      <div
+        v-else-if="store.activePage"
         class="topbar-breadcrumb gt-xs"
         :class="{ 'no-sidebar-offset': leftDrawerOpen }"
       >
@@ -33,7 +40,7 @@
             <MindPageIcon
               :icon="crumb.icon"
               :has-content="Boolean(crumb.contentMarkdown?.trim())"
-              :size="14"
+              :size="15"
             />
             <span>{{ crumb.title }}</span>
           </button>
@@ -322,7 +329,7 @@ const pageMetadata = computed<ActionMenuPageMeta>(() => {
   min-block-size: 28px;
   border: none;
   background: transparent;
-  color: var(--mind-text-secondary);
+  color: var(--mind-text-muted, #868e96);
   border-radius: 6px;
   cursor: pointer;
   font-size: 14px;

@@ -4,6 +4,7 @@ import { createPinia, setActivePinia } from 'pinia';
 import PageCoverBanner from './PageCoverBanner.vue';
 import MindPageIcon from './MindPageIcon.vue';
 import MindNotePreviewModal from './MindNotePreviewModal.vue';
+import MindLibraryView from '../MindLibraryView.vue';
 import MindPageWorkspace from '../shell/MindPageWorkspace.vue';
 import { useMindStore } from '../../stores/mind-store.js';
 import { resolveMindAssetUrl } from '../../utils/asset-url.js';
@@ -151,5 +152,61 @@ describe('@mind-hub/web — PageCoverBanner & OKF Asset Resolution (Refs #90, #9
       'is-overlapping-cover',
     );
     expect(wrapper.find('[data-testid="subpages-section"]').exists()).toBe(false);
+  });
+
+  it('synchronizes inline subpageBlock links when moving, deleting, and restoring notes (Refs #100)', async () => {
+    setActivePinia(createPinia());
+    const store = useMindStore();
+
+    const parent = store.activePage!;
+    const rootNote = await store.createPage(
+      {
+        title: 'Nota Independente',
+        parentId: null,
+        contentMarkdown: 'Conteúdo inicial',
+        tags: [],
+      },
+      { select: false },
+    );
+
+    // 1. Move rootNote inside parent -> parent must gain inline subpageBlock link
+    await store.movePage(rootNote.id, parent.id);
+    const parentAfterMoveIn = store.pages.find((p) => p.id === parent.id)!;
+    expect(parentAfterMoveIn.contentMarkdown).toContain(rootNote.id);
+    expect(store.activeToast?.message).toBe('Moveu 1 nota');
+
+    // 2. Soft-delete rootNote -> inline subpageBlock link must be removed from parent
+    await store.softDeletePage(rootNote.id);
+    const parentAfterDelete = store.pages.find((p) => p.id === parent.id)!;
+    expect(parentAfterDelete.contentMarkdown).not.toContain(rootNote.id);
+
+    // 3. Restore rootNote -> inline subpageBlock link must be restored in parent
+    await store.restorePage(rootNote.id);
+    const parentAfterRestore = store.pages.find((p) => p.id === parent.id)!;
+    expect(parentAfterRestore.contentMarkdown).toContain(rootNote.id);
+
+    // 4. Move rootNote back to root (null) -> inline subpageBlock link must be removed from parent
+    await store.movePage(rootNote.id, null);
+    const parentAfterMoveOut = store.pages.find((p) => p.id === parent.id)!;
+    expect(parentAfterMoveOut.contentMarkdown).not.toContain(rootNote.id);
+  });
+
+  it('renders MindLibraryView with insights, hierarchy disclosure and database byte sizes (Refs #101)', async () => {
+    setActivePinia(createPinia());
+
+    const wrapper = mount(MindLibraryView);
+    expect(wrapper.find('[data-testid="mind-library-view"]').exists()).toBe(true);
+    expect(wrapper.find('[data-testid="library-total-db-size"]').text()).toMatch(/B|KB/);
+    expect(wrapper.findAll('[data-testid="library-row-size"]').length).toBeGreaterThan(0);
+
+    // Expand parent row in Minhas Notas hierarchy tab
+    const expandBtn = wrapper.find('[data-testid="library-expand-page-teste"]');
+    expect(expandBtn.exists()).toBe(true);
+    await expandBtn.trigger('click');
+    expect(wrapper.find('[data-testid="library-row-page-teste-interno"]').exists()).toBe(true);
+
+    // Sort by database size
+    await wrapper.find('[data-testid="library-sort-size"]').trigger('click');
+    expect(wrapper.find('.col-size').attributes('aria-sort')).toBe('descending');
   });
 });

@@ -77,7 +77,7 @@ const imgStyle = computed(() => ({
 }
 
 .mind-page-icon-lucide {
-  color: var(--mind-text-secondary, #495057);
+  color: var(--mind-text-muted, #868e96);
   flex-shrink: 0;
   display: inline-block;
 }

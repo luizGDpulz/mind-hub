@@ -4,8 +4,8 @@
   --mind-block-bleed: 10px;
   --mind-block-full-width: calc(100% + (var(--mind-block-bleed) * 2));
   --mind-block-radius: 6px;
-  --mind-block-selection-bg: rgba(25, 113, 194, 0.13);
-  --mind-block-selection-border: rgba(25, 113, 194, 0.16);
+  --mind-block-selection-bg: rgba(35, 131, 226, 0.14);
+  --mind-block-selection-border: rgba(35, 131, 226, 0.22);
 
   display: flex;
   flex-direction: column;
@@ -283,7 +283,7 @@
   height: 21px;
   border: none;
   margin: 2px calc(-1 * var(--mind-block-bleed));
-  padding: 10px var(--mind-block-bleed);
+  padding: 10px 0;
   border-radius: var(--mind-block-radius);
   box-sizing: border-box;
   cursor: pointer;
@@ -448,15 +448,37 @@
   position: fixed;
   pointer-events: none;
   z-index: 90;
-  background-color: rgba(25, 113, 194, 0.08);
-  border: 1px solid rgba(25, 113, 194, 0.36);
-  border-radius: 4px;
+  background-color: rgba(35, 131, 226, 0.1);
+  border: 1px solid rgba(35, 131, 226, 0.36);
+  border-radius: 3px;
 }
 
 :deep(.ProseMirror .mind-block-selected),
 :deep(.ProseMirror .mind-block-dragging-source) {
-  box-shadow: inset 0 0 0 999px var(--mind-block-selection-bg), inset 0 0 0 1px var(--mind-block-selection-border);
-  border-radius: var(--mind-block-radius);
+  position: relative;
+  box-shadow: inset 0 0 0 999px var(--mind-block-selection-bg);
+  border-radius: 4px;
+}
+
+:deep(.ProseMirror .mind-block-selected-join-top) {
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+}
+
+:deep(.ProseMirror .mind-block-selected-join-bottom) {
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+:deep(.ProseMirror .mind-block-selected-join-bottom::after) {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -6px;
+  height: 6px;
+  background-color: var(--mind-block-selection-bg);
+  pointer-events: none;
 }
 
 :deep(.ProseMirror .tableWrapper.mind-block-selected),

@@ -217,6 +217,24 @@ const actionMenuItems = computed<ActionMenuItem[]>(() => {
       },
     },
     {
+      id: 'toggle-subnote-style',
+      label:
+        store.subnoteLinkStyle === 'clean'
+          ? 'Estilo de subnota: Opção A (Clean) → testar B'
+          : 'Estilo de subnota: Opção B (Cartão) → testar A',
+      icon: Sparkles,
+      section: 'tools',
+      handler: () => {
+        store.toggleSubnoteLinkStyle();
+        store.showToast({
+          message:
+            store.subnoteLinkStyle === 'clean'
+              ? 'Subnotas: Opção A (Linha Clean)'
+              : 'Subnotas: Opção B (Cartão Compacto)',
+        });
+      },
+    },
+    {
       id: 'add-properties',
       label: 'Propriedades (YAML)',
       icon: SlidersHorizontal,

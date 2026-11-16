@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref } from 'vue';
 import { NodeViewWrapper, type NodeViewProps } from '@tiptap/vue-3';
-import { File, FileText } from 'lucide-vue-next';
+import { ArrowRight, ChevronRight, File, FileText } from 'lucide-vue-next';
 import { getBlockColorDisplayHex } from '../extensions/block-color.js';
 import { parseLucideIconValue } from '../extensions/callout-icons.js';
 import type { PageReference } from '../types.js';
@@ -128,6 +128,12 @@ onBeforeUnmount(() => {
         <span v-else>{{ displayIcon }}</span>
       </span>
       <span class="mind-subpage-title">{{ displayTitle }}</span>
+      <span class="mind-subpage-trailing-clean" aria-hidden="true">
+        <ArrowRight :size="14" :stroke-width="1.75" />
+      </span>
+      <span class="mind-subpage-trailing-card" aria-hidden="true">
+        <ChevronRight :size="15" :stroke-width="1.75" />
+      </span>
     </button>
 
     <!-- Notion-like Hover Preview Card -->
@@ -238,12 +244,57 @@ onBeforeUnmount(() => {
 
 .mind-subpage-title {
   color: inherit;
-  text-decoration: underline;
-  text-decoration-color: rgba(33, 37, 41, 0.25);
-  text-underline-offset: 3px;
+  text-decoration: none;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  flex: 1;
+  min-width: 0;
+}
+
+/* Opção A (Clean Docmost/Linear row - default) */
+.mind-subpage-trailing-clean {
+  display: inline-flex;
+  align-items: center;
+  color: #868e96;
+  opacity: 0;
+  transform: translateX(-3px);
+  transition: opacity 0.14s ease, transform 0.14s ease;
+  flex-shrink: 0;
+}
+
+.mind-subpage-row:hover .mind-subpage-trailing-clean {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+.mind-subpage-trailing-card {
+  display: none;
+  align-items: center;
+  color: #868e96;
+  flex-shrink: 0;
+}
+
+/* Opção B (Compact Obsidian-like bordered card) */
+:global(.mind-subnote-style-card) .mind-subpage-row {
+  min-height: 36px;
+  padding: 6px 12px;
+  background-color: #f8f9fa;
+  border-color: #e9ecef;
+  border-radius: 7px;
+}
+
+:global(.mind-subnote-style-card) .mind-subpage-row:hover {
+  background-color: #f1f3f5;
+  border-color: #dee2e6;
+}
+
+:global(.mind-subnote-style-card) .mind-subpage-trailing-clean {
+  display: none;
+}
+
+:global(.mind-subnote-style-card) .mind-subpage-trailing-card {
+  display: inline-flex;
 }
 
 .mind-subpage-preview-card {

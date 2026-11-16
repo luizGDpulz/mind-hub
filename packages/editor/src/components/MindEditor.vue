@@ -63,6 +63,7 @@ const props = withDefaults(defineProps<MindEditorProps>(), {
   pages: () => [],
   enableFrontmatterHeader: true,
   showProperties: undefined,
+  subnoteStyle: 'clean',
 });
 
 const emit = defineEmits<MindEditorEmits>();
@@ -444,10 +445,13 @@ defineExpose({
 <template>
   <div
     class="mind-editor-root"
-    :class="{
-      'is-marquee-selecting': marqueeState.active || isPointerDown,
-      'has-block-selection': selectedBlockPositions.length > 0,
-    }"
+    :class="[
+      subnoteStyle === 'card' ? 'mind-subnote-style-card' : 'mind-subnote-style-clean',
+      {
+        'is-marquee-selecting': marqueeState.active || isPointerDown,
+        'has-block-selection': selectedBlockPositions.length > 0,
+      },
+    ]"
     data-testid="mind-editor-root"
     @keydown="handleKeydown"
     @mousedown="handleRootMouseDown"

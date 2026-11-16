@@ -9,7 +9,7 @@
       :class="{ 'is-active': active }"
       data-testid="menu-trigger-color"
       @mouseenter="emit('open')"
-      @click="emit('toggle')"
+      @click="emit('open')"
     >
       <PaintRoller :size="14" class="item-icon" />
       <span class="item-label">Cor</span>
@@ -85,7 +85,7 @@
           :class="{ 'is-active': activeColorSubgroup === 'text' }"
           data-testid="submenu-color-text-trigger"
           @mouseenter="openColorSubgroup('text')"
-          @click="toggleColorSubgroup('text')"
+          @click="openColorSubgroup('text')"
         >
           <span
             class="color-swatch-letter"
@@ -161,7 +161,7 @@
           :class="{ 'is-active': activeColorSubgroup === 'bg' }"
           data-testid="submenu-color-bg-trigger"
           @mouseenter="openColorSubgroup('bg')"
-          @click="toggleColorSubgroup('bg')"
+          @click="openColorSubgroup('bg')"
         >
           <span
             class="color-swatch-bg"
@@ -323,10 +323,6 @@ function openColorSubgroup(group: 'text' | 'bg') {
   activeColorSubgroup.value = group;
   if (group !== 'text') showCustomTextPicker.value = false;
   if (group !== 'bg') showCustomBgPicker.value = false;
-}
-
-function toggleColorSubgroup(group: 'text' | 'bg') {
-  activeColorSubgroup.value = activeColorSubgroup.value === group ? null : group;
 }
 
 function toggleCustomPicker(group: 'text' | 'bg') {

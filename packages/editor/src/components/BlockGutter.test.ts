@@ -19,12 +19,25 @@ describe('BlockGutter.vue', () => {
     expect(wrapper.find('[data-testid="block-gutter-handle-btn"]').exists()).toBe(true);
   });
 
-  it('emits addBlock when + button is clicked', async () => {
+  it('emits addBlock below on click and above on Alt+click, with Notion tooltip on hover', async () => {
     const wrapper = mount(BlockGutter, {
       props: { visible: true },
     });
-    await wrapper.find('[data-testid="block-gutter-add-btn"]').trigger('click');
-    expect(wrapper.emitted('addBlock')).toHaveLength(1);
+
+    const addWrapper = wrapper.find('.gutter-add-wrapper');
+    await addWrapper.trigger('mouseenter');
+    const tooltip = wrapper.find('[data-testid="gutter-add-tooltip"]');
+    expect(tooltip.exists()).toBe(true);
+    expect(tooltip.text()).toContain('Clique para adicionar abaixo');
+    expect(tooltip.text()).toContain('Pressione Alt e clique para adicionar um bloco acima');
+    await addWrapper.trigger('mouseleave');
+    expect(wrapper.find('[data-testid="gutter-add-tooltip"]').exists()).toBe(false);
+
+    const addBtn = wrapper.find('[data-testid="block-gutter-add-btn"]');
+    await addBtn.trigger('click');
+    await addBtn.trigger('click', { altKey: true });
+
+    expect(wrapper.emitted('addBlock')).toEqual([['below'], ['above']]);
   });
 
   it('opens block actions popover on grip click and emits action', async () => {

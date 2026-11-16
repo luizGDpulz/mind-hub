@@ -53,7 +53,7 @@ describe('@mind-hub/web — Atomic UI Components (Refs #27, #30, #31, #32, #33)'
       props: {
         items: sampleActions,
         pageMeta: {
-          lastEditedAuthor: 'Luiz Pulz',
+          lastEditedAuthor: 'Mind Hub',
           lastEditedDate: '22 de set. de 2026',
           wordCount: 142,
         },
@@ -75,7 +75,7 @@ describe('@mind-hub/web — Atomic UI Components (Refs #27, #30, #31, #32, #33)'
       props: {
         items: sampleActions,
         pageMeta: {
-          lastEditedAuthor: 'Luiz Pulz',
+          lastEditedAuthor: 'Mind Hub',
           lastEditedDate: '22 de set. de 2026',
           wordCount: 142,
         },
@@ -89,7 +89,7 @@ describe('@mind-hub/web — Atomic UI Components (Refs #27, #30, #31, #32, #33)'
 
     const footer = wrapper.find('[data-testid="action-menu-footer"]');
     expect(footer.exists()).toBe(true);
-    expect(footer.text()).toContain('Luiz Pulz');
+    expect(footer.text()).toContain('Mind Hub');
     expect(footer.text()).toContain('142 palavras');
   });
 

@@ -80,42 +80,73 @@
           @remove="removeProperty(entry.key)"
         />
 
-        <!-- Draft Row for "+ Adicionar propriedade" (Obsidian style + Vault presets) -->
+        <!-- Draft Row for "+ Adicionar propriedade" (Obsidian style + Floating Suggestion Dropdown) -->
         <div
           v-if="isAddingProperty && !readOnly"
-          class="property-row is-draft"
+          class="property-draft-container"
           data-testid="new-property-row"
         >
-          <div class="property-key-cell">
-            <span class="prop-type-trigger is-muted">
-              <Asterisk :size="14" :stroke-width="1.8" />
-            </span>
-            <input
-              ref="newPropertyKeyInputRef"
-              v-model="draftPropertyKey"
-              type="text"
-              class="prop-key-input"
-              data-testid="new-property-key-input"
-              placeholder="Nome da propriedade..."
-              aria-label="Nome da nova propriedade"
-              @keydown.enter.prevent="commitDraftProperty"
-              @keydown.esc.prevent="cancelDraftProperty"
-            >
-          </div>
-          <div class="property-value-cell">
-            <div v-if="availablePropertyPresets.length > 0" class="preset-quick-bar" data-testid="property-presets-bar">
-              <button
-                v-for="preset in availablePropertyPresets"
-                :key="preset.key"
-                type="button"
-                class="preset-quick-btn"
-                :data-testid="`preset-prop-${preset.key}`"
-                @mousedown.prevent="addPresetProperty(preset)"
+          <div class="property-row is-draft">
+            <div class="property-key-cell is-draft-key">
+              <span class="prop-type-trigger is-muted">
+                <Asterisk :size="14" :stroke-width="1.8" />
+              </span>
+              <input
+                ref="newPropertyKeyInputRef"
+                v-model="draftPropertyKey"
+                type="text"
+                class="prop-key-input"
+                data-testid="new-property-key-input"
+                placeholder="Nome da propriedade..."
+                aria-label="Nome da nova propriedade"
+                @keydown.enter.prevent="commitDraftProperty"
+                @keydown.esc.prevent="cancelDraftProperty"
               >
-                + {{ preset.label }}
-              </button>
             </div>
-            <span v-else class="draft-hint-text">Pressione Enter para criar</span>
+            <div class="property-value-cell">
+              <span class="draft-hint-text">Enter para criar · Esc para cancelar</span>
+            </div>
+          </div>
+
+          <div
+            v-if="availablePropertyPresets.length > 0 || draftPropertyKey.trim()"
+            class="property-preset-dropdown"
+            data-testid="property-presets-bar"
+          >
+            <div v-if="availablePropertyPresets.length > 0" class="preset-dropdown-caption">
+              Sugestões do Vault
+            </div>
+            <button
+              v-for="preset in availablePropertyPresets"
+              :key="preset.key"
+              type="button"
+              class="preset-dropdown-item"
+              :data-testid="`preset-prop-${preset.key}`"
+              @mousedown.prevent="addPresetProperty(preset)"
+            >
+              <span class="preset-dropdown-left">
+                <component
+                  :is="getPropertyIcon(preset.type === 'auto' ? 'text' : preset.type)"
+                  :size="14"
+                  :stroke-width="1.75"
+                  class="preset-dropdown-icon"
+                />
+                <span class="preset-dropdown-name">{{ preset.label }}</span>
+              </span>
+              <span class="preset-dropdown-type">{{ preset.type }}</span>
+            </button>
+            <button
+              v-if="draftPropertyKey.trim() && !availablePropertyPresets.some((p) => p.key === draftPropertyKey.trim().toLowerCase())"
+              type="button"
+              class="preset-dropdown-item is-custom"
+              @mousedown.prevent="commitDraftProperty"
+            >
+              <span class="preset-dropdown-left">
+                <Plus :size="14" :stroke-width="1.75" class="preset-dropdown-icon" />
+                <span>Criar "<strong>{{ draftPropertyKey.trim() }}</strong>"</span>
+              </span>
+              <span class="preset-dropdown-type">text</span>
+            </button>
           </div>
         </div>
 
@@ -152,6 +183,7 @@ import {
   coerceValueToType,
   findMatchingPreset,
   formatYamlValue,
+  getPropertyIcon,
   inferPropertyType,
   resolvePresetDefault,
   type PropertyClipboardItem,
@@ -503,16 +535,83 @@ defineExpose({
   gap: 1px;
 }
 
+.property-draft-container {
+  position: relative;
+}
+
 .property-row.is-draft {
   position: relative;
   display: flex;
-  align-items: flex-start;
-  min-height: 28px;
-  padding: 1px 6px;
-  margin: 0 -6px;
-  border-radius: 5px;
-  background-color: #ffffff;
+  align-items: center;
+  min-height: 30px;
+  padding: 2px 6px;
+  margin: 2px -6px;
+  border-radius: 6px;
+  background-color: #f8f9fa;
   border: 1px solid #dee2e6;
+}
+
+.property-key-cell.is-draft-key {
+  width: 220px;
+}
+
+.property-preset-dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: -6px;
+  z-index: 60;
+  width: 260px;
+  padding: 4px;
+  background: #ffffff;
+  border: 1px solid #e9ecef;
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.09);
+}
+
+.preset-dropdown-caption {
+  padding: 4px 8px 3px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #868e96;
+}
+
+.preset-dropdown-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 8px;
+  border: none;
+  border-radius: 5px;
+  background: transparent;
+  color: #212529;
+  font-size: 12.5px;
+  font-family: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+
+.preset-dropdown-item:hover {
+  background: #f1f3f5;
+}
+
+.preset-dropdown-left {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.preset-dropdown-icon {
+  color: #868e96;
+}
+
+.preset-dropdown-name {
+  font-weight: 500;
+}
+
+.preset-dropdown-type {
+  font-size: 11px;
+  color: #868e96;
 }
 
 .property-key-cell {

@@ -53,7 +53,14 @@
         </span>
         <component :is="entry.icon" v-else :size="14" class="item-icon" />
         <span class="item-label">{{ entry.label }}</span>
-        <Check v-if="entry.active" :size="13" class="item-check" />
+        <span
+          v-if="entry.kind === 'tableToggle'"
+          class="mind-switch"
+          :class="{ 'is-checked': entry.checked }"
+        >
+          <span class="mind-switch-thumb" />
+        </span>
+        <Check v-else-if="entry.active" :size="13" class="item-check" />
         <span v-else-if="entry.shortcut" class="shortcut">{{ entry.shortcut }}</span>
       </button>
     </div>
@@ -63,8 +70,55 @@
       <div class="popover-section">
         <div class="section-title">{{ menuSectionTitle }}</div>
 
-        <!-- Transformar em > -->
+        <!-- Table-specific Actions (Image 5) -->
+        <template v-if="isTableBlock">
+          <button
+            type="button"
+            class="popover-item"
+            data-testid="table-action-fit-width"
+            @mouseenter="activeSubmenu = null"
+            @click="emit('tableAction', 'fitWidth')"
+          >
+            <ArrowLeftRight :size="14" class="item-icon" />
+            <span class="item-label">Ajustar à largura</span>
+          </button>
+
+          <button
+            type="button"
+            role="menuitemcheckbox"
+            :aria-checked="tableHeaderRow"
+            class="popover-item"
+            data-testid="table-toggle-header-row"
+            @mouseenter="activeSubmenu = null"
+            @click="emit('tableAction', 'toggleHeaderRow')"
+          >
+            <PanelTop :size="14" class="item-icon" />
+            <span class="item-label">Linha do cabeçalho</span>
+            <span class="mind-switch" :class="{ 'is-checked': tableHeaderRow }">
+              <span class="mind-switch-thumb" />
+            </span>
+          </button>
+
+          <button
+            type="button"
+            role="menuitemcheckbox"
+            :aria-checked="tableHeaderColumn"
+            class="popover-item"
+            data-testid="table-toggle-header-col"
+            @mouseenter="activeSubmenu = null"
+            @click="emit('tableAction', 'toggleHeaderColumn')"
+          >
+            <PanelLeft :size="14" class="item-icon" />
+            <span class="item-label">Coluna do cabeçalho</span>
+            <span class="mind-switch" :class="{ 'is-checked': tableHeaderColumn }">
+              <span class="mind-switch-thumb" />
+            </span>
+          </button>
+        </template>
+
+        <!-- Transformar em > (Non-table blocks) -->
         <div
+          v-else
           class="popover-submenu-anchor"
           @mouseenter="openSubmenu('turnInto')"
         >
@@ -74,7 +128,7 @@
             :class="{ 'is-active': activeSubmenu === 'turnInto' }"
             data-testid="menu-trigger-turn-into"
             @mouseenter="openSubmenu('turnInto')"
-            @click="toggleSubmenu('turnInto')"
+            @click="openSubmenu('turnInto')"
           >
             <Repeat2 :size="14" class="item-icon" />
             <span class="item-label">Transformar em</span>
@@ -179,12 +233,15 @@ import { computed, ref, nextTick, onMounted } from 'vue';
 import {
   ArrowUp,
   ArrowDown,
+  ArrowLeftRight,
   Copy,
   Trash2,
   Repeat2,
   ChevronRight,
   Check,
   Search,
+  PanelTop,
+  PanelLeft,
 } from 'lucide-vue-next';
 import BlockColorSubmenu from './BlockColorSubmenu.vue';
 import type { BlockColorId, BlockColorUpdate } from '../../types.js';
@@ -196,6 +253,7 @@ import {
   type FilteredActionEntry,
   type GutterActionType,
   type GutterSubmenuName,
+  type TableBlockActionType,
 } from './gutter-helpers.js';
 
 const props = withDefaults(
@@ -207,6 +265,9 @@ const props = withDefaults(
     selectedCount?: number;
     lastUsedTextColor?: string | null;
     lastUsedBgColor?: string | null;
+    tableHeaderRow?: boolean;
+    tableHeaderColumn?: boolean;
+    tableFullWidth?: boolean;
   }>(),
   {
     nodeType: 'paragraph',
@@ -216,6 +277,9 @@ const props = withDefaults(
     selectedCount: 0,
     lastUsedTextColor: null,
     lastUsedBgColor: null,
+    tableHeaderRow: false,
+    tableHeaderColumn: false,
+    tableFullWidth: true,
   }
 );
 
@@ -224,6 +288,7 @@ const emit = defineEmits<{
   (e: 'action', action: GutterActionType): void;
   (e: 'turnInto', type: string): void;
   (e: 'setColor', payload: BlockColorUpdate): void;
+  (e: 'tableAction', action: TableBlockActionType): void;
 }>();
 
 const activeSubmenu = ref<GutterSubmenuName>(null);
@@ -237,12 +302,22 @@ const popoverPositionStyle = computed(() => ({
   top: `${popoverOffsetY.value}px`,
 }));
 
+const isTableBlock = computed(() => props.nodeType === 'table' && props.selectedCount <= 1);
+
 const menuSectionTitle = computed(() =>
-  props.selectedCount > 1 ? `${props.selectedCount} blocos selecionados` : 'Bloco'
+  props.selectedCount > 1
+    ? `${props.selectedCount} blocos selecionados`
+    : props.nodeType === 'table'
+      ? 'Tabela'
+      : 'Bloco'
 );
 
 const deleteActionLabel = computed(() =>
-  props.selectedCount > 1 ? `Excluir ${props.selectedCount} blocos` : 'Excluir bloco'
+  props.selectedCount > 1
+    ? `Excluir ${props.selectedCount} blocos`
+    : props.nodeType === 'table'
+      ? 'Excluir'
+      : 'Excluir bloco'
 );
 
 const visibleTurnIntoOptions = computed(() =>
@@ -260,12 +335,16 @@ const filteredEntries = computed<FilteredActionEntry[]>(() => {
   if (!q) return [];
 
   const entries = buildFilteredActionEntries({
+    isTableBlock: isTableBlock.value,
+    tableHeaderRow: props.tableHeaderRow,
+    tableHeaderColumn: props.tableHeaderColumn,
     visibleTurnIntoOptions: visibleTurnIntoOptions.value,
     isCurrentBlockType,
     isTextColorActive,
     isBgColorActive,
     deleteActionLabel: deleteActionLabel.value,
     onTurnInto: (type) => emit('turnInto', type),
+    onTableAction: (action) => emit('tableAction', action),
     onSetColor: (payload) => emit('setColor', payload),
     onAction: (action) => emit('action', action),
   });

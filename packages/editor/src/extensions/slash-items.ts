@@ -200,7 +200,7 @@ export function createDefaultSlashItems(callbacks: SlashItemCallbacks): SlashMen
       icon: markRaw(TableIcon),
       keywords: ['tabela', 'table', 'grid'],
       action: (editor) =>
-        editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run(),
+        editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: false }).run(),
     },
     {
       id: 'database',
@@ -213,11 +213,11 @@ export function createDefaultSlashItems(callbacks: SlashItemCallbacks): SlashMen
     },
     {
       id: 'subpage',
-      title: 'Subpágina',
-      description: 'Criar uma nova subpágina aninhada',
+      title: 'Subnota',
+      description: 'Criar uma nova subnota aninhada',
       category: 'advanced',
       icon: markRaw(FilePlus),
-      keywords: ['subpagina', 'subpage', 'pagina', 'nota'],
+      keywords: ['subnota', 'subpagina', 'subpage', 'pagina', 'nota'],
       action: () => callbacks.onCreateSubpage(),
     },
   ];

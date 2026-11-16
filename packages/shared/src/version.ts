@@ -6,10 +6,24 @@ export interface MindVersionEntry {
   highlights: string[];
 }
 
-export const CURRENT_MIND_VERSION = '0.5.0';
+export const CURRENT_MIND_VERSION = '0.6.0';
 export const MIND_REPO_URL = 'https://github.com/luizGDpulz/mind-hub';
 
 export const MIND_VERSION_HISTORY: MindVersionEntry[] = [
+  {
+    version: '0.6.0',
+    releaseDate: '2026-11-16',
+    milestoneTitle: 'M15 & M16: GitHub OKF Sync, Conexões Modulares, Biblioteca & Table Mastery',
+    summary:
+      'Sincronização bidirecional soberana com GitHub em formato Google OKF v0.2 (incluindo repositórios privados e tokens Fine-Grained), Hub modular de Conexões, modal Center Peek, Biblioteca global, drag-and-drop na árvore e motor completo de tabelas Notion-like.',
+    highlights: [
+      'GitHub OKF v0.2 Delta Sync com validação via REST API, suporte a repositórios privados, fallback sem binário git e Dockerfile endurecido',
+      'Hub modular de Conexões & Sincronização com modal fixo sem vazamento de scroll e guia separado para Token do Vault vs. Dev/MCP',
+      'Blocos inline de Subpáginas, PageCoverBanner com reposicionamento por arraste, Biblioteca global e modal Center Peek na criação de notas',
+      'Árvore com drag-and-drop bidirecional, modo ilha flutuante na sidebar e propriedades YAML estilo Obsidian',
+      'Table Mastery (@mind-hub/editor): MindTable, TableControlsOverlay com mini-gutters, cores por célula, divisor full-width e Alt+click no gutter',
+    ],
+  },
   {
     version: '0.5.0',
     releaseDate: '2026-11-13',

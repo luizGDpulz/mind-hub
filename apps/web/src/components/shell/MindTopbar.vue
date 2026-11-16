@@ -11,12 +11,19 @@
         data-testid="toggle-sidebar-btn"
         @click="$emit('update:leftDrawerOpen', true)"
       >
-        <component :is="Menu" :size="16" />
+        <component :is="Menu" :size="16" :stroke-width="1.75" />
       </button>
 
       <!-- Center Page Breadcrumb -->
       <div
-        v-if="store.activePage"
+        v-if="store.activeSurface === 'library'"
+        class="topbar-breadcrumb gt-xs"
+        :class="{ 'no-sidebar-offset': leftDrawerOpen }"
+      >
+        <span class="crumb-btn is-static">Biblioteca</span>
+      </div>
+      <div
+        v-else-if="store.activePage"
         class="topbar-breadcrumb gt-xs"
         :class="{ 'no-sidebar-offset': leftDrawerOpen }"
       >
@@ -30,7 +37,11 @@
               store.selectPage(crumb.id);
             "
           >
-            <MindPageIcon :icon="crumb.icon" :size="14" />
+            <MindPageIcon
+              :icon="crumb.icon"
+              :has-content="Boolean(crumb.contentMarkdown?.trim())"
+              :size="15"
+            />
             <span>{{ crumb.title }}</span>
           </button>
         </template>
@@ -38,8 +49,20 @@
 
       <q-space />
 
-      <!-- Right Page Controls: Share, Comments, AI, Actions (...) -->
+      <!-- Right Page Controls: Git Sync, Share, Comments, AI, Actions (...) -->
       <div class="topbar-actions-right">
+        <button
+          type="button"
+          class="topbar-git-sync-pill gt-xs"
+          :class="`is-${store.gitHubSyncStatus.state}`"
+          title="Sincronização GitHub (Google OKF)"
+          data-testid="topbar-github-sync-pill"
+          @click="$emit('open-sync-settings')"
+        >
+          <span class="sync-status-dot" />
+          <span>{{ topbarSyncLabel }}</span>
+        </button>
+
         <MindIconButton
           :icon="Share2"
           label="Share & Export"
@@ -118,10 +141,20 @@ const emit = defineEmits<{
   (e: 'update:leftDrawerOpen', value: boolean): void;
   (e: 'export-git'): void;
   (e: 'open-properties'): void;
+  (e: 'open-sync-settings'): void;
 }>();
 
 const store = useMindStore();
 const showOverflowMenu = ref(false);
+
+const topbarSyncLabel = computed(() => {
+  const status = store.gitHubSyncStatus;
+  if (!status.configured) return 'Conectar Git';
+  if (status.state === 'syncing') return 'Sincronizando';
+  if (status.state === 'error' || status.state === 'conflict') return 'Sync Atenção';
+  if (status.pendingChangesCount > 0) return `Sync (${status.pendingChangesCount})`;
+  return 'GitHub OK';
+});
 
 function toggleRightPanel(mode: 'comments' | 'ai'): void {
   if (store.isCommentsDrawerOpen && store.rightDrawerMode === mode) {
@@ -282,7 +315,7 @@ const pageMetadata = computed<ActionMenuPageMeta>(() => {
   }
 
   return {
-    lastEditedAuthor: 'Luiz Pulz',
+    lastEditedAuthor: 'Mind Hub',
     lastEditedDate: formattedDate,
     wordCount: words,
     characterCount: chars,
@@ -296,7 +329,7 @@ const pageMetadata = computed<ActionMenuPageMeta>(() => {
   min-block-size: 28px;
   border: none;
   background: transparent;
-  color: var(--mind-text-secondary);
+  color: var(--mind-text-muted, #868e96);
   border-radius: 6px;
   cursor: pointer;
   font-size: 14px;
@@ -358,5 +391,46 @@ const pageMetadata = computed<ActionMenuPageMeta>(() => {
   display: flex;
   align-items: center;
   gap: 6px;
+}
+
+.topbar-git-sync-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 26px;
+  padding: 0 9px;
+  border-radius: 999px;
+  border: 1px solid var(--mind-border-subtle, #e9ecef);
+  background: var(--mind-bg-sidebar, #f8f9fa);
+  color: var(--mind-text-secondary, #495057);
+  font-size: 11.5px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.12s ease, border-color 0.12s ease;
+}
+
+.topbar-git-sync-pill:hover {
+  background: var(--mind-bg-hover, #f1f3f5);
+  border-color: #dee2e6;
+}
+
+.sync-status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: #adb5bd;
+}
+
+.topbar-git-sync-pill.is-connected .sync-status-dot {
+  background: #2f9e44;
+}
+
+.topbar-git-sync-pill.is-syncing .sync-status-dot {
+  background: #1971c2;
+}
+
+.topbar-git-sync-pill.is-conflict .sync-status-dot,
+.topbar-git-sync-pill.is-error .sync-status-dot {
+  background: #e67700;
 }
 </style>

@@ -7,8 +7,22 @@ O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.
 
 ## [Não lançado]
 
+---
+
+## [0.6.0] - 2026-11-16 — Milestones M15 & M16: GitHub OKF Sync, Conexões Modulares, Biblioteca & Table Mastery
+
 ### 🚀 Adicionado
-- Melhorias contínuas em homologação.
+- **Milestone M15: Sincronização GitHub (Google OKF v0.2), Assets, Capa & Hub de Conexões** (#87, #88, #89, #90, #91):
+  - **Formato Aberto Google OKF v0.2** (`@mind-hub/shared` & PostgreSQL): exportação hierárquica com `index.md` em pastas-pai, índice raiz, trilha `log.md`, serialização/parse bidirecional de `subpageBlock` em Markdown, colunas `cover_url`/`cover_y_position`/`last_synced_hash` e tabelas `page_assets` / `sync_configs` (#87).
+  - **Delta Sync Inteligente, Repositórios Privados & Fallback REST API** (`@mind-hub/server` & `Dockerfile`): `GitSyncService` com hash SHA-256 (`sourceHash !== lastSyncedHash`), controle de concorrência otimista (`expectedHash` / `409 Conflict`), validação via GitHub REST API (Fine-Grained vs. Classic PAT), fallback nativo via Git Data REST API para `ENOENT`, instalação de `git` + `ca-certificates` no `Dockerfile`, rotas `/api/sync/github/*` e endpoint `/api/assets/by-path/*` (#88).
+  - **Blocos Inline Notion-like (`SubpageBlockNode`)** (`@mind-hub/editor`): bloco de subpágina em linha com ícone, título, paleta pastel `BlockColor`, comando `/subpage` e cartão de preview no hover (#89).
+  - **Capa de Página & Resolução de Assets** (`@mind-hub/web`): `PageCoverBanner` com galeria de presets Mind Light, upload/compressão client-side, reposicionamento vertical por arraste (`coverYPosition`) e resolução automática de URLs `./assets/...` (#90, #99, #108).
+  - **Hub Modular de Conexões & Wizard GitHub Sync** (`@mind-hub/web`): catálogo modular (`connections-registry.ts`) em `Configurações > Sincronização`, modal de configurações com altura fixa e contenção de scroll (`overscroll-behavior: contain`), modos modulares do GitHub (`Vault OKF`, `Dev Sync`, `IA & MCP`) com separação de escopo de tokens e indicador na barra superior (#91).
+- **Milestone M16: UX de Notas, Biblioteca Global, Árvore Drag-and-Drop & Table Mastery** (#95–#111):
+  - **Modal Center Peek (`MindNotePreviewModal`) & Visão Global `Biblioteca`:** criação rápida com preview centralizado, filtros na Biblioteca e métricas de armazenamento (#98, #101).
+  - **Navegação & Árvore:** drag-and-drop na árvore com sincronização bidirecional de links de subpáginas, menu contextual adaptativo, modo ilha flutuante na sidebar, ícones dinâmicos unificados e favicon/título `Mind Hub` (#96, #97, #100, #102, #103, #104, #105, #106).
+  - **Propriedades & Subnotas:** dropdown estilo Obsidian com campos automáticos `created`/`updated`, posicionamento abaixo do título e estilo limpo de subnotas (#107, #109, #110).
+  - **Table Mastery (`@mind-hub/editor`):** engine `MindTable` e `TableControlsOverlay` com mini-gutters de linha/coluna, menu contextual de eixos, cores de célula, borda azul de foco, geometria unificada de bleed entre blocos, divisor full-width e `Alt+click` para inserir bloco acima no gutter (#111).
 
 ---
 
@@ -130,7 +144,8 @@ O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.
   - Servidor Model Context Protocol nativo com ferramentas para notas e banco de dados (#15).
   - Chat lateral com assistente BYOK (OpenAI, Anthropic, Gemini, Ollama) (#15, #16).
 
-[Não lançado]: https://github.com/luizGDpulz/mind-hub/compare/v0.5.0...HEAD
+[Não lançado]: https://github.com/luizGDpulz/mind-hub/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/luizGDpulz/mind-hub/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/luizGDpulz/mind-hub/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/luizGDpulz/mind-hub/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/luizGDpulz/mind-hub/compare/v0.2.0...v0.3.0

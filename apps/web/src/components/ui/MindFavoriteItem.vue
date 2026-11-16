@@ -12,7 +12,11 @@
   >
     <!-- Leading Icon (Emoji or Custom URL) -->
     <span class="fav-icon">
-      <MindPageIcon :icon="page.icon" :size="15" />
+      <MindPageIcon
+        :icon="page.icon"
+        :has-content="Boolean(page.contentMarkdown?.trim())"
+        :size="15"
+      />
     </span>
 
     <!-- Inline Rename Input or Title -->
@@ -35,12 +39,12 @@
       <button
         type="button"
         class="fav-action-icon-btn"
-        title="Nova subpágina"
-        aria-label="Criar subpágina"
+        title="Nova subnota"
+        aria-label="Criar subnota"
         data-testid="fav-add-child-btn"
         @click.stop="$emit('create-child', page.id)"
       >
-        <Plus :size="14" />
+        <Plus :size="14" :stroke-width="1.75" />
       </button>
       <button
         type="button"
@@ -50,7 +54,7 @@
         data-testid="fav-more-options-btn"
         @click.stop="handleContextMenu($event)"
       >
-        <MoreHorizontal :size="14" />
+        <MoreHorizontal :size="14" :stroke-width="1.75" />
       </button>
     </div>
   </div>

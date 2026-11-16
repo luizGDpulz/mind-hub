@@ -30,6 +30,10 @@ const IGNORED_MARQUEE_TARGET_SELECTOR = [
   '.mind-block-gutter-shell button',
   '.gutter-tooltip',
   '.block-actions-popover',
+  '.mind-table-controls-overlay',
+  '.table-axis-popover',
+  '.tableWrapper',
+  'table',
   '[data-testid="slash-menu-shell"]',
   '[data-testid="page-mention-suggest-popover"]',
   '[data-testid="bubble-formatting-menu"]',
@@ -746,12 +750,37 @@ export const BlockSelection = Extension.create<BlockSelectionOptions>({
             if (selected.length === 0) return DecorationSet.empty;
 
             const decos: Decoration[] = [];
-            for (const pos of selected) {
+            for (let i = 0; i < selected.length; i += 1) {
+              const pos = selected[i]!;
               const node = state.doc.nodeAt(pos);
               if (!node) continue;
+
+              const prevPos = i > 0 ? selected[i - 1] : undefined;
+              const prevNode = prevPos !== undefined ? state.doc.nodeAt(prevPos) : null;
+              const nextPos = i + 1 < selected.length ? selected[i + 1] : undefined;
+              const nextNode = nextPos !== undefined ? state.doc.nodeAt(nextPos) : null;
+
+              const isJoinTop =
+                prevPos !== undefined &&
+                prevNode !== null &&
+                prevPos + prevNode.nodeSize === pos &&
+                node.type.name !== 'table' &&
+                prevNode.type.name !== 'table';
+
+              const isJoinBottom =
+                nextPos !== undefined &&
+                nextNode !== null &&
+                pos + node.nodeSize === nextPos &&
+                node.type.name !== 'table' &&
+                nextNode.type.name !== 'table';
+
+              const classes = ['mind-block-selected'];
+              if (isJoinTop) classes.push('mind-block-selected-join-top');
+              if (isJoinBottom) classes.push('mind-block-selected-join-bottom');
+
               decos.push(
                 Decoration.node(pos, pos + node.nodeSize, {
-                  class: 'mind-block-selected',
+                  class: classes.join(' '),
                   'data-block-selected': 'true',
                 })
               );

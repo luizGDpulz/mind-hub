@@ -10,7 +10,7 @@
     @keydown.space.prevent="$emit('open')"
   >
     <div class="search-left">
-      <Search :size="14" class="search-icon" />
+      <Search :size="15" :stroke-width="1.75" class="search-icon" />
       <span class="search-placeholder">Busque ou peça</span>
     </div>
     <kbd class="search-kbd-badge">Ctrl+K</kbd>

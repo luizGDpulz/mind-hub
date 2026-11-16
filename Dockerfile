@@ -3,7 +3,8 @@ FROM --platform=$BUILDPLATFORM node:24-alpine AS builder
 
 WORKDIR /app
 
-RUN corepack enable && corepack prepare pnpm@12.9.1 --activate
+RUN apk add --no-cache git ca-certificates && \
+    corepack enable && corepack prepare pnpm@12.9.1 --activate
 
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json ./
 COPY packages/shared/package.json ./packages/shared/package.json
@@ -30,7 +31,8 @@ ENV NODE_ENV=production \
     STATIC_DIR=/app/public \
     DATA_FILE_PATH=/app/data/mind-hub-store.json
 
-RUN mkdir -p /app/data && chown -R node:node /app/data
+RUN apk add --no-cache git ca-certificates && \
+    mkdir -p /app/data && chown -R node:node /app/data
 
 COPY --from=builder --chown=node:node /prod/server/package.json ./package.json
 COPY --from=builder --chown=node:node /prod/server/node_modules ./node_modules

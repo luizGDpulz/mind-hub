@@ -341,7 +341,7 @@ describe('MindEditor.vue', () => {
     expect(wrapper.emitted('update:title')?.at(-1)).toEqual(['Nota Sem Yaml']);
     expect(wrapper.emitted('update:frontmatter')).toBeUndefined();
 
-    // Triggering openProperties reveals expanded Propriedades ABOVE the title bar
+    // Triggering openProperties reveals expanded Propriedades BELOW the title bar
     await (wrapper.vm as unknown as { openProperties: (focus?: boolean) => Promise<void> }).openProperties(false);
     await nextTick();
 
@@ -351,7 +351,7 @@ describe('MindEditor.vue', () => {
     expect(wrapper.find('[data-testid="frontmatter-content"]').exists()).toBe(true);
     expect(
       Boolean(
-        fmEl.element.compareDocumentPosition(titleBarEl.element) &
+        titleBarEl.element.compareDocumentPosition(fmEl.element) &
           Node.DOCUMENT_POSITION_FOLLOWING
       )
     ).toBe(true);
@@ -397,7 +397,7 @@ describe('MindEditor.vue', () => {
     expect(wrapper.find('[data-testid="toggle-raw-yaml-mode"]').exists()).toBe(false);
     expect(
       Boolean(
-        fmHeader.element.compareDocumentPosition(titleBar.element) &
+        titleBar.element.compareDocumentPosition(fmHeader.element) &
           Node.DOCUMENT_POSITION_FOLLOWING
       )
     ).toBe(true);
@@ -790,9 +790,9 @@ describe('MindEditor.vue', () => {
     const titleIdx = childrenIds.indexOf('slotted-db-title');
     const canvasIdx = childrenIds.indexOf('mind-editor-canvas-container');
 
-    expect(fmIdx).toBeGreaterThanOrEqual(0);
-    expect(titleIdx).toBeGreaterThan(fmIdx);
-    expect(canvasIdx).toBeGreaterThan(titleIdx);
+    expect(titleIdx).toBeGreaterThanOrEqual(0);
+    expect(fmIdx).toBeGreaterThan(titleIdx);
+    expect(canvasIdx).toBeGreaterThan(fmIdx);
 
     wrapper.unmount();
   });

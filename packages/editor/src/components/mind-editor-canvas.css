@@ -1,10 +1,18 @@
 .mind-editor-root {
+  --mind-editor-max-width: 820px;
+  --mind-editor-pad-inline: 76px;
+  --mind-block-bleed: 10px;
+  --mind-block-full-width: calc(100% + (var(--mind-block-bleed) * 2));
+  --mind-block-radius: 6px;
+  --mind-block-selection-bg: rgba(35, 131, 226, 0.14);
+  --mind-block-selection-border: rgba(35, 131, 226, 0.22);
+
   display: flex;
   flex-direction: column;
   width: 100%;
-  max-width: 820px;
+  max-width: var(--mind-editor-max-width);
   margin: 0 auto;
-  padding: 28px 76px 80px;
+  padding: 28px var(--mind-editor-pad-inline) 80px;
   background-color: #ffffff;
   color: #212529;
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
@@ -33,11 +41,12 @@
   color: #212529;
 }
 
-/* Each basic block treated as a clean individual pill row with Notion-like breathing room */
+/* Canonical Block Geometry: every markdown/rich block spans --mind-block-full-width (-10px..+10px bleed) */
 :deep(.ProseMirror > p) {
-  margin: 0 -10px;
-  padding: 4px 10px;
-  border-radius: 6px;
+  width: var(--mind-block-full-width);
+  margin: 0 calc(-1 * var(--mind-block-bleed));
+  padding: 4px var(--mind-block-bleed);
+  border-radius: var(--mind-block-radius);
   line-height: 1.6;
   min-height: 32px;
   box-sizing: border-box;
@@ -49,9 +58,11 @@
   line-height: 1.3;
   font-weight: 700;
   color: #212529;
-  margin: 8px -10px 0;
-  padding: 4px 10px;
-  border-radius: 6px;
+  width: var(--mind-block-full-width);
+  margin: 8px calc(-1 * var(--mind-block-bleed)) 0;
+  padding: 4px var(--mind-block-bleed);
+  border-radius: var(--mind-block-radius);
+  box-sizing: border-box;
   transition: background-color 0.12s ease;
 }
 
@@ -60,9 +71,11 @@
   line-height: 1.35;
   font-weight: 600;
   color: #212529;
-  margin: 6px -10px 0;
-  padding: 4px 10px;
-  border-radius: 6px;
+  width: var(--mind-block-full-width);
+  margin: 6px calc(-1 * var(--mind-block-bleed)) 0;
+  padding: 4px var(--mind-block-bleed);
+  border-radius: var(--mind-block-radius);
+  box-sizing: border-box;
   transition: background-color 0.12s ease;
 }
 
@@ -71,9 +84,11 @@
   line-height: 1.4;
   font-weight: 600;
   color: #212529;
-  margin: 4px -10px 0;
-  padding: 4px 10px;
-  border-radius: 6px;
+  width: var(--mind-block-full-width);
+  margin: 4px calc(-1 * var(--mind-block-bleed)) 0;
+  padding: 4px var(--mind-block-bleed);
+  border-radius: var(--mind-block-radius);
+  box-sizing: border-box;
   transition: background-color 0.12s ease;
 }
 
@@ -82,9 +97,11 @@
   line-height: 1.45;
   font-weight: 600;
   color: #212529;
-  margin: 2px -10px 0;
-  padding: 4px 10px;
-  border-radius: 6px;
+  width: var(--mind-block-full-width);
+  margin: 2px calc(-1 * var(--mind-block-bleed)) 0;
+  padding: 4px var(--mind-block-bleed);
+  border-radius: var(--mind-block-radius);
+  box-sizing: border-box;
   transition: background-color 0.12s ease;
 }
 
@@ -100,9 +117,11 @@
 :deep(.ProseMirror blockquote) {
   border-left: 3px solid #dee2e6;
   color: #495057;
+  width: var(--mind-block-full-width);
   padding: 6px 12px 6px 14px;
-  margin: 2px -10px;
-  border-radius: 0 6px 6px 0;
+  margin: 2px calc(-1 * var(--mind-block-bleed));
+  border-radius: 0 var(--mind-block-radius) var(--mind-block-radius) 0;
+  box-sizing: border-box;
   font-style: normal;
   transition: background-color 0.12s ease;
 }
@@ -114,11 +133,13 @@
 :deep(.ProseMirror pre) {
   background-color: #f8f9fa;
   border: 1px solid #e9ecef;
-  border-radius: 6px;
+  border-radius: var(--mind-block-radius);
+  width: var(--mind-block-full-width);
   padding: 12px 14px;
   font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   font-size: 13px;
-  margin: 2px -10px;
+  margin: 2px calc(-1 * var(--mind-block-bleed));
+  box-sizing: border-box;
   overflow-x: auto;
   transition: background-color 0.12s ease;
 }
@@ -149,9 +170,9 @@
 :deep(.ProseMirror ol > li),
 :deep(.ProseMirror ul:not([data-type="taskList"]) > li) {
   position: relative;
-  margin: 0 -10px;
-  padding: 4px 10px 4px 34px;
-  border-radius: 6px;
+  margin: 0 calc(-1 * var(--mind-block-bleed));
+  padding: 4px var(--mind-block-bleed) 4px 34px;
+  border-radius: var(--mind-block-radius);
   line-height: 1.6;
   min-height: 32px;
   box-sizing: border-box;
@@ -222,9 +243,9 @@
   display: flex;
   align-items: flex-start;
   gap: 8px;
-  margin: 0 -10px;
-  padding: 4px 10px;
-  border-radius: 6px;
+  margin: 0 calc(-1 * var(--mind-block-bleed));
+  padding: 4px var(--mind-block-bleed);
+  border-radius: var(--mind-block-radius);
   line-height: 1.6;
   min-height: 32px;
   box-sizing: border-box;
@@ -258,12 +279,12 @@
 
 :deep(.ProseMirror hr) {
   display: block;
-  width: calc(100% + 20px);
+  width: var(--mind-block-full-width);
   height: 21px;
   border: none;
-  margin: 2px -10px;
-  padding: 10px 10px;
-  border-radius: 6px;
+  margin: 2px calc(-1 * var(--mind-block-bleed));
+  padding: 10px 0;
+  border-radius: var(--mind-block-radius);
   box-sizing: border-box;
   cursor: pointer;
   background-color: transparent;
@@ -283,23 +304,93 @@
   text-underline-offset: 2px;
 }
 
+:deep(.ProseMirror .tableWrapper) {
+  position: relative;
+  width: var(--mind-block-full-width);
+  margin: 14px calc(-1 * var(--mind-block-bleed)) 26px;
+  box-sizing: border-box;
+  overflow-x: auto;
+  border-radius: 3px;
+}
+
+:deep(.ProseMirror .tableWrapper[data-full-width="false"]) {
+  width: fit-content;
+  max-width: var(--mind-block-full-width);
+}
+
 :deep(.ProseMirror table) {
   border-collapse: collapse;
+  table-layout: fixed;
   width: 100%;
-  margin: 14px 0;
+  margin: 0;
+  background-color: #ffffff;
+}
+
+:deep(.ProseMirror .tableWrapper[data-full-width="false"] table) {
+  width: auto;
+  min-width: 420px;
 }
 
 :deep(.ProseMirror th),
 :deep(.ProseMirror td) {
   border: 1px solid #e9ecef;
   padding: 8px 10px;
+  min-width: 80px;
+  height: 36px;
   font-size: 14px;
+  line-height: 1.5;
   text-align: left;
+  vertical-align: top;
+  position: relative;
+  box-sizing: border-box;
 }
 
-:deep(.ProseMirror th) {
+:deep(.ProseMirror th:not([data-block-bg])),
+:deep(.ProseMirror table[data-header-row="true"] tr:first-child > :is(th, td):not([data-block-bg])),
+:deep(.ProseMirror table[data-header-column="true"] tr > :first-child:not([data-block-bg])) {
   background-color: #f8f9fa;
   font-weight: 600;
+}
+
+:deep(.ProseMirror table[data-header-row="true"] tr:first-child > :is(th, td)),
+:deep(.ProseMirror table[data-header-column="true"] tr > :first-child),
+:deep(.ProseMirror th) {
+  font-weight: 600;
+}
+
+:deep(.ProseMirror .column-resize-handle) {
+  position: absolute;
+  right: -2px;
+  top: 0;
+  bottom: -2px;
+  width: 3px;
+  background-color: #1971c2;
+  pointer-events: none;
+  z-index: 20;
+}
+
+:deep(.ProseMirror .selectedCell::after) {
+  z-index: 2;
+  position: absolute;
+  content: '';
+  left: 0;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  background: rgba(25, 113, 194, 0.12);
+  pointer-events: none;
+}
+
+:deep(.ProseMirror .tableWrapper.mind-block-selected::after),
+:deep(.ProseMirror .tableWrapper.mind-block-dragging-source::after) {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-color: var(--mind-block-selection-bg);
+  border: 1px solid var(--mind-block-selection-border);
+  border-radius: 4px;
+  pointer-events: none;
+  z-index: 5;
 }
 
 :deep(.ProseMirror .is-empty::before) {
@@ -357,15 +448,42 @@
   position: fixed;
   pointer-events: none;
   z-index: 90;
-  background-color: rgba(25, 113, 194, 0.08);
-  border: 1px solid rgba(25, 113, 194, 0.36);
-  border-radius: 4px;
+  background-color: rgba(35, 131, 226, 0.1);
+  border: 1px solid rgba(35, 131, 226, 0.36);
+  border-radius: 3px;
 }
 
 :deep(.ProseMirror .mind-block-selected),
 :deep(.ProseMirror .mind-block-dragging-source) {
-  box-shadow: inset 0 0 0 999px rgba(25, 113, 194, 0.13), inset 0 0 0 1px rgba(25, 113, 194, 0.16);
-  border-radius: 6px;
+  position: relative;
+  box-shadow: inset 0 0 0 999px var(--mind-block-selection-bg);
+  border-radius: 4px;
+}
+
+:deep(.ProseMirror .mind-block-selected-join-top) {
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+}
+
+:deep(.ProseMirror .mind-block-selected-join-bottom) {
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+:deep(.ProseMirror .mind-block-selected-join-bottom::after) {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -6px;
+  height: 6px;
+  background-color: var(--mind-block-selection-bg);
+  pointer-events: none;
+}
+
+:deep(.ProseMirror .tableWrapper.mind-block-selected),
+:deep(.ProseMirror .tableWrapper.mind-block-dragging-source) {
+  box-shadow: none;
 }
 
 :deep(.ProseMirror .mind-block-dragging-source) {

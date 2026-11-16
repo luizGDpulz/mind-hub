@@ -11,14 +11,17 @@ import {
   vector,
 } from 'drizzle-orm/pg-core';
 import type {
+  AssetKind,
   DatabasePriority,
   DatabaseStatus,
   DatabaseTagBadge,
   DiagramKind,
   DrawioLayerNode,
   ExcalidrawShapeItem,
-  PageCommentReply,
+  GitHubSyncHistoryEntry,
   MindDoc,
+  OkfPageType,
+  PageCommentReply,
 } from '@mind-hub/shared';
 
 export const pagesTable = pgTable(
@@ -28,6 +31,10 @@ export const pagesTable = pgTable(
     slug: varchar('slug', { length: 255 }).notNull(),
     title: varchar('title', { length: 500 }).notNull(),
     icon: varchar('icon', { length: 32 }).notNull().default('📄'),
+    pageType: varchar('page_type', { length: 32 }).$type<OkfPageType>().notNull().default('concept'),
+    description: text('description').notNull().default(''),
+    coverUrl: varchar('cover_url', { length: 1024 }),
+    coverYPosition: integer('cover_y_position').notNull().default(50),
     parentId: varchar('parent_id', { length: 64 }),
     sortOrder: integer('sort_order').notNull().default(0),
     contentMarkdown: text('content_markdown').notNull().default(''),
@@ -38,6 +45,7 @@ export const pagesTable = pgTable(
     embedding: vector('embedding', { dimensions: 64 }),
     sourcePath: varchar('source_path', { length: 1024 }),
     sourceHash: varchar('source_hash', { length: 128 }),
+    lastSyncedHash: varchar('last_synced_hash', { length: 128 }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
     deletedAt: timestamp('deleted_at', { withTimezone: true }),
@@ -124,8 +132,52 @@ export const diagramsTable = pgTable(
   ],
 );
 
+export const pageAssetsTable = pgTable(
+  'page_assets',
+  {
+    id: varchar('id', { length: 64 }).primaryKey(),
+    pageId: varchar('page_id', { length: 64 }),
+    kind: varchar('kind', { length: 32 }).$type<AssetKind>().notNull().default('inline_image'),
+    fileName: varchar('file_name', { length: 255 }).notNull(),
+    mimeType: varchar('mime_type', { length: 128 }).notNull(),
+    byteSize: integer('byte_size').notNull(),
+    storagePath: varchar('storage_path', { length: 1024 }).notNull(),
+    url: varchar('url', { length: 1024 }).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    deletedAt: timestamp('deleted_at', { withTimezone: true }),
+  },
+  (table) => [
+    index('page_assets_page_id_idx').on(table.pageId),
+    index('page_assets_deleted_at_idx').on(table.deletedAt),
+  ],
+);
+
+export const syncConfigsTable = pgTable(
+  'sync_configs',
+  {
+    id: varchar('id', { length: 64 }).primaryKey(),
+    provider: varchar('provider', { length: 32 }).notNull().default('github'),
+    repository: varchar('repository', { length: 255 }).notNull(),
+    branch: varchar('branch', { length: 128 }).notNull().default('main'),
+    encryptedToken: text('encrypted_token').notNull(),
+    autoSyncEnabled: boolean('auto_sync_enabled').notNull().default(true),
+    debounceSeconds: integer('debounce_seconds').notNull().default(120),
+    lastSyncAt: timestamp('last_sync_at', { withTimezone: true }),
+    lastCommitSha: varchar('last_commit_sha', { length: 128 }),
+    lastError: text('last_error'),
+    history: jsonb('history').$type<GitHubSyncHistoryEntry[]>().notNull().default([]),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex('sync_configs_provider_unique').on(table.provider),
+  ],
+);
+
 export type DbPage = typeof pagesTable.$inferSelect;
 export type DbPageInsert = typeof pagesTable.$inferInsert;
 export type DbTask = typeof tasksTable.$inferSelect;
 export type DbPageComment = typeof pageCommentsTable.$inferSelect;
 export type DbDiagram = typeof diagramsTable.$inferSelect;
+export type DbPageAsset = typeof pageAssetsTable.$inferSelect;
+export type DbSyncConfig = typeof syncConfigsTable.$inferSelect;

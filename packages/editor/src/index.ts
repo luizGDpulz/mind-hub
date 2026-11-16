@@ -8,7 +8,10 @@ export { default as SlashMenu } from './components/SlashMenu.vue';
 export { default as PageMentionPopover } from './components/PageMentionPopover.vue';
 export { default as MermaidBlockView } from './components/MermaidBlockView.vue';
 export { default as CalloutBlockView } from './components/CalloutBlockView.vue';
+export { default as SubpageBlockView } from './components/SubpageBlockView.vue';
 export { default as BubbleFormattingMenu } from './components/BubbleFormattingMenu.vue';
+export { default as TableControlsOverlay } from './components/table/TableControlsOverlay.vue';
+export { default as TableAxisContextMenu } from './components/table/TableAxisContextMenu.vue';
 export { default as MindEditor } from './components/MindEditor.vue';
 export {
   GlobalDragHandle,
@@ -90,6 +93,11 @@ export {
   type CalloutNodeOptions,
 } from './extensions/callout-node.js';
 export {
+  SubpageBlockNode,
+  type SubpageBlockAttrs,
+  type SubpageBlockOptions,
+} from './extensions/subpage-block-node.js';
+export {
   EMOJI_CATEGORIES,
   LUCIDE_ICON_CATALOG,
   LUCIDE_ICON_COLORS,
@@ -133,5 +141,32 @@ export {
   syncBlockColorsAtSelection,
   normalizeContainerBlockColors,
 } from './extensions/block-color.js';
+export {
+  MindTable,
+  MindTableView,
+  getTableMetadata,
+  findEnclosingTablePos,
+  toggleTableHeaderRow,
+  toggleTableHeaderColumn,
+  toggleTableFullWidth,
+  setTableCountDimensions,
+  insertTableRowAt,
+  duplicateTableRowAt,
+  clearTableRowContentsAt,
+  deleteTableRowAt,
+  moveTableRow,
+  insertTableColumnAt,
+  duplicateTableColumnAt,
+  clearTableColumnContentsAt,
+  deleteTableColumnAt,
+  moveTableColumn,
+  setTableRowColor,
+  getTableRowColors,
+  setTableColumnColor,
+  getTableColumnColors,
+  setTableAllCellsColor,
+  getTableAllCellsColors,
+  type TableMetadata,
+} from './extensions/table-operations.js';
 
 

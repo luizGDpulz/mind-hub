@@ -1,23 +1,39 @@
 <template>
   <div
-    v-if="visible"
+    v-if="visible || isDragging"
     class="mind-block-gutter-shell"
+    :class="{ 'is-dragging-active': isDragging }"
     data-testid="block-gutter-shell"
     :style="{ top: `${top}px` }"
     @mouseenter="emit('hover', true)"
     @mouseleave="emit('hover', false)"
   >
-    <!-- Add Block Below Button (+) -->
-    <button
-      type="button"
-      class="gutter-btn gutter-add-btn"
-      title="Adicionar linha abaixo (/)"
-      aria-label="Add block below"
-      data-testid="block-gutter-add-btn"
-      @click="emit('addBlock')"
+    <!-- Add Block Below / Above Button (+) -->
+    <div
+      class="gutter-add-wrapper"
+      @mouseenter="isAddHovered = true"
+      @mouseleave="isAddHovered = false"
     >
-      <Plus :size="17" :stroke-width="2" />
-    </button>
+      <button
+        type="button"
+        class="gutter-btn gutter-add-btn"
+        aria-label="Adicionar bloco abaixo (Alt+clique para adicionar acima)"
+        data-testid="block-gutter-add-btn"
+        @mousedown.stop
+        @click="handleAddClick"
+      >
+        <Plus :size="17" :stroke-width="2" />
+      </button>
+
+      <div
+        v-if="isAddHovered && !showMenu"
+        class="gutter-tooltip gutter-add-tooltip"
+        data-testid="gutter-add-tooltip"
+      >
+        <div class="tooltip-row"><strong>Clique</strong> para adicionar abaixo</div>
+        <div class="tooltip-row"><strong>Pressione Alt e clique</strong> para adicionar um bloco acima</div>
+      </div>
+    </div>
 
     <!-- Block Grip & Actions Handle (⠿) -->
     <div
@@ -29,12 +45,14 @@
         type="button"
         class="gutter-btn gutter-grip-btn"
         draggable="true"
+        :data-node-pos="nodePos"
         title="Arraste para mover / Clique para menu"
         aria-label="Drag block or open menu"
         data-testid="block-gutter-handle-btn"
-        @click="toggleMenu"
-        @dragstart="emit('dragStart')"
-        @dragend="emit('dragEnd')"
+        @mousedown.stop="handleGripMouseDown"
+        @click="handleGripClick"
+        @dragstart="handleGripDragStart"
+        @dragend="handleGripDragEnd"
       >
         <GripVertical :size="17" :stroke-width="2" />
       </button>
@@ -60,10 +78,14 @@
       :selected-count="selectedCount"
       :last-used-text-color="lastUsedTextColor"
       :last-used-bg-color="lastUsedBgColor"
+      :table-header-row="tableHeaderRow"
+      :table-header-column="tableHeaderColumn"
+      :table-full-width="tableFullWidth"
       @close="closeMenu"
       @action="handleAction"
       @turn-into="handleTurnInto"
       @set-color="handleSetColor"
+      @table-action="handleTableAction"
     />
   </div>
 </template>
@@ -80,6 +102,7 @@ import {
   readStoredColor,
   writeStoredColor,
   type GutterActionType,
+  type TableBlockActionType,
 } from './gutter/gutter-helpers.js';
 
 withDefaults(
@@ -87,39 +110,92 @@ withDefaults(
     visible?: boolean;
     top?: number;
     left?: number;
+    nodePos?: number;
     nodeType?: string;
     nodeTextColor?: string | null;
     nodeBgColor?: string | null;
     basicBlocksOnly?: boolean;
     selectedCount?: number;
+    tableHeaderRow?: boolean;
+    tableHeaderColumn?: boolean;
+    tableFullWidth?: boolean;
   }>(),
   {
     visible: false,
     top: 0,
     left: 0,
+    nodePos: 0,
     nodeType: 'paragraph',
     nodeTextColor: null,
     nodeBgColor: null,
     basicBlocksOnly: false,
     selectedCount: 0,
+    tableHeaderRow: false,
+    tableHeaderColumn: false,
+    tableFullWidth: true,
   }
 );
 
 const emit = defineEmits<{
-  (e: 'addBlock'): void;
+  (e: 'addBlock', position: 'above' | 'below'): void;
   (e: 'dragStart'): void;
   (e: 'dragEnd'): void;
   (e: 'action', action: GutterActionType): void;
   (e: 'turnInto', type: string): void;
   (e: 'setColor', payload: BlockColorUpdate): void;
+  (e: 'tableAction', action: TableBlockActionType): void;
   (e: 'hover', isHovered: boolean): void;
   (e: 'menuToggle', isOpen: boolean): void;
 }>();
 
+const isAddHovered = ref(false);
 const isGripHovered = ref(false);
+const isDragging = ref(false);
 const showMenu = ref(false);
+let dragStartCoords: { x: number; y: number } | null = null;
+let suppressNextClick = false;
 const lastUsedTextColor = ref<string | null>(readStoredColor(LAST_TEXT_COLOR_STORAGE_KEY));
 const lastUsedBgColor = ref<string | null>(readStoredColor(LAST_BG_COLOR_STORAGE_KEY));
+
+function handleAddClick(event: MouseEvent) {
+  emit('addBlock', event.altKey ? 'above' : 'below');
+}
+
+function handleGripMouseDown(event: MouseEvent) {
+  dragStartCoords = { x: event.clientX, y: event.clientY };
+  suppressNextClick = false;
+}
+
+function handleGripDragStart() {
+  isDragging.value = true;
+  suppressNextClick = true;
+  if (showMenu.value) {
+    closeMenu();
+  }
+  emit('dragStart');
+}
+
+function handleGripDragEnd() {
+  isDragging.value = false;
+  dragStartCoords = null;
+  emit('dragEnd');
+}
+
+function handleGripClick(event: MouseEvent) {
+  if (suppressNextClick) {
+    suppressNextClick = false;
+    return;
+  }
+  if (
+    dragStartCoords &&
+    Math.hypot(event.clientX - dragStartCoords.x, event.clientY - dragStartCoords.y) > 5
+  ) {
+    dragStartCoords = null;
+    return;
+  }
+  dragStartCoords = null;
+  toggleMenu();
+}
 
 function closeMenu() {
   showMenu.value = false;
@@ -143,6 +219,13 @@ function handleAction(action: GutterActionType) {
 function handleTurnInto(type: string) {
   closeMenu();
   emit('turnInto', type);
+}
+
+function handleTableAction(action: TableBlockActionType) {
+  if (action === 'fitWidth') {
+    closeMenu();
+  }
+  emit('tableAction', action);
 }
 
 function handleSetColor(payload: BlockColorUpdate) {
@@ -210,13 +293,22 @@ onBeforeUnmount(() => {
   padding: 0;
 }
 
+.gutter-btn :deep(svg) {
+  pointer-events: none;
+}
+
 .gutter-btn:hover {
   background-color: #f1f3f5;
   color: #212529;
 }
 
+.gutter-add-wrapper,
 .gutter-grip-wrapper {
   position: relative;
+}
+
+.gutter-add-tooltip {
+  text-align: center;
 }
 
 .gutter-grip-btn {

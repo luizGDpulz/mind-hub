@@ -66,7 +66,7 @@ export function createInitialSeedPages(): MindPage[] {
     '',
     '#### Título 4',
     '',
-    'Parágrafo de texto com **negrito**, *itálico*, `código inline`, ~~tachado~~ e [link](https://pulz.dev.br).',
+    'Parágrafo de texto com **negrito**, *itálico*, `código inline`, ~~tachado~~ e [link](https://exemplo.org).',
     '',
     '- Item com marcador 1',
     '- Item com marcador 2',
@@ -88,6 +88,8 @@ export function createInitialSeedPages(): MindPage[] {
     '| Coluna A | Coluna B |',
     '| --- | --- |',
     '| Valor 1 | Valor 2 |',
+    '',
+    '[Nota de Teste Interna](#/page/page-teste-interno) <!-- mind:subpage id="page-teste-interno" icon="" color="default" -->',
   ].join('\n');
 
   const parentPage = createSeedPage({

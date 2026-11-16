@@ -316,7 +316,7 @@ describe('GlobalDragHandle Extension', () => {
     expect(editor.state.doc.firstChild?.textContent).toBe('Arrastar');
   });
 
-  it('preserves hoveredNodePos across mousedown + mousemove (buttons=1) on gutter grip before dragstart (refs #92)', () => {
+  it('preserves drag state when browser dispatches mousemove(buttons=1) before dragstart and supports pointer-drag fallback (Refs #104)', () => {
     const root = document.createElement('div');
     root.className = 'mind-editor-root';
     const canvas = document.createElement('div');
@@ -330,16 +330,10 @@ describe('GlobalDragHandle Extension', () => {
     root.appendChild(canvas);
     document.body.appendChild(root);
 
-    const onPositionChange = vi.fn();
     const editor = new Editor({
       element: canvas,
-      extensions: [
-        StarterKit,
-        GlobalDragHandle.configure({
-          onPositionChange,
-        }),
-      ],
-      content: '<h1>Primeiro</h1><p>Arrastar</p>',
+      extensions: [StarterKit, GlobalDragHandle],
+      content: '<h1>Bloco Topo</h1><p>Bloco Base</p>',
     });
     createdEditors.push(editor);
 
@@ -351,55 +345,28 @@ describe('GlobalDragHandle Extension', () => {
     mockRect(h1, { top: 100, left: 200, width: 680, height: 34 });
     mockRect(p, { top: 142, left: 200, width: 680, height: 24 });
 
-    // 1. Hover paragraph to lock hoveredNodePos
-    window.dispatchEvent(new MouseEvent('mousemove', { clientX: 160, clientY: 150, bubbles: true }));
-    expect(onPositionChange).toHaveBeenLastCalledWith(
-      expect.objectContaining({ nodeType: 'paragraph' })
-    );
-    onPositionChange.mockClear();
+    const pPos = getNodePosAtDOM(p, editor.view)!;
+    gripBtn.setAttribute('data-node-pos', String(pPos));
 
-    // 2. Press mouse down on gutter grip and nudge pointer (buttons=1) before dragstart fires
+    // 1. Real browser mousedown + mousemove(buttons=1) on gripBtn before dragstart
     gripBtn.dispatchEvent(
       new MouseEvent('mousedown', { button: 0, buttons: 1, clientX: 150, clientY: 150, bubbles: true })
     );
+    gripBtn.dispatchEvent(
+      new MouseEvent('mousemove', { buttons: 1, clientX: 150, clientY: 148, bubbles: true })
+    );
+
+    // 2. Pointer drag moves up to top of <h1> without native dragstart
     window.dispatchEvent(
-      new MouseEvent('mousemove', { buttons: 1, clientX: 153, clientY: 148, bubbles: true })
+      new MouseEvent('mousemove', { buttons: 1, clientX: 150, clientY: 104, bubbles: true })
     );
-    expect(onPositionChange).not.toHaveBeenCalledWith(null);
-
-    // 3. dragstart still succeeds and moves block on drop
-    const mockTransfer = {
-      effectAllowed: 'none',
-      dropEffect: 'none',
-      clearData: vi.fn(),
-      setData: vi.fn(),
-      setDragImage: vi.fn(),
-    };
-    const dragStart = new Event('dragstart', { bubbles: true, cancelable: true });
-    Object.defineProperty(dragStart, 'dataTransfer', { value: mockTransfer });
-    gripBtn.dispatchEvent(dragStart);
     expect(p.classList.contains('mind-block-dragging-source')).toBe(true);
+    expect(h1.classList.contains('mind-block-drop-before')).toBe(true);
 
-    const drop = new MouseEvent('drop', {
-      clientX: 120,
-      clientY: 106,
-      bubbles: true,
-      cancelable: true,
-    });
-    Object.defineProperty(drop, 'dataTransfer', { value: mockTransfer });
-    window.dispatchEvent(drop);
-    expect(editor.state.doc.firstChild?.textContent).toBe('Arrastar');
-
-    // 4. Dragging with buttons=1 inside ProseMirror (not gutter) still hides the handle
-    const liveBlock = editor.view.dom.querySelector('h1')!;
-    mockRect(liveBlock, { top: 142, left: 200, width: 680, height: 24 });
-    liveBlock.dispatchEvent(
-      new MouseEvent('mousemove', { clientX: 160, clientY: 150, bubbles: true })
+    // 3. Release mouse button -> block moves before <h1>
+    window.dispatchEvent(
+      new MouseEvent('mouseup', { button: 0, buttons: 0, clientX: 150, clientY: 104, bubbles: true })
     );
-    onPositionChange.mockClear();
-    liveBlock.dispatchEvent(
-      new MouseEvent('mousemove', { buttons: 1, clientX: 260, clientY: 150, bubbles: true })
-    );
-    expect(onPositionChange).toHaveBeenCalledWith(null);
+    expect(editor.state.doc.firstChild?.textContent).toBe('Bloco Base');
   });
 });

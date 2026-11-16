@@ -189,4 +189,34 @@ describe('BlockSelection Extension', () => {
     expect(deleteBlocksAtPositions(editor.view, dup.newPositions)).toBe(true);
     expect(editor.view.dom.querySelectorAll('hr')).toHaveLength(1);
   });
+
+  it('adds contiguous join classes to consecutive selected blocks and omits them on tables or isolated blocks', () => {
+    const editor = new Editor({
+      extensions: [StarterKit, BlockColor, BlockSelection],
+      content: '<p>Bloco 1</p><p>Bloco 2</p><p>Bloco 3</p><p>Bloco 4</p>',
+    });
+    editors.push(editor);
+
+    const ps = Array.from(editor.view.dom.querySelectorAll('p'));
+    const p1Pos = getNodePosAtDOM(ps[0]!, editor.view)!;
+    const p2Pos = getNodePosAtDOM(ps[1]!, editor.view)!;
+    const p3Pos = getNodePosAtDOM(ps[2]!, editor.view)!;
+
+    setBlockSelection(editor.view, [p1Pos, p2Pos, p3Pos]);
+
+    const updatedPs = Array.from(editor.view.dom.querySelectorAll('p'));
+    expect(updatedPs[0]!.classList.contains('mind-block-selected')).toBe(true);
+    expect(updatedPs[0]!.classList.contains('mind-block-selected-join-top')).toBe(false);
+    expect(updatedPs[0]!.classList.contains('mind-block-selected-join-bottom')).toBe(true);
+
+    expect(updatedPs[1]!.classList.contains('mind-block-selected')).toBe(true);
+    expect(updatedPs[1]!.classList.contains('mind-block-selected-join-top')).toBe(true);
+    expect(updatedPs[1]!.classList.contains('mind-block-selected-join-bottom')).toBe(true);
+
+    expect(updatedPs[2]!.classList.contains('mind-block-selected')).toBe(true);
+    expect(updatedPs[2]!.classList.contains('mind-block-selected-join-top')).toBe(true);
+    expect(updatedPs[2]!.classList.contains('mind-block-selected-join-bottom')).toBe(false);
+
+    expect(updatedPs[3]!.classList.contains('mind-block-selected')).toBe(false);
+  });
 });

@@ -19,6 +19,8 @@ const INTERACTIVE_OR_CHROME_SELECTOR = [
   '.mind-block-gutter-shell button',
   '.gutter-tooltip',
   '.block-actions-popover',
+  '.mind-table-controls-overlay',
+  '.table-axis-popover',
   '.mind-color-picker-shell',
   '.mind-icon-picker-shell',
 ].join(', ');

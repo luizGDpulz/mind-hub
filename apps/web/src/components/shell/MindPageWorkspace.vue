@@ -8,156 +8,169 @@
         @forgot-password="store.activeSurface = 'editor'"
       />
 
+      <!-- Global Library Surface (Issue #101) -->
+      <MindLibraryView v-else-if="store.activeSurface === 'library'" />
+
       <!-- Main Document + Embedded Database + Open-Source Diagrams -->
-      <div v-else-if="store.activePage" class="editor-container">
-        <MindEditor
-          ref="mindEditorRef"
-          :key="store.activePage.id"
-          v-model:show-properties="showPropertiesOverride"
-          class="mind-hub-editor-shell"
-          :model-value="store.activePage.contentJson || store.activePage.contentMarkdown"
-          :frontmatter="activePageFrontmatter"
+      <template v-else-if="store.activePage">
+        <PageCoverBanner
+          ref="coverBannerRef"
+          :cover-url="store.activePage.coverUrl"
+          :cover-y-position="store.activePage.coverYPosition"
           :read-only="store.editorReadMode"
-          :pages="mentionPageReferences"
-          @update:json="handleEditorJsonUpdate"
-          @update:frontmatter="handleFrontmatterUpdate"
-          @select-page="
-            (pageId) => {
-              store.activeSurface = 'editor';
-              store.selectPage(pageId);
-            }
+          :uploading="isUploadingCover"
+          @update:cover-url="
+            (val) => store.activePage && store.updatePageMeta(store.activePage.id, { coverUrl: val })
           "
-          @create-subpage="handleAddSubpage"
-          @insert-database-block="store.enableDatabaseBlockForActivePage()"
-          @insert-diagram-block="(kind) => store.enableDiagramBlockForActivePage(kind)"
-        >
-          <template #title>
-            <!-- Notion-like Title Header Zone: Custom Icon + Hover-only Top Actions -->
-            <div class="page-header-zone" data-testid="page-header-icon-container">
-              <div
-                v-if="hasCustomPageIcon"
-                class="page-header-icon-box"
-                data-testid="page-header-icon"
-                title="Clique para mudar o ícone"
-                @click="!store.editorReadMode && (isIconPickerOpen = true)"
-              >
-                <MindPageIcon :icon="store.activePage.icon" :size="44" />
-              </div>
+          @update:cover-y-position="
+            (val) =>
+              store.activePage && store.updatePageMeta(store.activePage.id, { coverYPosition: val })
+          "
+          @upload-file="handleCoverUpload"
+          @remove="
+            store.activePage &&
+            store.updatePageMeta(store.activePage.id, { coverUrl: '', coverYPosition: 50 })
+          "
+        />
 
-              <div
-                v-if="!store.editorReadMode"
-                class="page-header-hover-bar"
-                data-testid="page-header-hover-bar"
-              >
-                <button
-                  type="button"
-                  class="page-header-ghost-btn"
-                  data-testid="page-header-icon-btn"
-                  @click="isIconPickerOpen = true"
-                >
-                  <Smile :size="14" :stroke-width="1.75" />
-                  <span>{{ hasCustomPageIcon ? 'Mudar ícone' : 'Adicionar ícone' }}</span>
-                </button>
-                <button
+        <div class="editor-container" :class="{ 'editor-container--with-cover': hasPageCover }">
+          <MindEditor
+            ref="mindEditorRef"
+            :key="store.activePage.id"
+            v-model:show-properties="showPropertiesOverride"
+            class="mind-hub-editor-shell"
+            :model-value="store.activePage.contentJson || store.activePage.contentMarkdown"
+            :frontmatter="activePageFrontmatter"
+            :read-only="store.editorReadMode"
+            :pages="mentionPageReferences"
+            @update:json="handleEditorJsonUpdate"
+            @update:frontmatter="handleFrontmatterUpdate"
+            @select-page="
+              (pageId) => {
+                store.activeSurface = 'editor';
+                store.selectPage(pageId);
+              }
+            "
+            @create-subpage="handleAddSubpage"
+            @insert-database-block="store.enableDatabaseBlockForActivePage()"
+            @insert-diagram-block="(kind) => store.enableDiagramBlockForActivePage(kind)"
+          >
+            <template #title>
+              <!-- Notion-like Title Header Zone: Custom Icon + Hover-only Top Actions -->
+              <div class="page-header-zone" data-testid="page-header-icon-container">
+                <div
                   v-if="hasCustomPageIcon"
-                  type="button"
-                  class="page-header-ghost-btn"
-                  data-testid="page-header-remove-icon-btn"
-                  @click="store.updatePageMeta(store.activePage.id, { icon: '' })"
+                  class="page-header-icon-box"
+                  :class="{ 'is-overlapping-cover': hasPageCover }"
+                  data-testid="page-header-icon"
+                  title="Clique para mudar o ícone"
+                  @click="!store.editorReadMode && (isIconPickerOpen = true)"
                 >
-                  <span>Remover ícone</span>
-                </button>
-                <button
-                  type="button"
-                  class="page-header-ghost-btn"
-                  data-testid="page-header-comment-btn"
-                  @click="store.rightDrawerMode = 'comments'; store.isCommentsDrawerOpen = true"
+                  <MindPageIcon
+                    :icon="store.activePage.icon"
+                    :has-content="Boolean(store.activePage.contentMarkdown?.trim())"
+                    :size="44"
+                  />
+                </div>
+
+                <div
+                  v-if="!store.editorReadMode"
+                  class="page-header-hover-bar"
+                  data-testid="page-header-hover-bar"
                 >
-                  <MessageSquare :size="14" :stroke-width="1.75" />
-                  <span>Adicionar comentário</span>
-                </button>
-                <button
-                  type="button"
-                  class="page-header-ghost-btn"
-                  data-testid="page-add-properties-btn"
-                  @click="togglePropertiesPanel"
-                >
-                  <SlidersHorizontal :size="14" :stroke-width="1.75" />
-                  <span>{{ showPropertiesOverride ? 'Ocultar propriedades' : 'Propriedades' }}</span>
-                </button>
+                  <button
+                    type="button"
+                    class="page-header-ghost-btn"
+                    data-testid="page-header-icon-btn"
+                    @click="isIconPickerOpen = true"
+                  >
+                    <Smile :size="14" :stroke-width="1.75" />
+                    <span>{{ hasCustomPageIcon ? 'Mudar ícone' : 'Adicionar ícone' }}</span>
+                  </button>
+                  <button
+                    v-if="hasCustomPageIcon"
+                    type="button"
+                    class="page-header-ghost-btn"
+                    data-testid="page-header-remove-icon-btn"
+                    @click="store.updatePageMeta(store.activePage.id, { icon: '' })"
+                  >
+                    <span>Remover ícone</span>
+                  </button>
+                  <button
+                    v-if="!hasPageCover"
+                    type="button"
+                    class="page-header-ghost-btn"
+                    data-testid="page-header-cover-btn"
+                    @click="handleAddDefaultCover"
+                  >
+                    <ImageIcon :size="14" :stroke-width="1.75" />
+                    <span>Adicionar capa</span>
+                  </button>
+                  <button
+                    type="button"
+                    class="page-header-ghost-btn"
+                    data-testid="page-header-comment-btn"
+                    @click="store.rightDrawerMode = 'comments'; store.isCommentsDrawerOpen = true"
+                  >
+                    <MessageSquare :size="14" :stroke-width="1.75" />
+                    <span>Adicionar comentário</span>
+                  </button>
+                  <button
+                    type="button"
+                    class="page-header-ghost-btn"
+                    data-testid="page-add-properties-btn"
+                    @click="togglePropertiesPanel"
+                  >
+                    <SlidersHorizontal :size="14" :stroke-width="1.75" />
+                    <span>{{ showPropertiesOverride ? 'Ocultar propriedades' : 'Propriedades' }}</span>
+                  </button>
+                </div>
+
+                <!-- Clean H1 Title (DB Page.title owns note identity) -->
+                <input
+                  :value="store.activePage.title"
+                  type="text"
+                  class="page-title-h1"
+                  placeholder="Nova Nota"
+                  :readonly="store.editorReadMode"
+                  data-testid="page-title-input"
+                  aria-label="Título da nota"
+                  @input="
+                    (e) =>
+                      store.activePage &&
+                      store.updatePageMeta(store.activePage.id, {
+                        title: (e.target as HTMLInputElement).value,
+                      })
+                  "
+                />
               </div>
+            </template>
+          </MindEditor>
 
-              <!-- Clean H1 Title (DB Page.title owns note identity) -->
-              <input
-                :value="store.activePage.title"
-                type="text"
-                class="page-title-h1"
-                placeholder="Sem título"
-                :readonly="store.editorReadMode"
-                data-testid="page-title-input"
-                aria-label="Page title"
-                @input="
-                  (e) =>
-                    store.activePage &&
-                    store.updatePageMeta(store.activePage.id, {
-                      title: (e.target as HTMLInputElement).value,
-                    })
-                "
-              />
-            </div>
-          </template>
-        </MindEditor>
+          <!-- Embedded Database Block -->
+          <DatabaseViewBlock
+            v-if="store.showEmbeddedDatabase"
+            :rows="store.databaseRows"
+            @cycle-status="store.cycleDatabaseRowStatus"
+            @add-row="store.addDatabaseTaskRow"
+          />
 
-        <!-- Embedded Database Block -->
-        <DatabaseViewBlock
-          v-if="store.showEmbeddedDatabase"
-          :rows="store.databaseRows"
-          @cycle-status="store.cycleDatabaseRowStatus"
-          @add-row="store.addDatabaseTaskRow"
-        />
-
-        <!-- Embedded Open-Source Diagrams -->
-        <DiagramEmbedsBlock
-          v-if="store.showEmbeddedDiagrams"
-          :initial-kind="store.activeDiagramKind"
-        />
-
-        <!-- Notion-like Subpages Section -->
-        <div
-          v-if="activePageSubpages.length > 0"
-          class="mind-subpages-section"
-          data-testid="subpages-section"
-        >
-          <div class="subpages-section-header">
-            <span class="subpages-section-title">Subpáginas ({{ activePageSubpages.length }})</span>
-            <button
-              type="button"
-              class="subpage-add-action-btn"
-              data-testid="add-subpage-btn"
-              @click="handleAddSubpage"
-            >
-              + Adicionar subpágina
-            </button>
-          </div>
-          <div class="subpages-grid">
-            <MindSubpageLink
-              v-for="sub in activePageSubpages"
-              :key="sub.id"
-              :page="sub"
-              @navigate="store.selectPage"
-            />
-          </div>
+          <!-- Embedded Open-Source Diagrams -->
+          <DiagramEmbedsBlock
+            v-if="store.showEmbeddedDiagrams"
+            :initial-kind="store.activeDiagramKind"
+          />
         </div>
-      </div>
+      </template>
 
       <!-- Empty State when there are no active pages -->
       <div v-else-if="!store.isBootstrapping" class="empty-workspace-state q-pa-xl flex flex-center column" style="min-height: 400px">
         <FileText :size="36" :stroke-width="1.5" style="color: var(--mind-text-muted); margin-bottom: 12px" />
         <div style="font-size: 16px; font-weight: 600; color: var(--mind-text-primary); margin-bottom: 6px">
-          Nenhuma página encontrada
+          Nenhuma nota encontrada
         </div>
         <div style="font-size: 13px; color: var(--mind-text-muted); margin-bottom: 16px">
-          Crie sua primeira página limpa para começar a escrever.
+          Crie sua primeira nota limpa para começar a escrever.
         </div>
         <button
           type="button"
@@ -165,9 +178,29 @@
           data-testid="create-first-page-btn"
           @click="handleCreateRootPage"
         >
-          + Criar página
+          + Criar nota
         </button>
       </div>
+      <!-- Notion-like Floating Bottom Toast (Image 1, Issue #100) -->
+      <Transition name="mind-toast-fade">
+        <div
+          v-if="store.activeToast"
+          class="mind-bottom-toast"
+          role="status"
+          data-testid="mind-bottom-toast"
+        >
+          <span class="toast-message">{{ store.activeToast.message }}</span>
+          <button
+            v-if="store.activeToast.actionLabel"
+            type="button"
+            class="toast-action-btn"
+            data-testid="mind-toast-action-btn"
+            @click="store.triggerToastAction()"
+          >
+            {{ store.activeToast.actionLabel }}
+          </button>
+        </div>
+      </Transition>
     </q-page>
 
     <!-- Page Icon Picker Modal -->
@@ -180,25 +213,29 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, nextTick, ref } from 'vue';
 import { storeToRefs } from 'pinia';
-import { FileText, MessageSquare, SlidersHorizontal, Smile } from 'lucide-vue-next';
+import { FileText, Image as ImageIcon, MessageSquare, SlidersHorizontal, Smile } from 'lucide-vue-next';
 import type { MindNode, TiptapDoc } from '@mind-hub/shared';
 import { MindEditor, type PageReference } from '@mind-hub/editor';
 import { useMindStore } from '../../stores/mind-store.js';
 import { usePageFrontmatter } from '../../composables/usePageFrontmatter.js';
+import { optimizeCoverImageForUpload } from '../../utils/media.js';
 import CleanLoginView from '../CleanLoginView.vue';
+import MindLibraryView from '../MindLibraryView.vue';
 import DatabaseViewBlock from '../DatabaseViewBlock.vue';
 import DiagramEmbedsBlock from '../DiagramEmbedsBlock.vue';
-import MindSubpageLink from '../ui/MindSubpageLink.vue';
 import MindIconPickerModal from '../ui/MindIconPickerModal.vue';
 import MindPageIcon from '../ui/MindPageIcon.vue';
+import PageCoverBanner from '../ui/PageCoverBanner.vue';
 
 const store = useMindStore();
 const { activePage, activePageId, editorReadMode } = storeToRefs(store);
 
 const isIconPickerOpen = ref(false);
+const isUploadingCover = ref(false);
 const mindEditorRef = ref<InstanceType<typeof MindEditor> | null>(null);
+const coverBannerRef = ref<InstanceType<typeof PageCoverBanner> | null>(null);
 
 const {
   showPropertiesOverride,
@@ -214,8 +251,10 @@ const {
 
 const hasCustomPageIcon = computed<boolean>(() => {
   const icon = store.activePage?.icon;
-  return Boolean(icon && icon !== '📄');
+  return Boolean(icon && icon !== '📄' && icon !== '📑' && icon !== '📁');
 });
+
+const hasPageCover = computed<boolean>(() => Boolean(store.activePage?.coverUrl?.trim()));
 
 function openProperties(): void {
   requestOpenProperties(mindEditorRef.value);
@@ -237,7 +276,7 @@ function handleWorkspaceMouseDown(event: MouseEvent): void {
   if (target.closest('.mind-editor-root')) return;
   if (
     target.closest(
-      '.page-header-zone, .database-view-block, .diagram-embeds-block, .mind-subpages-section, button, input, textarea, select, a',
+      '.page-cover-banner, .page-header-zone, .database-view-block, .diagram-embeds-block, button, input, textarea, select, a',
     )
   ) {
     return;
@@ -248,20 +287,29 @@ function handleWorkspaceMouseDown(event: MouseEvent): void {
 defineExpose({ openProperties });
 
 const mentionPageReferences = computed<PageReference[]>(() =>
-  store.activePages.map((p) => ({
-    id: p.id,
-    title: p.title,
-    slug: p.slug,
-    icon: p.icon || '📄',
-    summary: p.tags?.join(', '),
-    updatedAt: p.updatedAt,
-  })),
+  store.activePages.map((p) => {
+    const parent = p.parentId
+      ? store.pages.find((cand) => cand.id === p.parentId && cand.deletedAt === null)
+      : undefined;
+    const firstParagraph = p.contentMarkdown
+      ?.split('\n')
+      .map((line) => line.replace(/^[#>*\-\d.]+\s*/, '').trim())
+      .find(
+        (line) =>
+          line.length > 0 && !line.startsWith('[') && !line.includes('<!-- mind:subpage'),
+      );
+    return {
+      id: p.id,
+      title: p.title,
+      slug: p.slug,
+      icon: p.icon || '',
+      hasContent: Boolean(p.contentMarkdown?.trim()),
+      category: parent?.title ?? 'Notas particulares',
+      summary: firstParagraph || '',
+      updatedAt: p.updatedAt,
+    };
+  }),
 );
-
-const activePageSubpages = computed(() => {
-  if (!store.activePage) return [];
-  return store.activePages.filter((p) => p.parentId === store.activePage?.id);
-});
 
 function isMindNode(value: unknown): value is MindNode {
   return (
@@ -282,23 +330,78 @@ function handleEditorJsonUpdate(doc: Record<string, unknown>): void {
   void store.updateActivePageContent(nextDoc);
 }
 
+async function handleAddDefaultCover(): Promise<void> {
+  if (!store.activePage) return;
+  await store.updatePageMeta(store.activePage.id, {
+    coverUrl: 'preset:sky',
+    coverYPosition: 50,
+  });
+  await nextTick();
+  coverBannerRef.value?.openPicker();
+}
+
+async function handleCoverUpload(file: File): Promise<void> {
+  if (!store.activePage) return;
+  isUploadingCover.value = true;
+  try {
+    const optimized = await optimizeCoverImageForUpload(file);
+    const asset = await store.uploadAsset({
+      pageId: store.activePage.id,
+      kind: 'cover',
+      filename: optimized.filename,
+      mimeType: optimized.mimeType,
+      dataBase64: optimized.dataBase64,
+    });
+    if (asset) {
+      await store.updatePageMeta(store.activePage.id, {
+        coverUrl: asset.url || asset.storagePath,
+        coverYPosition: 50,
+      });
+    } else {
+      store.showToast({
+        message: 'Não foi possível salvar a imagem de capa no servidor.',
+      });
+    }
+  } catch {
+    store.showToast({
+      message: 'Erro ao processar ou enviar a imagem de capa.',
+    });
+  } finally {
+    isUploadingCover.value = false;
+  }
+}
+
 async function handleAddSubpage(): Promise<void> {
   if (!store.activePage) return;
-  const newSub = await store.createPage({
-    title: 'Sem título',
-    parentId: store.activePage.id,
-    contentMarkdown: '',
-    tags: [],
-    icon: '📄',
+  const parentId = store.activePage.id;
+  const newSub = await store.createPage(
+    {
+      title: 'Nova Nota',
+      parentId,
+      contentMarkdown: '',
+      tags: [],
+      icon: '',
+    },
+    { select: false },
+  );
+
+  const inserted = mindEditorRef.value?.insertSubpageBlock({
+    pageId: newSub.id,
+    title: newSub.title,
+    icon: newSub.icon || '',
+    href: `#/page/${newSub.id}`,
   });
-  store.selectPage(newSub.id);
+
+  if (!inserted) {
+    store.selectPage(newSub.id);
+  }
 }
 
 async function handleCreateRootPage(): Promise<void> {
   store.activeSurface = 'editor';
   const newPage = await store.createPage({
-    title: 'Sem título',
-    icon: '📄',
+    title: 'Nova Nota',
+    icon: '',
     parentId: null,
     contentMarkdown: '',
     tags: [],
@@ -308,51 +411,8 @@ async function handleCreateRootPage(): Promise<void> {
 </script>
 
 <style scoped>
-.mind-subpages-section {
-  margin-top: 36px;
-  padding-top: 20px;
-  border-top: 1px solid var(--mind-border-subtle);
-}
-
-.subpages-section-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 12px;
-}
-
-.subpages-section-title {
-  font-size: 12px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--mind-text-muted);
-}
-
-.subpage-add-action-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  background: transparent;
-  border: none;
-  font-size: 12.5px;
-  font-weight: 500;
-  color: var(--mind-text-muted);
-  cursor: pointer;
-  padding: 4px 8px;
-  border-radius: 4px;
-  transition: all 0.15s ease;
-}
-
-.subpage-add-action-btn:hover {
-  background: var(--mind-bg-hover);
-  color: var(--mind-text-primary);
-}
-
-.subpages-grid {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
+.editor-container--with-cover {
+  padding-top: 16px;
 }
 
 .mind-workspace-page {
@@ -376,6 +436,18 @@ async function handleCreateRootPage(): Promise<void> {
   margin-bottom: 10px;
   transition: background-color 0.12s ease;
   user-select: none;
+}
+
+.page-header-icon-box.is-overlapping-cover {
+  position: relative;
+  z-index: 2;
+  margin-top: -42px;
+  width: 64px;
+  height: 64px;
+  background: var(--mind-bg-canvas, #ffffff);
+  border: 3px solid var(--mind-bg-canvas, #ffffff);
+  border-radius: 12px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.06);
 }
 
 .page-header-icon-box:hover {
@@ -424,5 +496,49 @@ async function handleCreateRootPage(): Promise<void> {
   padding: 0 0 28px;
   max-width: none;
   margin: 0;
+}
+
+.mind-bottom-toast {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 2600;
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 16px;
+  border-radius: 8px;
+  background: rgba(33, 37, 41, 0.94);
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 500;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+}
+
+.toast-action-btn {
+  border: none;
+  background: transparent;
+  color: #adb5bd;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0;
+  transition: color 0.12s ease;
+}
+
+.toast-action-btn:hover {
+  color: #ffffff;
+}
+
+.mind-toast-fade-enter-active,
+.mind-toast-fade-leave-active {
+  transition: opacity 0.18s ease, transform 0.18s ease;
+}
+
+.mind-toast-fade-enter-from,
+.mind-toast-fade-leave-to {
+  opacity: 0;
+  transform: translate(-50%, 8px);
 }
 </style>

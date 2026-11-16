@@ -37,7 +37,7 @@ export function useEditorFrontmatter(options: UseEditorFrontmatterOptions) {
     return localShowProperties.value || hasFrontmatterProperties(options.frontmatter());
   });
 
-  async function openProperties(focusAdd = true): Promise<void> {
+  async function openProperties(focusAdd = false): Promise<void> {
     if (!options.enableFrontmatterHeader() || options.readOnly()) return;
     frontmatterInitialCollapsed.value = false;
     localShowProperties.value = true;

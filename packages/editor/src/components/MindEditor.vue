@@ -5,7 +5,6 @@ import type { NodeViewProps } from '@tiptap/core';
 import StarterKit from '@tiptap/starter-kit';
 import TaskList from '@tiptap/extension-task-list';
 import TaskItem from '@tiptap/extension-task-item';
-import Table from '@tiptap/extension-table';
 import TableRow from '@tiptap/extension-table-row';
 import TableHeader from '@tiptap/extension-table-header';
 import TableCell from '@tiptap/extension-table-cell';
@@ -23,11 +22,13 @@ import {
 import FrontmatterHeader from './FrontmatterHeader.vue';
 import NoteTitleBar from './NoteTitleBar.vue';
 import BlockGutter from './BlockGutter.vue';
+import TableControlsOverlay from './table/TableControlsOverlay.vue';
 import SlashMenu from './SlashMenu.vue';
 import PageMentionPopover from './PageMentionPopover.vue';
 import BubbleFormattingMenu from './BubbleFormattingMenu.vue';
 import MermaidBlockView from './MermaidBlockView.vue';
 import CalloutBlockView from './CalloutBlockView.vue';
+import SubpageBlockView from './SubpageBlockView.vue';
 
 import { useEditorFrontmatter } from '../composables/useEditorFrontmatter.js';
 import { useBlockGutterCoordinator } from '../composables/useBlockGutterCoordinator.js';
@@ -41,11 +42,13 @@ import {
   setBlockSelection,
 } from '../extensions/block-selection.js';
 import { BlockColor, normalizeContainerBlockColors } from '../extensions/block-color.js';
+import { MindTable } from '../extensions/table-operations.js';
 import { SlashCommand, executeSlashItem } from '../extensions/slash-command.js';
 import { createDefaultSlashItems } from '../extensions/slash-items.js';
 import { PageMention } from '../extensions/page-mention.js';
 import { MermaidNode } from '../extensions/mermaid-node.js';
 import { CalloutNode } from '../extensions/callout-node.js';
+import { SubpageBlockNode, type SubpageBlockAttrs } from '../extensions/subpage-block-node.js';
 import { MarkdownShortcuts } from '../extensions/markdown-shortcuts.js';
 
 const props = withDefaults(defineProps<MindEditorProps>(), {
@@ -133,6 +136,12 @@ const CalloutConfigured = CalloutNode.extend({
   },
 });
 
+const SubpageBlockConfigured = SubpageBlockNode.extend({
+  addNodeView() {
+    return VueNodeViewRenderer(SubpageBlockView as unknown as Component<NodeViewProps>);
+  },
+});
+
 // Track internal edits to prevent resetting selection while typing
 let isInternalUpdate = false;
 const isMarqueeLockActive = ref(false);
@@ -156,7 +165,7 @@ const editor = useEditor({
       nested: true,
       HTMLAttributes: { 'data-type': 'taskItem' },
     }),
-    Table.configure({ resizable: true }),
+    MindTable,
     TableRow,
     TableHeader,
     TableCell,
@@ -223,6 +232,10 @@ const editor = useEditor({
     }),
     MermaidConfigured,
     CalloutConfigured,
+    SubpageBlockConfigured.configure({
+      getPages: () => props.pages,
+      onNavigate: (pageId) => emit('selectPage', pageId),
+    }),
     BlockColor,
     MarkdownShortcuts.configure({
       shouldTriggerFrontmatter: () =>
@@ -265,6 +278,8 @@ const gutterCoordinator = useBlockGutterCoordinator({
 
 const {
   gutterState,
+  gutterTableMeta,
+  tableMenuHighlightPos,
   isGutterHovered,
   activeGutterSelectedCount,
   resetGutterState,
@@ -273,6 +288,7 @@ const {
   handleAddBlockBelow,
   handleGutterAction,
   handleGutterSetColor,
+  handleGutterTableAction,
   handleGutterTurnInto,
 } = gutterCoordinator;
 
@@ -412,9 +428,20 @@ onBeforeUnmount(() => {
   editor.value?.destroy();
 });
 
+function insertSubpageBlock(attrs: Partial<SubpageBlockAttrs>): boolean {
+  if (!editor.value) return false;
+  return editor.value.chain().focus().insertSubpageBlock(attrs).run();
+}
+
+function focus(): void {
+  editor.value?.commands.focus('start');
+}
+
 defineExpose({
   openProperties,
   handleRootMouseDown,
+  insertSubpageBlock,
+  focus,
 });
 </script>
 
@@ -437,7 +464,19 @@ defineExpose({
       :style="marqueeRectStyle"
     />
 
-    <!-- 1. Obsidian-style Frontmatter Properties Header -->
+    <!-- 1. Separate Note Title Header (Cover + Icon + H1 Title, outside ProseMirror block canvas) -->
+    <slot name="title">
+      <NoteTitleBar
+        v-if="showTitle"
+        :model-value="title ?? frontmatter?.title ?? ''"
+        :placeholder="titlePlaceholder"
+        :read-only="readOnly"
+        @update:model-value="handleTitleUpdate"
+        @focus-editor="focusEditorStart"
+      />
+    </slot>
+
+    <!-- 2. Obsidian-style Frontmatter Properties (cleanly positioned below Title, above Canvas) -->
     <FrontmatterHeader
       v-if="isFrontmatterVisible"
       ref="frontmatterHeaderRef"
@@ -449,18 +488,6 @@ defineExpose({
       @remove-properties="handleRemoveProperties"
       @escape-to-editor="focusEditorStart"
     />
-
-    <!-- 2. Separate Note Title Header (below Properties, outside ProseMirror block canvas) -->
-    <slot name="title">
-      <NoteTitleBar
-        v-if="showTitle"
-        :model-value="title ?? frontmatter?.title ?? ''"
-        :placeholder="titlePlaceholder"
-        :read-only="readOnly"
-        @update:model-value="handleTitleUpdate"
-        @focus-editor="focusEditorStart"
-      />
-    </slot>
 
     <!-- Editor Canvas Surface -->
     <div
@@ -474,17 +501,29 @@ defineExpose({
         v-if="editor && !readOnly"
         :visible="gutterState.visible && !isMarqueeLockActive"
         :top="gutterState.top"
+        :node-pos="gutterState.nodePos"
         :node-type="gutterState.nodeType"
         :node-text-color="gutterState.textColor"
         :node-bg-color="gutterState.bgColor"
         :basic-blocks-only="basicBlocksOnly"
         :selected-count="activeGutterSelectedCount"
+        :table-header-row="gutterTableMeta?.headerRow ?? false"
+        :table-header-column="gutterTableMeta?.headerColumn ?? false"
+        :table-full-width="gutterTableMeta?.fullWidth ?? true"
         @add-block="handleAddBlockBelow"
         @action="handleGutterAction"
         @turn-into="handleGutterTurnInto"
         @set-color="handleGutterSetColor"
+        @table-action="handleGutterTableAction"
         @hover="handleGutterHover"
         @menu-toggle="handleGutterMenuToggle"
+      />
+
+      <TableControlsOverlay
+        v-if="editor && !readOnly"
+        :editor="editor"
+        :read-only="readOnly"
+        :menu-highlighted-table-pos="tableMenuHighlightPos"
       />
 
       <BubbleFormattingMenu

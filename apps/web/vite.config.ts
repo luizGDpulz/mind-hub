@@ -40,7 +40,12 @@ export default defineConfig({
     pnpmVirtualStoreResolver(),
   ],
   server: {
+    host: '0.0.0.0',
     port: 9000,
+    allowedHosts: true,
+    hmr: {
+      clientPort: 443,
+    },
     fs: {
       allow: [workspaceRoot],
     },

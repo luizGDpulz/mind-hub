@@ -15,12 +15,21 @@
     :style="parsedLucide.colorHex ? { color: parsedLucide.colorHex } : undefined"
     data-testid="mind-page-lucide-icon"
   />
-  <FileText
-    v-else-if="!icon || icon === '📄'"
+  <File
+    v-else-if="isDefaultIcon && !hasContent"
     :size="size"
     :stroke-width="strokeWidth"
     class="mind-page-icon-default"
     data-testid="mind-page-default-icon"
+    data-icon-variant="blank"
+  />
+  <FileText
+    v-else-if="isDefaultIcon"
+    :size="size"
+    :stroke-width="strokeWidth"
+    class="mind-page-icon-default"
+    data-testid="mind-page-default-icon"
+    data-icon-variant="filled"
   />
   <span v-else class="mind-page-icon-emoji" :style="{ fontSize: `${emojiSize}px` }">
     {{ icon }}
@@ -29,23 +38,28 @@
 
 <script setup lang="ts">
 import { computed } from 'vue';
-import { FileText } from 'lucide-vue-next';
+import { File, FileText } from 'lucide-vue-next';
 import { parseLucideIconValue } from '@mind-hub/editor';
 import { isImageUrl } from '../../utils/media.js';
 
 const props = withDefaults(
   defineProps<{
     icon?: string | null;
+    hasContent?: boolean;
     size?: number;
     strokeWidth?: number;
   }>(),
   {
     icon: '',
+    hasContent: true,
     size: 16,
     strokeWidth: 1.75,
   },
 );
 
+const isDefaultIcon = computed(
+  () => !props.icon || props.icon === '📄' || props.icon === '📑' || props.icon === '📁',
+);
 const parsedLucide = computed(() => parseLucideIconValue(props.icon));
 const emojiSize = computed(() => Math.max(13, Math.round(props.size * 0.92)));
 const imgStyle = computed(() => ({
@@ -63,7 +77,7 @@ const imgStyle = computed(() => ({
 }
 
 .mind-page-icon-lucide {
-  color: var(--mind-text-secondary, #495057);
+  color: var(--mind-text-muted, #868e96);
   flex-shrink: 0;
   display: inline-block;
 }

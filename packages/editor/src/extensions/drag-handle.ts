@@ -811,7 +811,7 @@ export const GlobalDragHandle = Extension.create<DragHandleOptions>({
       // Hide when cursor moves over obstructing UI chrome above/outside the prose surface
       if (
         eventTarget?.closest(
-          '[role="dialog"], header, aside, .mind-frontmatter-header, .mind-frontmatter-shell, .mind-note-title-bar, [data-testid="slash-menu-shell"], [data-testid="page-mention-suggest-popover"], [data-testid="bubble-formatting-menu"]'
+          '[role="dialog"], header, aside, .mind-frontmatter-header, .mind-frontmatter-shell, .mind-note-title-bar, .table-axis-popover, [data-testid="slash-menu-shell"], [data-testid="page-mention-suggest-popover"], [data-testid="bubble-formatting-menu"]'
         )
       ) {
         hideHandle();
@@ -874,11 +874,48 @@ export const GlobalDragHandle = Extension.create<DragHandleOptions>({
       new Plugin({
         key: GlobalDragHandleKey,
         view: (editorView) => {
-          let isGutterPointerDown = false;
+          let pendingPointerDrag: {
+            startX: number;
+            startY: number;
+            dragPositions: number[];
+            active: boolean;
+          } | null = null;
+
+          const parseGripNodePos = (gripBtn: Element): number | null => {
+            const attr = gripBtn.getAttribute('data-node-pos');
+            if (attr === null || attr === '') return null;
+            const parsed = Number(attr);
+            return Number.isInteger(parsed) && parsed >= 0 ? parsed : null;
+          };
+
+          const resolveDragPositionsForGrip = (gripBtn: Element): number[] | null => {
+            if (!editorView.dom.isConnected) return null;
+            const fallbackPos = parseGripNodePos(gripBtn);
+            const basePos = hoveredNodePos ?? fallbackPos;
+            if (
+              basePos === null ||
+              basePos < 0 ||
+              basePos >= editorView.state.doc.content.size
+            ) {
+              return null;
+            }
+            let node: PmNode | null;
+            try {
+              node = editorView.state.doc.nodeAt(basePos);
+            } catch {
+              return null;
+            }
+            if (!node) return null;
+
+            const selected = this.options.getSelectedPositions?.() ?? [];
+            return selected.length > 1 && selected.includes(basePos)
+              ? [...selected].sort((a, b) => a - b)
+              : [basePos];
+          };
 
           const resetDragState = () => {
-            isGutterPointerDown = false;
             activeDragSourcePositions = [];
+            pendingPointerDrag = null;
             cleanupDragPreview();
             editorView.dom.classList.remove('is-dragging-block');
             editorView.dragging = null;
@@ -886,17 +923,27 @@ export const GlobalDragHandle = Extension.create<DragHandleOptions>({
           };
 
           const onWindowMouseDown = (event: MouseEvent) => {
-            if (event.button !== 0) return;
+            if (event.button !== 0 || !editorView.editable) return;
             const targetEl = event.target instanceof Element ? event.target : null;
-            const gutterEl = targetEl?.closest('.mind-block-gutter-shell');
-            const editorRoot = editorView.dom.closest('.mind-editor-root');
-            if (gutterEl && (!editorRoot || editorRoot.contains(gutterEl))) {
-              isGutterPointerDown = true;
-            }
-          };
+            const gripBtn = targetEl?.closest('.gutter-grip-btn');
+            if (!gripBtn) return;
 
-          const onWindowMouseUp = () => {
-            isGutterPointerDown = false;
+            const containerScope =
+              editorView.dom.closest('.mind-editor-root') ||
+              editorView.dom.closest('.mind-editor-canvas-container') ||
+              editorView.dom.parentElement;
+            if (!containerScope || !containerScope.contains(gripBtn)) return;
+
+            const dragPositions = resolveDragPositionsForGrip(gripBtn);
+            if (!dragPositions || dragPositions.length === 0) return;
+
+            hoveredNodePos = dragPositions[0]!;
+            pendingPointerDrag = {
+              startX: event.clientX,
+              startY: event.clientY,
+              dragPositions,
+              active: false,
+            };
           };
 
           // Attach to window/document instead of view.dom.parentElement because
@@ -904,18 +951,54 @@ export const GlobalDragHandle = Extension.create<DragHandleOptions>({
           // before <EditorContent> reparents .ProseMirror into the DOM.
           const onWindowMouseMove = (event: MouseEvent) => {
             const editorRoot = editorView.dom.closest('.mind-editor-root');
-            if (editorRoot?.classList.contains('is-marquee-selecting')) {
-              isGutterPointerDown = false;
-              hoveredNodePos = null;
-              hideHandle();
+
+            // Pointer-drag fallback when HTML5 dragstart is suppressed on <button>
+            if (pendingPointerDrag && (event.buttons & 1) === 1) {
+              const dist = Math.hypot(
+                event.clientX - pendingPointerDrag.startX,
+                event.clientY - pendingPointerDrag.startY
+              );
+              if (!pendingPointerDrag.active && dist >= 5) {
+                pendingPointerDrag.active = true;
+                activeDragSourcePositions = pendingPointerDrag.dragPositions;
+                editorView.dom.classList.add('is-dragging-block');
+                syncDragVisual(editorView, activeDragSourcePositions, null);
+              }
+              if (pendingPointerDrag.active) {
+                const shell = (editorView.dom.closest('.mind-editor-canvas-container') ||
+                  editorView.dom.parentElement) as HTMLElement | null;
+                const resolved = resolveDropTarget(
+                  editorView,
+                  event.clientX,
+                  event.clientY,
+                  shell
+                );
+                if (!resolved) {
+                  clearDropIndicator(editorView);
+                } else {
+                  activeDropTarget = resolved;
+                  syncDragVisual(editorView, activeDragSourcePositions, {
+                    pos: resolved.targetPos,
+                    placement: resolved.placement,
+                  });
+                  this.options.onDropIndicatorChange?.({
+                    visible: true,
+                    top: resolved.lineTop,
+                  });
+                }
+              }
               return;
             }
+
+            if (activeDragSourcePositions.length > 0) {
+              return;
+            }
+
             const targetEl = event.target instanceof Element ? event.target : null;
-            const isGutterOrActiveDrag =
-              activeDragSourcePositions.length > 0 ||
-              isGutterPointerDown ||
-              Boolean(targetEl?.closest('.mind-block-gutter-shell, .block-actions-popover'));
-            if (event.buttons !== 0 && !isGutterOrActiveDrag) {
+            if (event.buttons !== 0 || editorRoot?.classList.contains('is-marquee-selecting')) {
+              if (targetEl?.closest('.mind-block-gutter-shell, .gutter-grip-btn')) {
+                return;
+              }
               hoveredNodePos = null;
               hideHandle();
               return;
@@ -930,14 +1013,44 @@ export const GlobalDragHandle = Extension.create<DragHandleOptions>({
             suppressedByTyping = false;
             lastMouseX = event.clientX;
             lastMouseY = event.clientY;
-            if (isGutterOrActiveDrag) {
-              return;
-            }
             updateHandleFromPoint(editorView, event.clientX, event.clientY, targetEl);
           };
 
-          const onDocumentMouseLeave = () => {
+          const onWindowMouseUp = (event: MouseEvent) => {
+            if (!pendingPointerDrag) return;
+            const wasActivePointerDrag = pendingPointerDrag.active;
+            pendingPointerDrag = null;
+            if (!wasActivePointerDrag || activeDragSourcePositions.length === 0) {
+              return;
+            }
+
+            const shell = (editorView.dom.closest('.mind-editor-canvas-container') ||
+              editorView.dom.parentElement) as HTMLElement | null;
+            const resolved =
+              resolveDropTarget(editorView, event.clientX, event.clientY, shell) ??
+              activeDropTarget;
+
+            if (resolved) {
+              const isGroupMove = activeDragSourcePositions.length > 1;
+              const result = moveBlocksWithResult(
+                editorView,
+                activeDragSourcePositions,
+                resolved.targetPos,
+                resolved.placement
+              );
+              if (result.moved && isGroupMove && this.options.onGroupMoved) {
+                this.options.onGroupMoved(result.newPositions);
+              }
+            }
+
+            resetDragState();
             hideHandle();
+          };
+
+          const onDocumentMouseLeave = () => {
+            if (activeDragSourcePositions.length === 0 && !pendingPointerDrag) {
+              hideHandle();
+            }
           };
 
           const onWindowDragStart = (event: DragEvent) => {
@@ -945,18 +1058,20 @@ export const GlobalDragHandle = Extension.create<DragHandleOptions>({
             const gripBtn = targetEl?.closest('.gutter-grip-btn');
             if (!gripBtn || !event.dataTransfer) return;
 
-            const editorRoot = editorView.dom.closest('.mind-editor-root');
-            if (editorRoot && !editorRoot.contains(gripBtn)) return;
-            if (hoveredNodePos === null) return;
+            const containerScope =
+              editorView.dom.closest('.mind-editor-root') ||
+              editorView.dom.closest('.mind-editor-canvas-container') ||
+              editorView.dom.parentElement;
+            if (!containerScope || !containerScope.contains(gripBtn)) return;
 
+            const dragPositions = resolveDragPositionsForGrip(gripBtn);
+            if (!dragPositions || dragPositions.length === 0) return;
+
+            // Native HTML5 drag started — cancel pointer-drag fallback so they don't conflict
+            pendingPointerDrag = null;
+            hoveredNodePos = dragPositions[0]!;
             const node = editorView.state.doc.nodeAt(hoveredNodePos);
             if (!node) return;
-
-            const selected = this.options.getSelectedPositions?.() ?? [];
-            const dragPositions =
-              selected.length > 1 && selected.includes(hoveredNodePos)
-                ? [...selected].sort((a, b) => a - b)
-                : [hoveredNodePos];
 
             activeDragSourcePositions = dragPositions;
             syncDragVisual(editorView, dragPositions, null);
@@ -983,7 +1098,7 @@ export const GlobalDragHandle = Extension.create<DragHandleOptions>({
                 preview.style.borderRadius = '6px';
                 preview.style.fontSize = '12.5px';
                 preview.style.fontWeight = '500';
-                preview.style.color = '#111827';
+                preview.style.color = '#212529';
                 preview.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.08)';
                 document.body.appendChild(preview);
                 groupDragPreviewEl = preview;
@@ -1075,8 +1190,8 @@ export const GlobalDragHandle = Extension.create<DragHandleOptions>({
           };
 
           window.addEventListener('mousedown', onWindowMouseDown);
-          window.addEventListener('mouseup', onWindowMouseUp);
           window.addEventListener('mousemove', onWindowMouseMove);
+          window.addEventListener('mouseup', onWindowMouseUp);
           document.addEventListener('mouseleave', onDocumentMouseLeave);
           window.addEventListener('dragstart', onWindowDragStart);
           window.addEventListener('dragover', onWindowDragOver);
@@ -1086,8 +1201,8 @@ export const GlobalDragHandle = Extension.create<DragHandleOptions>({
           return {
             destroy: () => {
               window.removeEventListener('mousedown', onWindowMouseDown);
-              window.removeEventListener('mouseup', onWindowMouseUp);
               window.removeEventListener('mousemove', onWindowMouseMove);
+              window.removeEventListener('mouseup', onWindowMouseUp);
               document.removeEventListener('mouseleave', onDocumentMouseLeave);
               window.removeEventListener('dragstart', onWindowDragStart);
               window.removeEventListener('dragover', onWindowDragOver);

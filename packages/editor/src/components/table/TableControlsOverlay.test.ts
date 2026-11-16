@@ -199,7 +199,7 @@ describe('TableControlsOverlay & MindEditor table UX', () => {
     );
     await nextTick();
 
-    const colHandle = wrapper.find('[data-testid="table-col-handle"]');
+    const colHandle = wrapper.find('[data-testid="table-col-handle"][data-axis-index="1"]');
     expect(colHandle.exists()).toBe(true);
 
     // Click handle -> blue handle + blue column selection + context menu without Coluna do cabeçalho (since index 1)
@@ -270,7 +270,7 @@ describe('TableControlsOverlay & MindEditor table UX', () => {
     );
     await nextTick();
 
-    const handle0 = wrapper.find('[data-testid="table-col-handle"]').element;
+    const handle0 = wrapper.find('[data-testid="table-col-handle"][data-axis-index="0"]').element;
     handle0.dispatchEvent(
       new MouseEvent('mousedown', { clientX: 300, clientY: 112, button: 0, bubbles: true })
     );
@@ -424,7 +424,7 @@ describe('TableControlsOverlay & MindEditor table UX', () => {
     const pinnedColLeft = wrapper.find('[data-testid="table-col-handle"]').attributes('style');
     const pinnedRowTop = wrapper.find('[data-testid="table-row-handle"]').attributes('style');
 
-    // Hover a different cell (row 1, col 2) -> handles move reactively and + bars appear
+    // Hover a different cell (row 1, col 2) -> pinned (0,0) handles stay fixed AND hover handles appear on (1,2)
     const cells = Array.from(table.querySelectorAll('td'));
     cells[5]!.dispatchEvent(
       new MouseEvent('mousemove', { clientX: 720, clientY: 180, bubbles: true })
@@ -433,11 +433,15 @@ describe('TableControlsOverlay & MindEditor table UX', () => {
 
     expect(wrapper.find('[data-testid="table-add-row-bar"]').exists()).toBe(true);
     expect(wrapper.find('[data-testid="table-add-col-bar"]').exists()).toBe(true);
-    expect(wrapper.find('[data-testid="table-col-handle"]').attributes('style')).not.toBe(pinnedColLeft);
-    expect(wrapper.find('[data-testid="table-row-handle"]').attributes('style')).not.toBe(pinnedRowTop);
+    const colHandles = wrapper.findAll('[data-testid="table-col-handle"]');
+    const rowHandles = wrapper.findAll('[data-testid="table-row-handle"]');
+    expect(colHandles.map((h) => h.attributes('data-axis-index'))).toEqual(['0', '2']);
+    expect(rowHandles.map((h) => h.attributes('data-axis-index'))).toEqual(['0', '1']);
+    expect(colHandles[0]!.attributes('style')).toBe(pinnedColLeft);
+    expect(rowHandles[0]!.attributes('style')).toBe(pinnedRowTop);
 
-    // Click handle -> popover opens and axis box replaces single focused-cell box
-    await wrapper.find('[data-testid="table-col-handle"]').trigger('click');
+    // Click hovered col handle (index 2) -> popover opens and axis box replaces single focused-cell box
+    await colHandles[1]!.trigger('click');
     await nextTick();
     expect(wrapper.find('[data-testid="table-axis-popover"]').exists()).toBe(true);
     expect(wrapper.find('[data-testid="table-focused-cell-box"]').exists()).toBe(false);

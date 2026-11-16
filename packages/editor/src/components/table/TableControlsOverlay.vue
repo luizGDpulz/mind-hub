@@ -45,33 +45,37 @@
       }"
     />
 
-    <!-- Top Column Drag / Menu Handle (mini dash by default -> ::: on hover/select) -->
+    <!-- Top Column Drag / Menu Handles (mini dash by default -> ::: on hover/select) -->
     <button
-      v-if="colHandleStyle"
+      v-for="handle in colHandles"
+      :key="`col-handle-${handle.index}`"
       type="button"
       class="table-axis-handle table-col-handle"
-      :class="{ 'is-selected': isColHandleSelected }"
+      :class="{ 'is-selected': handle.isSelected }"
+      :data-axis-index="handle.index"
       aria-label="Ações da coluna"
       data-testid="table-col-handle"
-      :style="colHandleStyle"
-      @mousedown.stop.prevent="startReorderMouseDown('col', $event)"
-      @click.stop="handleAxisHandleClick('col')"
+      :style="handle.style"
+      @mousedown.stop.prevent="startReorderMouseDown('col', handle.index, $event)"
+      @click.stop="handleAxisHandleClick('col', handle.index)"
     >
       <span class="table-mini-dash table-mini-dash-col" aria-hidden="true" />
       <GripHorizontal :size="13" :stroke-width="2.2" class="table-handle-grip" />
     </button>
 
-    <!-- Left Row Drag / Menu Handle (mini dash by default -> ⠿ on hover/select) -->
+    <!-- Left Row Drag / Menu Handles (mini dash by default -> ⠿ on hover/select) -->
     <button
-      v-if="rowHandleStyle"
+      v-for="handle in rowHandles"
+      :key="`row-handle-${handle.index}`"
       type="button"
       class="table-axis-handle table-row-handle"
-      :class="{ 'is-selected': isRowHandleSelected }"
+      :class="{ 'is-selected': handle.isSelected }"
+      :data-axis-index="handle.index"
       aria-label="Ações da linha"
       data-testid="table-row-handle"
-      :style="rowHandleStyle"
-      @mousedown.stop.prevent="startReorderMouseDown('row', $event)"
-      @click.stop="handleAxisHandleClick('row')"
+      :style="handle.style"
+      @mousedown.stop.prevent="startReorderMouseDown('row', handle.index, $event)"
+      @click.stop="handleAxisHandleClick('row', handle.index)"
     >
       <span class="table-mini-dash table-mini-dash-row" aria-hidden="true" />
       <GripVertical :size="13" :stroke-width="2.2" class="table-handle-grip" />
@@ -315,38 +319,6 @@ const activeMeta = computed(() => {
   return getTableMetadata(props.editor, activeTablePos.value);
 });
 
-const displayRowIndex = computed<number | null>(() => {
-  if (selectedAxis.value?.axis === 'row') return selectedAxis.value.index;
-  if (hoveredRowIndex.value !== null) return hoveredRowIndex.value;
-  if (focusedCell.value && focusedCell.value.tablePos === activeTablePos.value) {
-    return focusedCell.value.rowIndex;
-  }
-  return null;
-});
-
-const displayColIndex = computed<number | null>(() => {
-  if (selectedAxis.value?.axis === 'col') return selectedAxis.value.index;
-  if (hoveredColIndex.value !== null) return hoveredColIndex.value;
-  if (focusedCell.value && focusedCell.value.tablePos === activeTablePos.value) {
-    return focusedCell.value.colIndex;
-  }
-  return null;
-});
-
-const isRowHandleSelected = computed(
-  () =>
-    selectedAxis.value !== null &&
-    selectedAxis.value.axis === 'row' &&
-    selectedAxis.value.index === displayRowIndex.value
-);
-
-const isColHandleSelected = computed(
-  () =>
-    selectedAxis.value !== null &&
-    selectedAxis.value.axis === 'col' &&
-    selectedAxis.value.index === displayColIndex.value
-);
-
 const activeAxisColors = computed(() => {
   void tableStateRevision.value;
   if (!props.editor || !selectedAxis.value) {
@@ -399,24 +371,65 @@ const focusedCellBoxStyle = computed(() => {
   };
 });
 
-const colHandleStyle = computed(() => {
-  if (!activeTableBox.value || displayColIndex.value === null) return null;
-  const col = colBoxes.value[displayColIndex.value];
-  if (!col) return null;
-  return {
-    top: `${activeTableBox.value.top - 8}px`,
-    left: `${col.left + col.width / 2 - 12}px`,
+function collectAxisHandleIndices(axis: 'row' | 'col'): number[] {
+  const tablePos = activeTablePos.value;
+  if (tablePos === null) return [];
+
+  const indices: number[] = [];
+  const pushUnique = (idx: number | null | undefined) => {
+    if (idx === null || idx === undefined || indices.includes(idx)) return;
+    indices.push(idx);
   };
+
+  if (selectedAxis.value && selectedAxis.value.tablePos === tablePos && selectedAxis.value.axis === axis) {
+    pushUnique(selectedAxis.value.index);
+  }
+  if (focusedCell.value && focusedCell.value.tablePos === tablePos) {
+    pushUnique(axis === 'row' ? focusedCell.value.rowIndex : focusedCell.value.colIndex);
+  }
+  if (hoveredTablePos.value === tablePos) {
+    pushUnique(axis === 'row' ? hoveredRowIndex.value : hoveredColIndex.value);
+  }
+
+  return indices;
+}
+
+const colHandles = computed(() => {
+  if (!activeTableBox.value) return [];
+  const tableBox = activeTableBox.value;
+  return collectAxisHandleIndices('col')
+    .map((index) => {
+      const col = colBoxes.value[index];
+      if (!col) return null;
+      return {
+        index,
+        isSelected: selectedAxis.value?.axis === 'col' && selectedAxis.value.index === index,
+        style: {
+          top: `${tableBox.top - 8}px`,
+          left: `${col.left + col.width / 2 - 12}px`,
+        },
+      };
+    })
+    .filter((item): item is NonNullable<typeof item> => item !== null);
 });
 
-const rowHandleStyle = computed(() => {
-  if (!activeTableBox.value || displayRowIndex.value === null) return null;
-  const row = rowBoxes.value[displayRowIndex.value];
-  if (!row) return null;
-  return {
-    top: `${row.top + row.height / 2 - 12}px`,
-    left: `${activeTableBox.value.left - 8}px`,
-  };
+const rowHandles = computed(() => {
+  if (!activeTableBox.value) return [];
+  const tableBox = activeTableBox.value;
+  return collectAxisHandleIndices('row')
+    .map((index) => {
+      const row = rowBoxes.value[index];
+      if (!row) return null;
+      return {
+        index,
+        isSelected: selectedAxis.value?.axis === 'row' && selectedAxis.value.index === index,
+        style: {
+          top: `${row.top + row.height / 2 - 12}px`,
+          left: `${tableBox.left - 8}px`,
+        },
+      };
+    })
+    .filter((item): item is NonNullable<typeof item> => item !== null);
 });
 
 const addRowBarStyle = computed(() => {
@@ -693,14 +706,13 @@ function closeAxisMenu(): void {
   }
 }
 
-function handleAxisHandleClick(axis: 'row' | 'col'): void {
+function handleAxisHandleClick(axis: 'row' | 'col', index: number): void {
   if (suppressNextHandleClick === axis) {
     suppressNextHandleClick = null;
     return;
   }
   const tablePos = activeTablePos.value;
-  const index = axis === 'row' ? displayRowIndex.value : displayColIndex.value;
-  if (tablePos === null || index === null) return;
+  if (tablePos === null) return;
 
   if (
     axisMenuOpen.value &&
@@ -837,10 +849,9 @@ function computeDropTargetForReorder(
   };
 }
 
-function startReorderMouseDown(axis: 'row' | 'col', event: MouseEvent): void {
+function startReorderMouseDown(axis: 'row' | 'col', index: number, event: MouseEvent): void {
   const tablePos = activeTablePos.value;
-  const index = axis === 'row' ? displayRowIndex.value : displayColIndex.value;
-  if (tablePos === null || index === null || event.button !== 0) return;
+  if (tablePos === null || event.button !== 0) return;
   measureTableGeometry(tablePos);
 
   reorderDrag.value = {

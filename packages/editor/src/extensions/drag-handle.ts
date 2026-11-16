@@ -811,7 +811,7 @@ export const GlobalDragHandle = Extension.create<DragHandleOptions>({
       // Hide when cursor moves over obstructing UI chrome above/outside the prose surface
       if (
         eventTarget?.closest(
-          '[role="dialog"], header, aside, .mind-frontmatter-header, .mind-frontmatter-shell, .mind-note-title-bar, [data-testid="slash-menu-shell"], [data-testid="page-mention-suggest-popover"], [data-testid="bubble-formatting-menu"]'
+          '[role="dialog"], header, aside, .mind-frontmatter-header, .mind-frontmatter-shell, .mind-note-title-bar, .table-axis-popover, [data-testid="slash-menu-shell"], [data-testid="page-mention-suggest-popover"], [data-testid="bubble-formatting-menu"]'
         )
       ) {
         hideHandle();

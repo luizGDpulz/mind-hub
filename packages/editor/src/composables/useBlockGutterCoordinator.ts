@@ -1,7 +1,8 @@
-import { computed, ref, type Ref } from 'vue';
+import { computed, ref, watch, type Ref } from 'vue';
 import type { Editor } from '@tiptap/core';
 import type { BlockColorUpdate } from '../types.js';
 import type { DragHandlePositionPayload } from '../extensions/drag-handle.js';
+import type { TableBlockActionType } from '../components/gutter/gutter-helpers.js';
 import {
   deleteBlocksAtPositions,
   duplicateBlocksAtPositions,
@@ -10,6 +11,14 @@ import {
   turnIntoBlocksAtPositions,
 } from '../extensions/block-selection.js';
 import { applyBlockColorAtPositions } from '../extensions/block-color.js';
+import {
+  getTableAllCellsColors,
+  getTableMetadata,
+  setTableAllCellsColor,
+  toggleTableFullWidth,
+  toggleTableHeaderColumn,
+  toggleTableHeaderRow,
+} from '../extensions/table-operations.js';
 
 export interface GutterState {
   visible: boolean;
@@ -39,6 +48,40 @@ export function useBlockGutterCoordinator(options: UseBlockGutterCoordinatorOpti
 
   const isGutterHovered = ref(false);
   const isGutterMenuOpen = ref(false);
+  const tableRevision = ref(0);
+
+  const bumpTableRevision = () => {
+    tableRevision.value += 1;
+  };
+
+  watch(
+    options.editor,
+    (nextEd, prevEd) => {
+      if (prevEd) {
+        prevEd.off('transaction', bumpTableRevision);
+      }
+      if (nextEd) {
+        nextEd.on('transaction', bumpTableRevision);
+      }
+    },
+    { immediate: true }
+  );
+
+  const gutterTableMeta = computed(() => {
+    void tableRevision.value;
+    const editor = options.editor.value;
+    if (!editor || gutterState.value.nodeType !== 'table') {
+      return null;
+    }
+    return getTableMetadata(editor, gutterState.value.nodePos);
+  });
+
+  const tableMenuHighlightPos = computed<number | null>(() => {
+    if (!isGutterMenuOpen.value || gutterState.value.nodeType !== 'table') {
+      return null;
+    }
+    return gutterState.value.nodePos;
+  });
 
   const activeGutterSelectedCount = computed(() =>
     options.selectedBlockPositions.value.includes(gutterState.value.nodePos)
@@ -70,13 +113,21 @@ export function useBlockGutterCoordinator(options: UseBlockGutterCoordinatorOpti
       }
       return;
     }
+    let resolvedTextColor = pos.textColor ?? null;
+    let resolvedBgColor = pos.bgColor ?? null;
+    if (pos.nodeType === 'table' && options.editor.value) {
+      const tableColors = getTableAllCellsColors(options.editor.value, pos.nodePos);
+      resolvedTextColor = tableColors.textColor;
+      resolvedBgColor = tableColors.bgColor;
+    }
+
     gutterState.value = {
       visible: true,
       top: pos.top,
       nodePos: pos.nodePos,
       nodeType: pos.nodeType,
-      textColor: pos.textColor ?? null,
-      bgColor: pos.bgColor ?? null,
+      textColor: resolvedTextColor,
+      bgColor: resolvedBgColor,
     };
   }
 
@@ -159,7 +210,10 @@ export function useBlockGutterCoordinator(options: UseBlockGutterCoordinatorOpti
     const editor = options.editor.value;
     if (!editor) return;
     const targets = resolveGutterTargetPositions();
-    const applied = applyBlockColorAtPositions(editor, targets, update);
+    const applied =
+      targets.length === 1 && gutterState.value.nodeType === 'table'
+        ? setTableAllCellsColor(editor, targets[0]!, update)
+        : applyBlockColorAtPositions(editor, targets, update);
     if (!applied) return;
 
     if (update.textColor !== undefined) {
@@ -172,6 +226,21 @@ export function useBlockGutterCoordinator(options: UseBlockGutterCoordinatorOpti
           ? null
           : update.backgroundColor;
     }
+  }
+
+  function handleGutterTableAction(action: TableBlockActionType): void {
+    const editor = options.editor.value;
+    if (!editor || gutterState.value.nodeType !== 'table') return;
+    const tablePos = gutterState.value.nodePos;
+
+    if (action === 'fitWidth') {
+      toggleTableFullWidth(editor, tablePos);
+    } else if (action === 'toggleHeaderRow') {
+      toggleTableHeaderRow(editor, tablePos);
+    } else if (action === 'toggleHeaderColumn') {
+      toggleTableHeaderColumn(editor, tablePos);
+    }
+    bumpTableRevision();
   }
 
   function handleGutterTurnInto(type: string): void {
@@ -199,6 +268,8 @@ export function useBlockGutterCoordinator(options: UseBlockGutterCoordinatorOpti
 
   return {
     gutterState,
+    gutterTableMeta,
+    tableMenuHighlightPos,
     isGutterHovered,
     isGutterMenuOpen,
     activeGutterSelectedCount,
@@ -210,6 +281,7 @@ export function useBlockGutterCoordinator(options: UseBlockGutterCoordinatorOpti
     handleAddBlockBelow,
     handleGutterAction,
     handleGutterSetColor,
+    handleGutterTableAction,
     handleGutterTurnInto,
   };
 }

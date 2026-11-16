@@ -64,10 +64,14 @@
       :selected-count="selectedCount"
       :last-used-text-color="lastUsedTextColor"
       :last-used-bg-color="lastUsedBgColor"
+      :table-header-row="tableHeaderRow"
+      :table-header-column="tableHeaderColumn"
+      :table-full-width="tableFullWidth"
       @close="closeMenu"
       @action="handleAction"
       @turn-into="handleTurnInto"
       @set-color="handleSetColor"
+      @table-action="handleTableAction"
     />
   </div>
 </template>
@@ -84,6 +88,7 @@ import {
   readStoredColor,
   writeStoredColor,
   type GutterActionType,
+  type TableBlockActionType,
 } from './gutter/gutter-helpers.js';
 
 withDefaults(
@@ -97,6 +102,9 @@ withDefaults(
     nodeBgColor?: string | null;
     basicBlocksOnly?: boolean;
     selectedCount?: number;
+    tableHeaderRow?: boolean;
+    tableHeaderColumn?: boolean;
+    tableFullWidth?: boolean;
   }>(),
   {
     visible: false,
@@ -108,6 +116,9 @@ withDefaults(
     nodeBgColor: null,
     basicBlocksOnly: false,
     selectedCount: 0,
+    tableHeaderRow: false,
+    tableHeaderColumn: false,
+    tableFullWidth: true,
   }
 );
 
@@ -118,6 +129,7 @@ const emit = defineEmits<{
   (e: 'action', action: GutterActionType): void;
   (e: 'turnInto', type: string): void;
   (e: 'setColor', payload: BlockColorUpdate): void;
+  (e: 'tableAction', action: TableBlockActionType): void;
   (e: 'hover', isHovered: boolean): void;
   (e: 'menuToggle', isOpen: boolean): void;
 }>();
@@ -188,6 +200,13 @@ function handleAction(action: GutterActionType) {
 function handleTurnInto(type: string) {
   closeMenu();
   emit('turnInto', type);
+}
+
+function handleTableAction(action: TableBlockActionType) {
+  if (action === 'fitWidth') {
+    closeMenu();
+  }
+  emit('tableAction', action);
 }
 
 function handleSetColor(payload: BlockColorUpdate) {

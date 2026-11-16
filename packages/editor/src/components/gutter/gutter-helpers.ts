@@ -16,6 +16,9 @@ import {
   Code,
   AlertCircle,
   GitFork,
+  ArrowLeftRight,
+  PanelTop,
+  PanelLeft,
 } from 'lucide-vue-next';
 import {
   BLOCK_COLOR_PALETTE,
@@ -27,6 +30,7 @@ export const LAST_TEXT_COLOR_STORAGE_KEY = 'mind-editor:last-text-color';
 export const LAST_BG_COLOR_STORAGE_KEY = 'mind-editor:last-bg-color';
 
 export type GutterActionType = 'moveUp' | 'moveDown' | 'duplicate' | 'delete';
+export type TableBlockActionType = 'fitWidth' | 'toggleHeaderRow' | 'toggleHeaderColumn';
 export type GutterSubmenuName = 'turnInto' | 'color' | null;
 export type ColorSubgroupName = 'text' | 'bg' | null;
 
@@ -38,7 +42,7 @@ export interface TurnIntoOption {
 
 export interface FilteredActionEntry {
   key: string;
-  kind: 'action' | 'turnInto' | 'textColor' | 'bgColor';
+  kind: 'action' | 'turnInto' | 'textColor' | 'bgColor' | 'tableAction' | 'tableToggle';
   label: string;
   searchTokens: string;
   testId: string;
@@ -48,6 +52,7 @@ export interface FilteredActionEntry {
   shortcut?: string;
   danger?: boolean;
   active?: boolean;
+  checked?: boolean;
   run: () => void;
 }
 
@@ -99,26 +104,70 @@ export function isGutterCurrentBlockType(nodeType: string, targetType: string): 
 
 /** Build searchable flat list of block menu actions, transforms, and color presets. */
 export function buildFilteredActionEntries(params: {
+  isTableBlock?: boolean;
+  tableHeaderRow?: boolean;
+  tableHeaderColumn?: boolean;
   visibleTurnIntoOptions: TurnIntoOption[];
   isCurrentBlockType: (type: string) => boolean;
   isTextColorActive: (id: BlockColorId) => boolean;
   isBgColorActive: (id: BlockColorId) => boolean;
   deleteActionLabel: string;
   onTurnInto: (type: string) => void;
+  onTableAction?: (action: TableBlockActionType) => void;
   onSetColor: (payload: BlockColorUpdate) => void;
   onAction: (action: GutterActionType) => void;
 }): FilteredActionEntry[] {
+  const tableEntries: FilteredActionEntry[] =
+    params.isTableBlock && params.onTableAction
+      ? [
+          {
+            key: 'table-fit-width',
+            kind: 'tableAction',
+            label: 'Ajustar à largura',
+            searchTokens: 'ajustar largura pagina tabela fit width',
+            testId: 'table-action-fit-width',
+            icon: ArrowLeftRight,
+            run: () => params.onTableAction!('fitWidth'),
+          },
+          {
+            key: 'table-header-row',
+            kind: 'tableToggle',
+            label: 'Linha do cabeçalho',
+            searchTokens: 'linha cabecalho header row tabela',
+            testId: 'table-toggle-header-row',
+            icon: PanelTop,
+            checked: Boolean(params.tableHeaderRow),
+            run: () => params.onTableAction!('toggleHeaderRow'),
+          },
+          {
+            key: 'table-header-col',
+            kind: 'tableToggle',
+            label: 'Coluna do cabeçalho',
+            searchTokens: 'coluna cabecalho header column tabela',
+            testId: 'table-toggle-header-col',
+            icon: PanelLeft,
+            checked: Boolean(params.tableHeaderColumn),
+            run: () => params.onTableAction!('toggleHeaderColumn'),
+          },
+        ]
+      : [];
+
+  const turnIntoEntries: FilteredActionEntry[] = params.isTableBlock
+    ? []
+    : params.visibleTurnIntoOptions.map((opt) => ({
+        key: `turn-${opt.type}`,
+        kind: 'turnInto' as const,
+        label: `Transformar em ${opt.label}`,
+        searchTokens: `transformar em ${opt.label} ${opt.type}`.toLowerCase(),
+        testId: `turn-into-${opt.type}`,
+        icon: opt.icon,
+        active: params.isCurrentBlockType(opt.type),
+        run: () => params.onTurnInto(opt.type),
+      }));
+
   return [
-    ...params.visibleTurnIntoOptions.map((opt) => ({
-      key: `turn-${opt.type}`,
-      kind: 'turnInto' as const,
-      label: `Transformar em ${opt.label}`,
-      searchTokens: `transformar em ${opt.label} ${opt.type}`.toLowerCase(),
-      testId: `turn-into-${opt.type}`,
-      icon: opt.icon,
-      active: params.isCurrentBlockType(opt.type),
-      run: () => params.onTurnInto(opt.type),
-    })),
+    ...tableEntries,
+    ...turnIntoEntries,
     ...BLOCK_COLOR_PALETTE.map((c) => ({
       key: `text-color-${c.id}`,
       kind: 'textColor' as const,

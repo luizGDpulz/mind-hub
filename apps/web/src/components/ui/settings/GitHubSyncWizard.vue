@@ -1,10 +1,10 @@
 <template>
   <div class="github-provider-shell" data-testid="github-sync-wizard">
-    <!-- Left Provider Rail (Notion GitHub Connection Style) -->
+    <!-- Left Provider Rail (Notion GitHub Modular Modes Style) -->
     <aside class="github-provider-sidebar">
       <div class="provider-brand-block">
         <div class="github-octocat-wrap" aria-hidden="true">
-          <svg viewBox="0 0 24 24" width="28" height="28" fill="currentColor">
+          <svg viewBox="0 0 24 24" width="26" height="26" fill="currentColor">
             <path
               d="M12 .5C5.65.5.5 5.65.5 12c0 5.08 3.29 9.39 7.86 10.91.57.11.78-.25.78-.55 0-.27-.01-1.17-.02-2.12-3.2.69-3.88-1.36-3.88-1.36-.52-1.33-1.28-1.68-1.28-1.68-1.04-.71.08-.7.08-.7 1.16.08 1.77 1.19 1.77 1.19 1.02 1.76 2.69 1.25 3.35.96.1-.74.4-1.25.73-1.54-2.55-.29-5.24-1.28-5.24-5.69 0-1.26.45-2.29 1.19-3.09-.12-.29-.52-1.46.11-3.05 0 0 .97-.31 3.18 1.18a11.05 11.05 0 0 1 5.79 0c2.21-1.49 3.18-1.18 3.18-1.18.63 1.59.23 2.76.11 3.05.74.8 1.19 1.83 1.19 3.09 0 4.42-2.7 5.4-5.26 5.68.41.35.78 1.05.78 2.13 0 1.54-.01 2.78-.01 3.16 0 .31.21.67.79.55A11.51 11.51 0 0 0 23.5 12C23.5 5.65 18.35.5 12 .5Z"
             />
@@ -13,13 +13,7 @@
         <div>
           <h5 class="github-provider-name">GitHub</h5>
           <p class="github-provider-state">
-            {{
-              status.configured
-                ? status.isPrivate
-                  ? 'Conectado ao repo privado'
-                  : 'Conectado ao repositório'
-                : 'Pronto para conectar'
-            }}
+            {{ status.configured ? 1 : 0 }} de {{ GITHUB_CONNECTION_MODES.length }} tipos conectados
           </p>
         </div>
       </div>
@@ -28,43 +22,25 @@
         {{ statusBadgeLabel }}
       </span>
 
-      <nav class="provider-capability-list" aria-label="Capacidades da sincronização GitHub">
+      <nav class="provider-capability-list" aria-label="Tipos de conexão GitHub">
         <button
+          v-for="mode in GITHUB_CONNECTION_MODES"
+          :key="mode.id"
           type="button"
           class="capability-item"
-          :class="{ 'is-active': activeCapability === 'okf' }"
-          @click="selectCapability('okf')"
+          :class="{ 'is-active': activeModeId === mode.id }"
+          :data-testid="`github-mode-tab-${mode.id}`"
+          @click="activeModeId = mode.id"
         >
-          <RefreshCw :size="15" class="capability-icon" />
-          <div class="capability-copy">
-            <span class="capability-title">Sincronização OKF</span>
-            <span class="capability-desc">Notas, subpáginas, propriedades e <code>./assets</code>.</span>
-          </div>
-        </button>
+          <RefreshCw v-if="mode.id === 'vault_okf'" :size="15" class="capability-icon" />
+          <GitPullRequest v-else-if="mode.id === 'dev_sync'" :size="15" class="capability-icon" />
+          <Sparkles v-else :size="15" class="capability-icon" />
 
-        <button
-          type="button"
-          class="capability-item"
-          :class="{ 'is-active': activeCapability === 'pat' }"
-          @click="selectCapability('pat')"
-        >
-          <KeyRound :size="15" class="capability-icon" />
           <div class="capability-copy">
-            <span class="capability-title">Chave Exclusiva (PAT)</span>
-            <span class="capability-desc">Guia Fine-Grained para 1 único repo privado.</span>
-          </div>
-        </button>
-
-        <button
-          type="button"
-          class="capability-item"
-          :class="{ 'is-active': activeCapability === 'audit' }"
-          @click="selectCapability('audit')"
-        >
-          <History :size="15" class="capability-icon" />
-          <div class="capability-copy">
-            <span class="capability-title">Auditoria &amp; log.md</span>
-            <span class="capability-desc">Rastreabilidade SHA-256 e proteção contra conflitos.</span>
+            <div class="capability-title-row">
+              <span class="capability-title">{{ mode.label }}</span>
+            </div>
+            <span class="capability-desc">{{ mode.subtitle }}</span>
           </div>
         </button>
       </nav>
@@ -72,562 +48,639 @@
 
     <!-- Right Provider Main Panel -->
     <div class="github-provider-main">
-      <!-- Free & Sovereign Banner -->
-      <div class="sovereign-banner">
-        <div class="sovereign-banner-icon" aria-hidden="true">
-          <ShieldCheck :size="16" />
-        </div>
-        <div class="sovereign-banner-copy">
-          <strong>Gratuito, Nativo &amp; Soberano (sem paywall)</strong>
-          <span>
-            Sincronize sua base em Markdown aberto (Google OKF v0.2) com Delta Sync SHA-256 em
-            repositórios privados do GitHub — recurso corporativo aqui 100% liberado.
-          </span>
-        </div>
-      </div>
-
-      <!-- Top Tabs -->
-      <div class="provider-tabs-bar" role="tablist">
-        <button
-          type="button"
-          role="tab"
-          class="provider-tab-btn"
-          :class="{ 'is-active': activePanelTab === 'overview' }"
-          :aria-selected="activePanelTab === 'overview'"
-          data-testid="github-tab-overview"
-          @click="activePanelTab = 'overview'"
-        >
-          Visão geral &amp; Configuração
-        </button>
-        <button
-          type="button"
-          role="tab"
-          class="provider-tab-btn"
-          :class="{ 'is-active': activePanelTab === 'syncs' }"
-          :aria-selected="activePanelTab === 'syncs'"
-          data-testid="github-tab-syncs"
-          @click="activePanelTab = 'syncs'"
-        >
-          Suas sincronizações ({{ status.configured ? 1 : 0 }})
-        </button>
-      </div>
-
-      <!-- TAB 1: OVERVIEW & WIZARD / CONNECTED PANEL -->
-      <div v-if="activePanelTab === 'overview'" class="provider-tab-content">
-        <!-- CONNECTED STATE -->
-        <div
-          v-if="status.configured && !isReconfiguring"
-          class="github-connected-panel"
-          data-testid="github-connected-panel"
-        >
-          <div class="connected-hero-row">
-            <div class="connected-repo-heading">
-              <Lock v-if="status.isPrivate" :size="15" class="repo-lock-icon" />
-              <GitBranch v-else :size="15" class="repo-branch-icon" />
-              <span class="connected-repo-name" data-testid="github-connected-repo">
-                {{ status.repository }}
-              </span>
-              <span v-if="status.isPrivate" class="mind-pill-blue">🔒 Privado</span>
+      <!-- MODE 1: VAULT OKF SYNC (Active & Configurable) -->
+      <template v-if="activeMode.id === 'vault_okf'">
+        <header class="mode-detail-header">
+          <div>
+            <div class="mode-title-line">
+              <h5 class="mode-detail-title">{{ activeMode.label }}</h5>
+              <span class="mind-pill-blue">Gratuito &bull; Token do Vault</span>
             </div>
-
-            <a
-              v-if="repoWebUrl"
-              :href="repoWebUrl"
-              target="_blank"
-              rel="noopener noreferrer"
-              class="external-token-link"
-            >
-              <span>Abrir no GitHub</span>
-              <ExternalLink :size="12" />
-            </a>
+            <p class="mode-detail-sub">
+              Escopo isolado: <code>{{ activeMode.tokenScopeSummary }}</code>
+            </p>
           </div>
+        </header>
 
-          <div class="connected-meta-grid">
-            <div class="connected-meta-item">
-              <span class="meta-label">Branch</span>
-              <code class="meta-code">{{ status.branch }}</code>
-            </div>
-            <div class="connected-meta-item">
-              <span class="meta-label">Alterações Pendentes</span>
-              <span class="meta-value" data-testid="github-pending-count">
-                {{
-                  status.pendingChangesCount > 0
-                    ? `${status.pendingChangesCount} pendente(s)`
-                    : 'Tudo sincronizado'
-                }}
-              </span>
-            </div>
-            <div class="connected-meta-item">
-              <span class="meta-label">Último Commit</span>
-              <code class="meta-code">
-                {{ status.lastCommitSha ? status.lastCommitSha.slice(0, 7) : '—' }}
-              </code>
-            </div>
-            <div class="connected-meta-item">
-              <span class="meta-label">Auto-Sync</span>
-              <span class="meta-value">
-                {{ status.autoSyncEnabled ? `Ativo (${status.debounceSeconds}s)` : 'Manual' }}
-              </span>
-            </div>
-          </div>
-
-          <div v-if="status.lastError" class="wizard-feedback is-error" data-testid="github-sync-error">
-            <AlertCircle :size="14" />
-            <span>{{ status.lastError }}</span>
-          </div>
-
-          <div class="connected-actions-row">
-            <button
-              type="button"
-              class="primary-blue-btn"
-              :disabled="busy"
-              data-testid="github-sync-now-btn"
-              @click="$emit('sync-now')"
-            >
-              <RefreshCw :size="14" :class="{ 'spin-icon': busy }" />
-              <span>{{ busy ? 'Sincronizando...' : 'Sincronizar Agora' }}</span>
-            </button>
-
-            <button
-              type="button"
-              class="secondary-ghost-btn"
-              :disabled="busy"
-              data-testid="github-reconfigure-btn"
-              @click="startReconfigure"
-            >
-              <span>Reconfigurar</span>
-            </button>
-
-            <button
-              type="button"
-              class="secondary-ghost-btn danger"
-              :disabled="busy"
-              data-testid="github-disconnect-btn"
-              @click="handleDisconnect"
-            >
-              <Unlink :size="14" />
-              <span>Desconectar</span>
-            </button>
-          </div>
-
-          <!-- Recent sync history -->
-          <div
-            v-if="status.history.length > 0"
-            class="sync-history-box"
-            data-testid="github-sync-history"
+        <!-- Top Tabs -->
+        <div class="provider-tabs-bar" role="tablist">
+          <button
+            type="button"
+            role="tab"
+            class="provider-tab-btn"
+            :class="{ 'is-active': activePanelTab === 'overview' }"
+            :aria-selected="activePanelTab === 'overview'"
+            data-testid="github-tab-overview"
+            @click="activePanelTab = 'overview'"
           >
-            <div class="history-title">Histórico Recente</div>
-            <ul class="history-list">
-              <li
-                v-for="entry in status.history.slice(0, 5)"
-                :key="entry.id"
-                class="history-row"
-              >
-                <span class="history-dir">{{ formatDirection(entry.direction) }}</span>
-                <span class="history-summary">{{ entry.summary }}</span>
-                <span class="history-time">{{ formatTimestamp(entry.timestamp) }}</span>
-              </li>
-            </ul>
-          </div>
+            Visão geral &amp; Configuração
+          </button>
+          <button
+            type="button"
+            role="tab"
+            class="provider-tab-btn"
+            :class="{ 'is-active': activePanelTab === 'syncs' }"
+            :aria-selected="activePanelTab === 'syncs'"
+            data-testid="github-tab-syncs"
+            @click="activePanelTab = 'syncs'"
+          >
+            Suas sincronizações ({{ status.configured ? 1 : 0 }})
+          </button>
         </div>
 
-        <!-- PLUG & PLAY 3-STEP WIZARD -->
-        <div v-else class="wizard-shell">
-          <!-- Illustration Card -->
-          <div class="okf-visual-banner" aria-hidden="true">
-            <div class="okf-node-chip">
-              <Lock :size="14" />
-              <span>GitHub Privado</span>
-            </div>
-            <div class="okf-sync-arrow">
-              <span class="arrow-dots" />
-              <span class="arrow-badge">OKF v0.2 &bull; SHA-256</span>
-              <span class="arrow-dots" />
-            </div>
-            <div class="okf-node-chip is-mind">
-              <FileText :size="14" />
-              <span>Mind Hub (<code>index.md</code> + <code>./assets</code>)</span>
-            </div>
-          </div>
+        <!-- TAB 1: OVERVIEW & WIZARD / CONNECTED PANEL -->
+        <div v-if="activePanelTab === 'overview'" class="provider-tab-content">
+          <!-- CONNECTED STATE -->
+          <div
+            v-if="status.configured && !isReconfiguring"
+            class="github-connected-panel"
+            data-testid="github-connected-panel"
+          >
+            <div class="connected-hero-row">
+              <div class="connected-repo-heading">
+                <Lock v-if="status.isPrivate" :size="15" class="repo-lock-icon" />
+                <GitBranch v-else :size="15" class="repo-branch-icon" />
+                <span class="connected-repo-name" data-testid="github-connected-repo">
+                  {{ status.repository }}
+                </span>
+                <span v-if="status.isPrivate" class="mind-pill-blue">🔒 Privado</span>
+              </div>
 
-          <div v-if="isReconfiguring" class="reconfigure-bar">
-            <span>Atualizando credenciais ou repositório de destino</span>
-            <button
-              type="button"
-              class="secondary-ghost-btn"
-              @click="isReconfiguring = false"
-            >
-              Cancelar
-            </button>
-          </div>
-
-          <div class="wizard-container" data-testid="github-wizard-stepper">
-            <div class="wizard-steps-bar">
-              <button
-                v-for="stepNum in [1, 2, 3] as const"
-                :key="stepNum"
-                type="button"
-                class="wizard-step-chip"
-                :class="{
-                  'is-current': currentStep === stepNum,
-                  'is-done': currentStep > stepNum,
-                }"
-                :data-testid="`wizard-step-tab-${stepNum}`"
-                @click="goToStep(stepNum)"
+              <a
+                v-if="repoWebUrl"
+                :href="repoWebUrl"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="external-token-link"
               >
-                <span class="step-index">{{ stepNum }}</span>
-                <span>{{ stepLabel(stepNum) }}</span>
+                <span>Abrir no GitHub</span>
+                <ExternalLink :size="12" />
+              </a>
+            </div>
+
+            <div class="connected-meta-grid">
+              <div class="connected-meta-item">
+                <span class="meta-label">Branch</span>
+                <code class="meta-code">{{ status.branch }}</code>
+              </div>
+              <div class="connected-meta-item">
+                <span class="meta-label">Alterações Pendentes</span>
+                <span class="meta-value" data-testid="github-pending-count">
+                  {{
+                    status.pendingChangesCount > 0
+                      ? `${status.pendingChangesCount} pendente(s)`
+                      : 'Tudo sincronizado'
+                  }}
+                </span>
+              </div>
+              <div class="connected-meta-item">
+                <span class="meta-label">Último Commit</span>
+                <code class="meta-code">
+                  {{ status.lastCommitSha ? status.lastCommitSha.slice(0, 7) : '—' }}
+                </code>
+              </div>
+              <div class="connected-meta-item">
+                <span class="meta-label">Auto-Sync</span>
+                <span class="meta-value">
+                  {{ status.autoSyncEnabled ? `Ativo (${status.debounceSeconds}s)` : 'Manual' }}
+                </span>
+              </div>
+            </div>
+
+            <div v-if="status.lastError" class="wizard-feedback is-error" data-testid="github-sync-error">
+              <AlertCircle :size="14" />
+              <span>{{ status.lastError }}</span>
+            </div>
+
+            <div class="connected-actions-row">
+              <button
+                type="button"
+                class="primary-blue-btn"
+                :disabled="busy"
+                data-testid="github-sync-now-btn"
+                @click="$emit('sync-now')"
+              >
+                <RefreshCw :size="14" :class="{ 'spin-icon': busy }" />
+                <span>{{ busy ? 'Sincronizando...' : 'Sincronizar Agora' }}</span>
+              </button>
+
+              <button
+                type="button"
+                class="secondary-ghost-btn"
+                :disabled="busy"
+                data-testid="github-reconfigure-btn"
+                @click="startReconfigure"
+              >
+                <span>Reconfigurar</span>
+              </button>
+
+              <button
+                type="button"
+                class="secondary-ghost-btn danger"
+                :disabled="busy"
+                data-testid="github-disconnect-btn"
+                @click="handleDisconnect"
+              >
+                <Unlink :size="14" />
+                <span>Desconectar</span>
               </button>
             </div>
 
-            <!-- Step 1: Token PAT (Fine-Grained Exclusive vs Classic) -->
-            <div v-if="currentStep === 1" class="wizard-step-body" data-testid="wizard-step-1">
-              <div class="token-mode-tabs" role="tablist" aria-label="Tipo de Token GitHub">
-                <button
-                  type="button"
-                  role="tab"
-                  class="token-mode-tab"
-                  :class="{ 'is-active': tokenGuideMode === 'fine-grained' }"
-                  :aria-selected="tokenGuideMode === 'fine-grained'"
-                  data-testid="token-mode-fine-grained"
-                  @click="tokenGuideMode = 'fine-grained'"
+            <!-- Recent sync history -->
+            <div
+              v-if="status.history.length > 0"
+              class="sync-history-box"
+              data-testid="github-sync-history"
+            >
+              <div class="history-title">Histórico Recente</div>
+              <ul class="history-list">
+                <li
+                  v-for="entry in status.history.slice(0, 5)"
+                  :key="entry.id"
+                  class="history-row"
                 >
-                  Token Exclusivo de 1 Repo (Recomendado)
-                </button>
+                  <span class="history-dir">{{ formatDirection(entry.direction) }}</span>
+                  <span class="history-summary">{{ entry.summary }}</span>
+                  <span class="history-time">{{ formatTimestamp(entry.timestamp) }}</span>
+                </li>
+              </ul>
+            </div>
+          </div>
+
+          <!-- PLUG & PLAY 3-STEP WIZARD -->
+          <div v-else class="wizard-shell">
+            <!-- Visual Diagram Card -->
+            <div class="okf-visual-banner" aria-hidden="true">
+              <div class="okf-node-chip">
+                <Lock :size="14" />
+                <span>GitHub Privado</span>
+              </div>
+              <div class="okf-sync-arrow">
+                <span class="arrow-dots" />
+                <span class="arrow-badge">OKF v0.2 &bull; SHA-256</span>
+                <span class="arrow-dots" />
+              </div>
+              <div class="okf-node-chip is-mind">
+                <FileText :size="14" />
+                <span>Mind Hub (<code>index.md</code> + <code>./assets</code>)</span>
+              </div>
+            </div>
+
+            <div v-if="isReconfiguring" class="reconfigure-bar">
+              <span>Atualizando credenciais ou repositório de destino</span>
+              <button
+                type="button"
+                class="secondary-ghost-btn"
+                @click="isReconfiguring = false"
+              >
+                Cancelar
+              </button>
+            </div>
+
+            <div class="wizard-container" data-testid="github-wizard-stepper">
+              <div class="wizard-steps-bar">
                 <button
+                  v-for="stepNum in [1, 2, 3] as const"
+                  :key="stepNum"
                   type="button"
-                  role="tab"
-                  class="token-mode-tab"
-                  :class="{ 'is-active': tokenGuideMode === 'classic' }"
-                  :aria-selected="tokenGuideMode === 'classic'"
-                  data-testid="token-mode-classic"
-                  @click="tokenGuideMode = 'classic'"
+                  class="wizard-step-chip"
+                  :class="{
+                    'is-current': currentStep === stepNum,
+                    'is-done': currentStep > stepNum,
+                  }"
+                  :data-testid="`wizard-step-tab-${stepNum}`"
+                  @click="goToStep(stepNum)"
                 >
-                  Token Clássico (escopo repo)
+                  <span class="step-index">{{ stepNum }}</span>
+                  <span>{{ stepLabel(stepNum) }}</span>
                 </button>
               </div>
 
-              <!-- Fine-Grained Guide -->
-              <div v-if="tokenGuideMode === 'fine-grained'" class="plug-play-helper is-column">
-                <div class="helper-header-row">
-                  <div class="helper-copy">
-                    <strong>Chave exclusiva para 1 único repositório privado</strong>
-                    <p>
-                      Menor privilégio possível: o token só enxerga o repositório selecionado.
-                    </p>
-                  </div>
-                  <a
-                    href="https://github.com/settings/personal-access-tokens/new"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    class="external-token-link"
-                    data-testid="github-create-fine-grained-token-link"
-                  >
-                    <span>Gerar Token Exclusivo no GitHub</span>
-                    <ExternalLink :size="13" />
-                  </a>
-                </div>
-                <ol class="token-guide-steps">
-                  <li>
-                    Em <strong>Repository access</strong>, marque
-                    <strong>Only select repositories</strong> e escolha o repositório privado (ex:
-                    <code>luizGDpulz/mind-hub-tests</code>).
-                  </li>
-                  <li>
-                    Em <strong>Permissions &rarr; Repository permissions</strong>, defina
-                    <strong>Contents</strong> como <strong>Read and write</strong>.
-                  </li>
-                  <li>
-                    Clique em <strong>Generate token</strong> e cole a chave
-                    <code>github_pat_...</code> abaixo.
-                  </li>
-                </ol>
-              </div>
-
-              <!-- Classic PAT Guide -->
-              <div v-else class="plug-play-helper is-column">
-                <div class="helper-header-row">
-                  <div class="helper-copy">
-                    <strong>Token Clássico (escopo <code>repo</code>)</strong>
-                    <p>
-                      Se você já gerou um Token Clássico marcando a caixa <code>repo</code> (Full
-                      control of private repositories), ele já funciona diretamente com repositórios
-                      privados.
-                    </p>
-                  </div>
-                  <a
-                    href="https://github.com/settings/tokens/new?scopes=repo&description=Mind%20Hub%20Sync"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    class="external-token-link"
-                    data-testid="github-create-token-link"
-                  >
-                    <span>Gerar Token Clássico (repo)</span>
-                    <ExternalLink :size="13" />
-                  </a>
-                </div>
-              </div>
-
-              <div>
-                <label class="wizard-field-label" for="github-pat-input">
-                  Token Pessoal (PAT)
-                </label>
-                <div class="token-input-wrap">
-                  <input
-                    id="github-pat-input"
-                    v-model="tokenInput"
-                    :type="showToken ? 'text' : 'password'"
-                    class="wizard-text-input"
-                    placeholder="github_pat_... ou ghp_..."
-                    autocomplete="off"
-                    data-testid="github-token-input"
-                  />
+              <!-- Step 1: Token PAT (Fine-Grained Exclusive vs Classic) -->
+              <div v-if="currentStep === 1" class="wizard-step-body" data-testid="wizard-step-1">
+                <div class="token-mode-tabs" role="tablist" aria-label="Tipo de Token GitHub">
                   <button
                     type="button"
-                    class="toggle-visibility-btn"
-                    :aria-label="showToken ? 'Ocultar token' : 'Mostrar token'"
-                    @click="showToken = !showToken"
+                    role="tab"
+                    class="token-mode-tab"
+                    :class="{ 'is-active': tokenGuideMode === 'fine-grained' }"
+                    :aria-selected="tokenGuideMode === 'fine-grained'"
+                    data-testid="token-mode-fine-grained"
+                    @click="tokenGuideMode = 'fine-grained'"
                   >
-                    {{ showToken ? 'Ocultar' : 'Mostrar' }}
+                    Token Exclusivo de 1 Repo (Recomendado)
+                  </button>
+                  <button
+                    type="button"
+                    role="tab"
+                    class="token-mode-tab"
+                    :class="{ 'is-active': tokenGuideMode === 'classic' }"
+                    :aria-selected="tokenGuideMode === 'classic'"
+                    data-testid="token-mode-classic"
+                    @click="tokenGuideMode = 'classic'"
+                  >
+                    Token Clássico (escopo repo)
+                  </button>
+                </div>
+
+                <!-- Fine-Grained Guide (Matches Current GitHub UI) -->
+                <div v-if="tokenGuideMode === 'fine-grained'" class="plug-play-helper is-column">
+                  <div class="helper-header-row">
+                    <div class="helper-copy">
+                      <strong>Chave exclusiva para o repositório do Vault</strong>
+                      <p>
+                        Isole o backup do seu Second Brain: esta chave acessa apenas 1 repositório e
+                        não mistura permissões com Issues/PRs de projetos.
+                      </p>
+                    </div>
+                    <a
+                      href="https://github.com/settings/personal-access-tokens/new"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      class="external-token-link"
+                      data-testid="github-create-fine-grained-token-link"
+                    >
+                      <span>Gerar Token Exclusivo no GitHub</span>
+                      <ExternalLink :size="13" />
+                    </a>
+                  </div>
+                  <ol class="token-guide-steps">
+                    <li>
+                      Em <strong>Repository access</strong>, marque
+                      <strong>Only select repositories</strong> e selecione apenas o repo privado do
+                      Vault (ex: <code>luizGDpulz/mind-hub-tests</code>).
+                    </li>
+                    <li>
+                      Na caixa <strong>Permissions</strong> (aba <strong>Repositories</strong>),
+                      clique no botão <strong>Add permissions</strong>, marque
+                      <strong>Contents</strong> e mude para <strong>Read and write</strong>
+                      <em>(o GitHub adicionará Metadata: Read-only automaticamente)</em>.
+                    </li>
+                    <li>
+                      Clique em <strong>Generate token</strong> e cole a chave
+                      <code>github_pat_...</code> abaixo.
+                    </li>
+                  </ol>
+                </div>
+
+                <!-- Classic PAT Guide -->
+                <div v-else class="plug-play-helper is-column">
+                  <div class="helper-header-row">
+                    <div class="helper-copy">
+                      <strong>Token Clássico (escopo <code>repo</code>)</strong>
+                      <p>
+                        Se você já criou um Token Clássico marcando a caixa <code>repo</code> (Full
+                        control of private repositories), ele já funciona diretamente com
+                        repositórios privados.
+                      </p>
+                    </div>
+                    <a
+                      href="https://github.com/settings/tokens/new?scopes=repo&description=Mind%20Hub%20Sync"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      class="external-token-link"
+                      data-testid="github-create-token-link"
+                    >
+                      <span>Gerar Token Clássico (repo)</span>
+                      <ExternalLink :size="13" />
+                    </a>
+                  </div>
+                </div>
+
+                <div>
+                  <label class="wizard-field-label" for="github-pat-input">
+                    Token Pessoal do Vault (PAT)
+                  </label>
+                  <div class="token-input-wrap">
+                    <input
+                      id="github-pat-input"
+                      v-model="tokenInput"
+                      :type="showToken ? 'text' : 'password'"
+                      class="wizard-text-input"
+                      placeholder="github_pat_... ou ghp_..."
+                      autocomplete="off"
+                      data-testid="github-token-input"
+                    />
+                    <button
+                      type="button"
+                      class="toggle-visibility-btn"
+                      :aria-label="showToken ? 'Ocultar token' : 'Mostrar token'"
+                      @click="showToken = !showToken"
+                    >
+                      {{ showToken ? 'Ocultar' : 'Mostrar' }}
+                    </button>
+                  </div>
+                </div>
+
+                <div class="wizard-footer-nav">
+                  <span class="scope-separation-hint">
+                    Token exclusivo do Vault &bull; Issues e PRs usarão outro perfil
+                  </span>
+                  <button
+                    type="button"
+                    class="primary-blue-btn"
+                    :disabled="!tokenInput.trim()"
+                    data-testid="github-step1-next-btn"
+                    @click="currentStep = 2"
+                  >
+                    <span>Próximo: Repositório</span>
+                    <ArrowRight :size="14" />
                   </button>
                 </div>
               </div>
 
-              <div class="wizard-footer-nav">
-                <span />
-                <button
-                  type="button"
-                  class="primary-blue-btn"
-                  :disabled="!tokenInput.trim()"
-                  data-testid="github-step1-next-btn"
-                  @click="currentStep = 2"
-                >
-                  <span>Próximo: Repositório</span>
-                  <ArrowRight :size="14" />
-                </button>
-              </div>
-            </div>
-
-            <!-- Step 2: Repository & Connection Test -->
-            <div v-else-if="currentStep === 2" class="wizard-step-body" data-testid="wizard-step-2">
-              <div class="repo-helper-row">
-                <span class="repo-helper-hint">
-                  Informe um repositório privado existente no formato <code>usuario/repositorio</code>.
-                </span>
-                <a
-                  href="https://github.com/new"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  class="external-token-link"
-                >
-                  <span>Criar repositório privado no GitHub</span>
-                  <ExternalLink :size="12" />
-                </a>
-              </div>
-
-              <div class="repo-fields-grid">
-                <div>
-                  <label class="wizard-field-label" for="github-repo-input">Repositório</label>
-                  <input
-                    id="github-repo-input"
-                    v-model="repositoryInput"
-                    type="text"
-                    class="wizard-text-input"
-                    placeholder="luizGDpulz/mind-hub-tests"
-                    data-testid="github-repo-input"
-                  />
-                </div>
-                <div>
-                  <label class="wizard-field-label" for="github-branch-input">Branch</label>
-                  <input
-                    id="github-branch-input"
-                    v-model="branchInput"
-                    type="text"
-                    class="wizard-text-input"
-                    placeholder="main"
-                    data-testid="github-branch-input"
-                  />
-                </div>
-              </div>
-
-              <div class="test-connection-row">
-                <button
-                  type="button"
-                  class="secondary-ghost-btn"
-                  :disabled="testing || !repositoryInput.trim() || !tokenInput.trim()"
-                  data-testid="github-test-btn"
-                  @click="handleTestConnection"
-                >
-                  <PlugZap :size="14" />
-                  <span>{{ testing ? 'Testando conexão...' : 'Testar Conexão' }}</span>
-                </button>
-              </div>
-
-              <div
-                v-if="testResult"
-                class="wizard-feedback"
-                :class="testResult.ok ? 'is-success' : 'is-error'"
-                data-testid="github-test-feedback"
-              >
-                <CheckCircle2 v-if="testResult.ok" :size="14" />
-                <AlertCircle v-else :size="14" />
-                <span class="feedback-text">{{ testResult.message }}</span>
-                <span
-                  v-if="testResult.ok && testResult.isPrivate !== undefined"
-                  class="mind-pill-blue"
-                >
-                  {{ testResult.isPrivate ? '🔒 Privado' : '🌐 Público' }}
-                </span>
-              </div>
-
-              <div class="wizard-footer-nav">
-                <button
-                  type="button"
-                  class="secondary-ghost-btn"
-                  @click="currentStep = 1"
-                >
-                  Voltar
-                </button>
-                <button
-                  type="button"
-                  class="primary-blue-btn"
-                  :disabled="!repositoryInput.trim()"
-                  data-testid="github-step2-next-btn"
-                  @click="currentStep = 3"
-                >
-                  <span>Próximo: Estratégia OKF</span>
-                  <ArrowRight :size="14" />
-                </button>
-              </div>
-            </div>
-
-            <!-- Step 3: Strategy & Activate -->
-            <div v-else class="wizard-step-body" data-testid="wizard-step-3">
-              <div class="strategy-cards">
-                <label
-                  v-for="option in strategyOptions"
-                  :key="option.value"
-                  class="strategy-option"
-                  :class="{ 'is-selected': strategy === option.value }"
-                  :data-testid="`strategy-${option.value}`"
-                >
-                  <input
-                    v-model="strategy"
-                    type="radio"
-                    :value="option.value"
-                    class="strategy-radio"
-                  />
-                  <div>
-                    <div class="strategy-title">{{ option.title }}</div>
-                    <div class="strategy-desc">{{ option.desc }}</div>
-                  </div>
-                </label>
-              </div>
-
-              <div class="autosync-toggle-row">
-                <label class="autosync-checkbox-label">
-                  <input
-                    v-model="autoSyncEnabled"
-                    type="checkbox"
-                    data-testid="github-autosync-checkbox"
-                  />
-                  <span>Auto-Sync inteligente (Delta Sync com debounce)</span>
-                </label>
-
-                <select
-                  v-if="autoSyncEnabled"
-                  v-model.number="debounceSeconds"
-                  class="debounce-select"
-                  aria-label="Intervalo de debounce"
-                >
-                  <option :value="30">30 segundos</option>
-                  <option :value="120">2 minutos</option>
-                  <option :value="300">5 minutos</option>
-                </select>
-              </div>
-
-              <div
-                v-if="configureError"
-                class="wizard-feedback is-error"
-                data-testid="github-configure-error"
-              >
-                <AlertCircle :size="14" />
-                <span>{{ configureError }}</span>
-              </div>
-
-              <div class="wizard-footer-nav">
-                <button
-                  type="button"
-                  class="secondary-ghost-btn"
-                  :disabled="busy"
-                  @click="currentStep = 2"
-                >
-                  Voltar
-                </button>
-                <button
-                  type="button"
-                  class="primary-blue-btn"
-                  :disabled="busy"
-                  data-testid="github-connect-btn"
-                  @click="handleConnectAndSync"
-                >
-                  <CheckCircle2 :size="14" />
-                  <span>
-                    {{ busy ? 'Conectando...' : 'Conectar & Sincronizar' }}
+              <!-- Step 2: Repository & Connection Test -->
+              <div v-else-if="currentStep === 2" class="wizard-step-body" data-testid="wizard-step-2">
+                <div class="repo-helper-row">
+                  <span class="repo-helper-hint">
+                    Informe um repositório privado existente no formato
+                    <code>usuario/repositorio</code>.
                   </span>
-                </button>
+                  <a
+                    href="https://github.com/new"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    class="external-token-link"
+                  >
+                    <span>Criar repositório privado no GitHub</span>
+                    <ExternalLink :size="12" />
+                  </a>
+                </div>
+
+                <div class="repo-fields-grid">
+                  <div>
+                    <label class="wizard-field-label" for="github-repo-input">Repositório</label>
+                    <input
+                      id="github-repo-input"
+                      v-model="repositoryInput"
+                      type="text"
+                      class="wizard-text-input"
+                      placeholder="luizGDpulz/mind-hub-tests"
+                      data-testid="github-repo-input"
+                    />
+                  </div>
+                  <div>
+                    <label class="wizard-field-label" for="github-branch-input">Branch</label>
+                    <input
+                      id="github-branch-input"
+                      v-model="branchInput"
+                      type="text"
+                      class="wizard-text-input"
+                      placeholder="main"
+                      data-testid="github-branch-input"
+                    />
+                  </div>
+                </div>
+
+                <div class="test-connection-row">
+                  <button
+                    type="button"
+                    class="secondary-ghost-btn"
+                    :disabled="testing || !repositoryInput.trim() || !tokenInput.trim()"
+                    data-testid="github-test-btn"
+                    @click="handleTestConnection"
+                  >
+                    <PlugZap :size="14" />
+                    <span>{{ testing ? 'Testando conexão...' : 'Testar Conexão' }}</span>
+                  </button>
+                </div>
+
+                <div
+                  v-if="testResult"
+                  class="wizard-feedback"
+                  :class="testResult.ok ? 'is-success' : 'is-error'"
+                  data-testid="github-test-feedback"
+                >
+                  <CheckCircle2 v-if="testResult.ok" :size="14" />
+                  <AlertCircle v-else :size="14" />
+                  <span class="feedback-text">{{ testResult.message }}</span>
+                  <span
+                    v-if="testResult.ok && testResult.isPrivate !== undefined"
+                    class="mind-pill-blue"
+                  >
+                    {{ testResult.isPrivate ? '🔒 Privado' : '🌐 Público' }}
+                  </span>
+                </div>
+
+                <div class="wizard-footer-nav">
+                  <button
+                    type="button"
+                    class="secondary-ghost-btn"
+                    @click="currentStep = 1"
+                  >
+                    Voltar
+                  </button>
+                  <button
+                    type="button"
+                    class="primary-blue-btn"
+                    :disabled="!repositoryInput.trim()"
+                    data-testid="github-step2-next-btn"
+                    @click="currentStep = 3"
+                  >
+                    <span>Próximo: Estratégia OKF</span>
+                    <ArrowRight :size="14" />
+                  </button>
+                </div>
+              </div>
+
+              <!-- Step 3: Strategy & Activate -->
+              <div v-else class="wizard-step-body" data-testid="wizard-step-3">
+                <div class="strategy-cards">
+                  <label
+                    v-for="option in strategyOptions"
+                    :key="option.value"
+                    class="strategy-option"
+                    :class="{ 'is-selected': strategy === option.value }"
+                    :data-testid="`strategy-${option.value}`"
+                  >
+                    <input
+                      v-model="strategy"
+                      type="radio"
+                      :value="option.value"
+                      class="strategy-radio"
+                    />
+                    <div>
+                      <div class="strategy-title">{{ option.title }}</div>
+                      <div class="strategy-desc">{{ option.desc }}</div>
+                    </div>
+                  </label>
+                </div>
+
+                <div class="autosync-toggle-row">
+                  <label class="autosync-checkbox-label">
+                    <input
+                      v-model="autoSyncEnabled"
+                      type="checkbox"
+                      data-testid="github-autosync-checkbox"
+                    />
+                    <span>Auto-Sync inteligente (Delta Sync com debounce)</span>
+                  </label>
+
+                  <select
+                    v-if="autoSyncEnabled"
+                    v-model.number="debounceSeconds"
+                    class="debounce-select"
+                    aria-label="Intervalo de debounce"
+                  >
+                    <option :value="30">30 segundos</option>
+                    <option :value="120">2 minutos</option>
+                    <option :value="300">5 minutos</option>
+                  </select>
+                </div>
+
+                <div
+                  v-if="configureError"
+                  class="wizard-feedback is-error"
+                  data-testid="github-configure-error"
+                >
+                  <AlertCircle :size="14" />
+                  <span>{{ configureError }}</span>
+                </div>
+
+                <div class="wizard-footer-nav">
+                  <button
+                    type="button"
+                    class="secondary-ghost-btn"
+                    :disabled="busy"
+                    @click="currentStep = 2"
+                  >
+                    Voltar
+                  </button>
+                  <button
+                    type="button"
+                    class="primary-blue-btn"
+                    :disabled="busy"
+                    data-testid="github-connect-btn"
+                    @click="handleConnectAndSync"
+                  >
+                    <CheckCircle2 :size="14" />
+                    <span>
+                      {{ busy ? 'Conectando...' : 'Conectar & Sincronizar' }}
+                    </span>
+                  </button>
+                </div>
               </div>
             </div>
           </div>
         </div>
-      </div>
 
-      <!-- TAB 2: YOUR SYNCS & AUDIT LOG -->
-      <div v-else class="provider-tab-content" data-testid="github-syncs-audit-panel">
-        <div v-if="status.configured" class="audit-summary-card">
-          <div class="audit-summary-row">
-            <div>
-              <strong>{{ status.repository }}</strong>
-              <span class="audit-sub">
-                Branch <code>{{ status.branch }}</code> &bull; Contrato Google OKF v0.2
-                (<code>index.md</code>, <code>log.md</code>, <code>./assets</code>)
-              </span>
+        <!-- TAB 2: YOUR SYNCS & AUDIT LOG -->
+        <div v-else class="provider-tab-content" data-testid="github-syncs-audit-panel">
+          <div v-if="status.configured" class="audit-summary-card">
+            <div class="audit-summary-row">
+              <div>
+                <strong>{{ status.repository }}</strong>
+                <span class="audit-sub">
+                  Branch <code>{{ status.branch }}</code> &bull; Contrato Google OKF v0.2
+                  (<code>index.md</code>, <code>log.md</code>, <code>./assets</code>)
+                </span>
+              </div>
+              <button
+                type="button"
+                class="primary-blue-btn"
+                :disabled="busy"
+                @click="$emit('sync-now')"
+              >
+                <RefreshCw :size="14" :class="{ 'spin-icon': busy }" />
+                <span>{{ busy ? 'Sincronizando...' : 'Sincronizar Agora' }}</span>
+              </button>
             </div>
+
+            <div v-if="status.history.length > 0" class="sync-history-box">
+              <div class="history-title">Registro de Sincronizações</div>
+              <ul class="history-list">
+                <li v-for="entry in status.history" :key="entry.id" class="history-row">
+                  <span class="history-dir">{{ formatDirection(entry.direction) }}</span>
+                  <span class="history-summary">{{ entry.summary }}</span>
+                  <span class="history-time">{{ formatTimestamp(entry.timestamp) }}</span>
+                </li>
+              </ul>
+            </div>
+            <p v-else class="audit-empty">Nenhuma execução registrada no histórico ainda.</p>
+          </div>
+
+          <div v-else class="audit-empty-state">
+            <p>Nenhuma sincronização GitHub ativa no momento.</p>
             <button
               type="button"
               class="primary-blue-btn"
-              :disabled="busy"
-              @click="$emit('sync-now')"
+              @click="activePanelTab = 'overview'"
             >
-              <RefreshCw :size="14" :class="{ 'spin-icon': busy }" />
-              <span>{{ busy ? 'Sincronizando...' : 'Sincronizar Agora' }}</span>
+              Configurar repositório GitHub
             </button>
           </div>
+        </div>
+      </template>
 
-          <div v-if="status.history.length > 0" class="sync-history-box">
-            <div class="history-title">Registro de Sincronizações</div>
-            <ul class="history-list">
-              <li v-for="entry in status.history" :key="entry.id" class="history-row">
-                <span class="history-dir">{{ formatDirection(entry.direction) }}</span>
-                <span class="history-summary">{{ entry.summary }}</span>
-                <span class="history-time">{{ formatTimestamp(entry.timestamp) }}</span>
+      <!-- MODES 2 & 3: MODULAR FUTURE MODES (Dev Sync & AI/MCP Connector) -->
+      <template v-else>
+        <div class="future-mode-panel" :data-testid="`github-future-mode-${activeMode.id}`">
+          <header class="mode-detail-header">
+            <div>
+              <div class="mode-title-line">
+                <h5 class="mode-detail-title">{{ activeMode.label }}</h5>
+                <span class="tile-soon-pill">Em breve &bull; Gratuito</span>
+              </div>
+              <p class="mode-detail-sub">
+                Criado pelo Mind Hub &bull; Sem upgrade pago
+              </p>
+            </div>
+          </header>
+
+          <div class="okf-visual-banner" aria-hidden="true">
+            <div class="okf-node-chip">
+              <GitPullRequest v-if="activeMode.id === 'dev_sync'" :size="14" />
+              <Sparkles v-else :size="14" />
+              <span>Repositórios de Código</span>
+            </div>
+            <div class="okf-sync-arrow">
+              <span class="arrow-dots" />
+              <span class="arrow-badge">Token Dedicado</span>
+              <span class="arrow-dots" />
+            </div>
+            <div class="okf-node-chip is-mind">
+              <FileText :size="14" />
+              <span>Mind Hub {{ activeMode.id === 'dev_sync' ? 'Databases' : 'Copiloto IA' }}</span>
+            </div>
+          </div>
+
+          <p class="future-mode-desc">{{ activeMode.description }}</p>
+
+          <div class="future-usecases-box">
+            <div class="usecases-heading">Casos de uso</div>
+            <ul class="usecases-list">
+              <li v-for="useCase in activeMode.useCases" :key="useCase">
+                <Check :size="14" class="usecase-check" />
+                <span>{{ useCase }}</span>
               </li>
             </ul>
           </div>
-          <p v-else class="audit-empty">Nenhuma execução registrada no histórico ainda.</p>
-        </div>
 
-        <div v-else class="audit-empty-state">
-          <p>Nenhuma sincronização GitHub ativa no momento.</p>
-          <button
-            type="button"
-            class="primary-blue-btn"
-            @click="activePanelTab = 'overview'"
-          >
-            Configurar repositório GitHub
-          </button>
+          <div class="token-separation-card">
+            <KeyRound :size="15" class="token-sep-icon" />
+            <div>
+              <strong>Separação de Chaves (Segurança Modular)</strong>
+              <p>
+                Este modo utilizará um token separado do Token do Vault, com escopo específico:
+                <code>{{ activeMode.tokenScopeSummary }}</code>.
+              </p>
+            </div>
+          </div>
+
+          <div class="future-mode-footer">
+            <button
+              type="button"
+              class="secondary-ghost-btn"
+              @click="activeModeId = 'vault_okf'"
+            >
+              Ir para Sincronização do Vault (OKF)
+            </button>
+            <button type="button" class="primary-blue-btn" disabled>
+              Disponível em breve
+            </button>
+          </div>
         </div>
-      </div>
+      </template>
     </div>
   </div>
 </template>
@@ -637,16 +690,17 @@ import { computed, ref } from 'vue';
 import {
   AlertCircle,
   ArrowRight,
+  Check,
   CheckCircle2,
   ExternalLink,
   FileText,
   GitBranch,
-  History,
+  GitPullRequest,
   KeyRound,
   Lock,
   PlugZap,
   RefreshCw,
-  ShieldCheck,
+  Sparkles,
   Unlink,
 } from 'lucide-vue-next';
 import type {
@@ -656,6 +710,7 @@ import type {
   GitHubTestConnectionInput,
   GitHubTestConnectionResult,
 } from '@mind-hub/shared';
+import { GITHUB_CONNECTION_MODES, type ConnectionModeDescriptor } from './connections-registry.js';
 
 const props = withDefaults(
   defineProps<{
@@ -693,8 +748,8 @@ const emit = defineEmits<{
   disconnect: [];
 }>();
 
+const activeModeId = ref<ConnectionModeDescriptor['id']>('vault_okf');
 const activePanelTab = ref<'overview' | 'syncs'>('overview');
-const activeCapability = ref<'okf' | 'pat' | 'audit'>('okf');
 const tokenGuideMode = ref<'fine-grained' | 'classic'>('fine-grained');
 const isReconfiguring = ref(false);
 
@@ -706,6 +761,13 @@ const branchInput = ref('main');
 const strategy = ref<GitHubSyncStrategy>('push_initial');
 const autoSyncEnabled = ref(true);
 const debounceSeconds = ref(120);
+
+const activeMode = computed<ConnectionModeDescriptor>(() => {
+  return (
+    GITHUB_CONNECTION_MODES.find((m) => m.id === activeModeId.value) ??
+    GITHUB_CONNECTION_MODES[0]!
+  );
+});
 
 const strategyOptions: Array<{
   value: GitHubSyncStrategy;
@@ -764,19 +826,6 @@ const statusBadgeClass = computed(() => {
       return 'pill-neutral';
   }
 });
-
-function selectCapability(cap: 'okf' | 'pat' | 'audit'): void {
-  activeCapability.value = cap;
-  if (cap === 'audit') {
-    activePanelTab.value = 'syncs';
-    return;
-  }
-  activePanelTab.value = 'overview';
-  if (cap === 'pat' && !props.status.configured) {
-    currentStep.value = 1;
-    tokenGuideMode.value = 'fine-grained';
-  }
-}
 
 function startReconfigure(): void {
   repositoryInput.value = props.status.repository ?? '';
@@ -866,8 +915,8 @@ function formatTimestamp(iso: string): string {
 }
 
 .github-octocat-wrap {
-  width: 40px;
-  height: 40px;
+  width: 38px;
+  height: 38px;
   border-radius: 9px;
   background: #ffffff;
   border: 1px solid var(--mind-border-subtle, #e9ecef);
@@ -946,6 +995,13 @@ function formatTimestamp(iso: string): string {
   display: flex;
   flex-direction: column;
   gap: 2px;
+  min-width: 0;
+}
+
+.capability-title-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .capability-title {
@@ -967,43 +1023,31 @@ function formatTimestamp(iso: string): string {
   min-width: 0;
 }
 
-.sovereign-banner {
+.mode-detail-header {
   display: flex;
   align-items: flex-start;
-  gap: 10px;
-  padding: 10px 14px;
-  border-radius: 8px;
-  background: #f8f9fa;
-  border: 1px solid var(--mind-border-subtle, #e9ecef);
+  justify-content: space-between;
+  gap: 12px;
 }
 
-.sovereign-banner-icon {
-  width: 26px;
-  height: 26px;
-  border-radius: 6px;
-  background: #e7f5ff;
-  color: #1971c2;
+.mode-title-line {
   display: flex;
   align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 
-.sovereign-banner-copy {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.sovereign-banner-copy strong {
-  font-size: 12.5px;
+.mode-detail-title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
   color: var(--mind-text-primary, #111827);
 }
 
-.sovereign-banner-copy span {
+.mode-detail-sub {
+  margin: 4px 0 0;
   font-size: 12px;
-  color: var(--mind-text-secondary, #37352f);
-  line-height: 1.4;
+  color: var(--mind-text-muted, #868e96);
 }
 
 .provider-tabs-bar {
@@ -1239,7 +1283,7 @@ function formatTimestamp(iso: string): string {
   padding-left: 18px;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 5px;
   font-size: 12px;
   color: var(--mind-text-secondary, #37352f);
   line-height: 1.45;
@@ -1262,6 +1306,11 @@ function formatTimestamp(iso: string): string {
 
 .external-token-link:hover {
   background: #f1f3f5;
+}
+
+.scope-separation-hint {
+  font-size: 11.5px;
+  color: var(--mind-text-muted, #868e96);
 }
 
 .repo-helper-row {
@@ -1477,12 +1526,14 @@ function formatTimestamp(iso: string): string {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 10px;
   padding-top: 10px;
   border-top: 1px solid #f1f3f5;
 }
 
 .github-connected-panel,
-.audit-summary-card {
+.audit-summary-card,
+.future-mode-panel {
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -1490,6 +1541,89 @@ function formatTimestamp(iso: string): string {
   border-radius: 10px;
   border: 1px solid var(--mind-border-subtle, #e9ecef);
   background: #ffffff;
+}
+
+.future-mode-desc {
+  margin: 0;
+  font-size: 13px;
+  color: var(--mind-text-secondary, #37352f);
+  line-height: 1.5;
+}
+
+.future-usecases-box {
+  padding: 12px 14px;
+  border-radius: 8px;
+  background: var(--mind-bg-sidebar, #f8f9fa);
+  border: 1px solid var(--mind-border-subtle, #e9ecef);
+}
+
+.usecases-heading {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--mind-text-primary, #111827);
+  margin-bottom: 8px;
+}
+
+.usecases-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.usecases-list li {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12.5px;
+  color: var(--mind-text-secondary, #37352f);
+}
+
+.usecase-check {
+  color: #2b8a3e;
+  flex-shrink: 0;
+}
+
+.token-separation-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: #e7f5ff;
+  border: 1px solid #d0ebff;
+  font-size: 12px;
+  color: #1864ab;
+}
+
+.token-separation-card p {
+  margin: 2px 0 0;
+  color: var(--mind-text-secondary, #37352f);
+}
+
+.token-sep-icon {
+  margin-top: 2px;
+  flex-shrink: 0;
+}
+
+.future-mode-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding-top: 8px;
+  border-top: 1px solid #f1f3f5;
+}
+
+.tile-soon-pill {
+  font-size: 11px;
+  font-weight: 500;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--mind-bg-active, #e9ecef);
+  color: var(--mind-text-muted, #868e96);
 }
 
 .connected-hero-row {

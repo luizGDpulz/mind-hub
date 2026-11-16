@@ -8,6 +8,9 @@
         @forgot-password="store.activeSurface = 'editor'"
       />
 
+      <!-- Global Library Surface (Issue #101) -->
+      <MindLibraryView v-else-if="store.activeSurface === 'library'" />
+
       <!-- Main Document + Embedded Database + Open-Source Diagrams -->
       <template v-else-if="store.activePage">
         <PageCoverBanner
@@ -178,6 +181,26 @@
           + Criar nota
         </button>
       </div>
+      <!-- Notion-like Floating Bottom Toast (Image 1, Issue #100) -->
+      <Transition name="mind-toast-fade">
+        <div
+          v-if="store.activeToast"
+          class="mind-bottom-toast"
+          role="status"
+          data-testid="mind-bottom-toast"
+        >
+          <span class="toast-message">{{ store.activeToast.message }}</span>
+          <button
+            v-if="store.activeToast.actionLabel"
+            type="button"
+            class="toast-action-btn"
+            data-testid="mind-toast-action-btn"
+            @click="store.triggerToastAction()"
+          >
+            {{ store.activeToast.actionLabel }}
+          </button>
+        </div>
+      </Transition>
     </q-page>
 
     <!-- Page Icon Picker Modal -->
@@ -198,6 +221,7 @@ import { MindEditor, type PageReference } from '@mind-hub/editor';
 import { useMindStore } from '../../stores/mind-store.js';
 import { usePageFrontmatter } from '../../composables/usePageFrontmatter.js';
 import CleanLoginView from '../CleanLoginView.vue';
+import MindLibraryView from '../MindLibraryView.vue';
 import DatabaseViewBlock from '../DatabaseViewBlock.vue';
 import DiagramEmbedsBlock from '../DiagramEmbedsBlock.vue';
 import MindIconPickerModal from '../ui/MindIconPickerModal.vue';
@@ -478,5 +502,49 @@ async function handleCreateRootPage(): Promise<void> {
   padding: 0 0 28px;
   max-width: none;
   margin: 0;
+}
+
+.mind-bottom-toast {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 2600;
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 16px;
+  border-radius: 8px;
+  background: rgba(33, 37, 41, 0.94);
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 500;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+}
+
+.toast-action-btn {
+  border: none;
+  background: transparent;
+  color: #adb5bd;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0;
+  transition: color 0.12s ease;
+}
+
+.toast-action-btn:hover {
+  color: #ffffff;
+}
+
+.mind-toast-fade-enter-active,
+.mind-toast-fade-leave-active {
+  transition: opacity 0.18s ease, transform 0.18s ease;
+}
+
+.mind-toast-fade-enter-from,
+.mind-toast-fade-leave-to {
+  opacity: 0;
+  transform: translate(-50%, 8px);
 }
 </style>

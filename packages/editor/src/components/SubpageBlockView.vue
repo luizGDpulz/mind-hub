@@ -101,7 +101,6 @@ onBeforeUnmount(() => {
 <template>
   <NodeViewWrapper
     class="mind-subpage-block-wrapper"
-    :class="{ 'is-selected': selected }"
     data-testid="subpage-block-view"
     contenteditable="false"
     @mouseenter="handleMouseEnter"
@@ -219,10 +218,6 @@ onBeforeUnmount(() => {
 .mind-subpage-row:hover {
   background-color: #f8f9fa;
   border-color: #e9ecef;
-}
-
-.mind-subpage-block-wrapper.is-selected .mind-subpage-row {
-  background-color: #f8f9fa;
 }
 
 .mind-subpage-icon {

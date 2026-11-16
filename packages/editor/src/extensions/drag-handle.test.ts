@@ -315,4 +315,58 @@ describe('GlobalDragHandle Extension', () => {
     expect(editor.view.dom.querySelector('[data-drop-placement]')).toBeNull();
     expect(editor.state.doc.firstChild?.textContent).toBe('Arrastar');
   });
+
+  it('preserves drag state when browser dispatches mousemove(buttons=1) before dragstart and supports pointer-drag fallback (Refs #104)', () => {
+    const root = document.createElement('div');
+    root.className = 'mind-editor-root';
+    const canvas = document.createElement('div');
+    canvas.className = 'mind-editor-canvas-container';
+    const gutterShell = document.createElement('div');
+    gutterShell.className = 'mind-block-gutter-shell';
+    const gripBtn = document.createElement('button');
+    gripBtn.className = 'gutter-grip-btn';
+    gutterShell.appendChild(gripBtn);
+    canvas.appendChild(gutterShell);
+    root.appendChild(canvas);
+    document.body.appendChild(root);
+
+    const editor = new Editor({
+      element: canvas,
+      extensions: [StarterKit, GlobalDragHandle],
+      content: '<h1>Bloco Topo</h1><p>Bloco Base</p>',
+    });
+    createdEditors.push(editor);
+
+    mockRect(canvas, { top: 100, left: 200, width: 680, height: 200 });
+    mockRect(editor.view.dom, { top: 100, left: 200, width: 680, height: 200 });
+
+    const h1 = editor.view.dom.querySelector('h1')!;
+    const p = editor.view.dom.querySelector('p')!;
+    mockRect(h1, { top: 100, left: 200, width: 680, height: 34 });
+    mockRect(p, { top: 142, left: 200, width: 680, height: 24 });
+
+    const pPos = getNodePosAtDOM(p, editor.view)!;
+    gripBtn.setAttribute('data-node-pos', String(pPos));
+
+    // 1. Real browser mousedown + mousemove(buttons=1) on gripBtn before dragstart
+    gripBtn.dispatchEvent(
+      new MouseEvent('mousedown', { button: 0, buttons: 1, clientX: 150, clientY: 150, bubbles: true })
+    );
+    gripBtn.dispatchEvent(
+      new MouseEvent('mousemove', { buttons: 1, clientX: 150, clientY: 148, bubbles: true })
+    );
+
+    // 2. Pointer drag moves up to top of <h1> without native dragstart
+    window.dispatchEvent(
+      new MouseEvent('mousemove', { buttons: 1, clientX: 150, clientY: 104, bubbles: true })
+    );
+    expect(p.classList.contains('mind-block-dragging-source')).toBe(true);
+    expect(h1.classList.contains('mind-block-drop-before')).toBe(true);
+
+    // 3. Release mouse button -> block moves before <h1>
+    window.dispatchEvent(
+      new MouseEvent('mouseup', { button: 0, buttons: 0, clientX: 150, clientY: 104, bubbles: true })
+    );
+    expect(editor.state.doc.firstChild?.textContent).toBe('Bloco Base');
+  });
 });

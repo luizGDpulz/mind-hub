@@ -1,7 +1,8 @@
 <template>
   <div
-    v-if="visible"
+    v-if="visible || isDragging"
     class="mind-block-gutter-shell"
+    :class="{ 'is-dragging-active': isDragging }"
     data-testid="block-gutter-shell"
     :style="{ top: `${top}px` }"
     @mouseenter="emit('hover', true)"
@@ -14,6 +15,7 @@
       title="Adicionar linha abaixo (/)"
       aria-label="Add block below"
       data-testid="block-gutter-add-btn"
+      @mousedown.stop
       @click="emit('addBlock')"
     >
       <Plus :size="17" :stroke-width="2" />
@@ -29,12 +31,14 @@
         type="button"
         class="gutter-btn gutter-grip-btn"
         draggable="true"
+        :data-node-pos="nodePos"
         title="Arraste para mover / Clique para menu"
         aria-label="Drag block or open menu"
         data-testid="block-gutter-handle-btn"
-        @click="toggleMenu"
-        @dragstart="emit('dragStart')"
-        @dragend="emit('dragEnd')"
+        @mousedown.stop="handleGripMouseDown"
+        @click="handleGripClick"
+        @dragstart="handleGripDragStart"
+        @dragend="handleGripDragEnd"
       >
         <GripVertical :size="17" :stroke-width="2" />
       </button>
@@ -87,6 +91,7 @@ withDefaults(
     visible?: boolean;
     top?: number;
     left?: number;
+    nodePos?: number;
     nodeType?: string;
     nodeTextColor?: string | null;
     nodeBgColor?: string | null;
@@ -97,6 +102,7 @@ withDefaults(
     visible: false,
     top: 0,
     left: 0,
+    nodePos: 0,
     nodeType: 'paragraph',
     nodeTextColor: null,
     nodeBgColor: null,
@@ -117,9 +123,48 @@ const emit = defineEmits<{
 }>();
 
 const isGripHovered = ref(false);
+const isDragging = ref(false);
 const showMenu = ref(false);
+let dragStartCoords: { x: number; y: number } | null = null;
+let suppressNextClick = false;
 const lastUsedTextColor = ref<string | null>(readStoredColor(LAST_TEXT_COLOR_STORAGE_KEY));
 const lastUsedBgColor = ref<string | null>(readStoredColor(LAST_BG_COLOR_STORAGE_KEY));
+
+function handleGripMouseDown(event: MouseEvent) {
+  dragStartCoords = { x: event.clientX, y: event.clientY };
+  suppressNextClick = false;
+}
+
+function handleGripDragStart() {
+  isDragging.value = true;
+  suppressNextClick = true;
+  if (showMenu.value) {
+    closeMenu();
+  }
+  emit('dragStart');
+}
+
+function handleGripDragEnd() {
+  isDragging.value = false;
+  dragStartCoords = null;
+  emit('dragEnd');
+}
+
+function handleGripClick(event: MouseEvent) {
+  if (suppressNextClick) {
+    suppressNextClick = false;
+    return;
+  }
+  if (
+    dragStartCoords &&
+    Math.hypot(event.clientX - dragStartCoords.x, event.clientY - dragStartCoords.y) > 5
+  ) {
+    dragStartCoords = null;
+    return;
+  }
+  dragStartCoords = null;
+  toggleMenu();
+}
 
 function closeMenu() {
   showMenu.value = false;
@@ -208,6 +253,10 @@ onBeforeUnmount(() => {
   cursor: pointer;
   transition: background-color 0.15s ease, color 0.15s ease;
   padding: 0;
+}
+
+.gutter-btn :deep(svg) {
+  pointer-events: none;
 }
 
 .gutter-btn:hover {

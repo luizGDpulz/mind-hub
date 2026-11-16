@@ -497,6 +497,7 @@ defineExpose({
         v-if="editor && !readOnly"
         :visible="gutterState.visible && !isMarqueeLockActive"
         :top="gutterState.top"
+        :node-pos="gutterState.nodePos"
         :node-type="gutterState.nodeType"
         :node-text-color="gutterState.textColor"
         :node-bg-color="gutterState.bgColor"

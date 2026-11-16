@@ -220,6 +220,7 @@ import type { MindNode, TiptapDoc } from '@mind-hub/shared';
 import { MindEditor, type PageReference } from '@mind-hub/editor';
 import { useMindStore } from '../../stores/mind-store.js';
 import { usePageFrontmatter } from '../../composables/usePageFrontmatter.js';
+import { optimizeCoverImageForUpload } from '../../utils/media.js';
 import CleanLoginView from '../CleanLoginView.vue';
 import MindLibraryView from '../MindLibraryView.vue';
 import DatabaseViewBlock from '../DatabaseViewBlock.vue';
@@ -339,39 +340,32 @@ async function handleAddDefaultCover(): Promise<void> {
   coverBannerRef.value?.openPicker();
 }
 
-function readFileAsBase64(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      if (typeof reader.result === 'string') {
-        resolve(reader.result);
-      } else {
-        reject(new Error('Falha ao ler arquivo de capa'));
-      }
-    };
-    reader.onerror = () => reject(reader.error ?? new Error('Erro ao ler arquivo de capa'));
-    reader.readAsDataURL(file);
-  });
-}
-
 async function handleCoverUpload(file: File): Promise<void> {
   if (!store.activePage) return;
   isUploadingCover.value = true;
   try {
-    const dataBase64 = await readFileAsBase64(file);
+    const optimized = await optimizeCoverImageForUpload(file);
     const asset = await store.uploadAsset({
       pageId: store.activePage.id,
       kind: 'cover',
-      filename: file.name,
-      mimeType: file.type || 'image/png',
-      dataBase64,
+      filename: optimized.filename,
+      mimeType: optimized.mimeType,
+      dataBase64: optimized.dataBase64,
     });
     if (asset) {
       await store.updatePageMeta(store.activePage.id, {
         coverUrl: asset.url || asset.storagePath,
         coverYPosition: 50,
       });
+    } else {
+      store.showToast({
+        message: 'Não foi possível salvar a imagem de capa no servidor.',
+      });
     }
+  } catch {
+    store.showToast({
+      message: 'Erro ao processar ou enviar a imagem de capa.',
+    });
   } finally {
     isUploadingCover.value = false;
   }

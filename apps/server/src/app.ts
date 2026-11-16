@@ -117,7 +117,7 @@ export interface BuildAppOptions {
 export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyInstance> {
   const app = Fastify({
     logger: false,
-    bodyLimit: 6 * 1024 * 1024,
+    bodyLimit: 20 * 1024 * 1024,
   });
 
   await app.register(cors, {
@@ -744,7 +744,7 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
     'image/gif',
     'image/svg+xml',
   ]);
-  const MAX_ASSET_BYTES = 2.5 * 1024 * 1024;
+  const MAX_ASSET_BYTES = 12 * 1024 * 1024;
 
   app.post<{
     Body: {
@@ -774,7 +774,7 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
     const decoded = Buffer.from(cleanBase64, 'base64');
     if (decoded.byteLength === 0 || decoded.byteLength > MAX_ASSET_BYTES) {
       return reply.code(400).send({
-        error: 'Imagem inválida ou maior que o limite de 2,5 MB.',
+        error: 'Imagem inválida ou maior que o limite de 12 MB.',
       });
     }
 

@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { mount } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
 import PageCoverBanner from './PageCoverBanner.vue';
@@ -208,5 +208,31 @@ describe('@mind-hub/web — PageCoverBanner & OKF Asset Resolution (Refs #90, #9
     // Sort by database size
     await wrapper.find('[data-testid="library-sort-size"]').trigger('click');
     expect(wrapper.find('.col-size').attributes('aria-sort')).toBe('descending');
+  });
+
+  it('shows fallback toast and returns null instead of silent dataUrl when /api/assets rejects upload (Refs #108)', async () => {
+    setActivePinia(createPinia());
+    const store = useMindStore();
+
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 413,
+      json: async () => ({ error: 'Imagem inválida ou maior que o limite de 12 MB.' }),
+    } as unknown as Response);
+
+    try {
+      const result = await store.uploadAsset({
+        pageId: 'page-teste',
+        kind: 'cover',
+        filename: 'huge-cover.png',
+        mimeType: 'image/png',
+        dataBase64: 'data:image/png;base64,AAAA',
+      });
+      expect(result).toBeNull();
+      expect(store.activeToast?.message).toBe('Imagem inválida ou maior que o limite de 12 MB.');
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
   });
 });

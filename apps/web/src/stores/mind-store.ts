@@ -668,11 +668,17 @@ export const useMindStore = defineStore('mindHub', () => {
     lastLatencyMs.value = Number((performance.now() - t0).toFixed(2));
 
     try {
-      await fetch(`/api/pages/${id}`, {
+      const res = await fetch(`/api/pages/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(input),
       });
+      if (!res.ok) {
+        const errBody = (await res.json().catch(() => ({}))) as { error?: string };
+        showToast({
+          message: errBody.error || 'Não foi possível salvar as alterações no servidor.',
+        });
+      }
     } catch {
       // Offline resilient
     }
@@ -696,9 +702,21 @@ export const useMindStore = defineStore('mindHub', () => {
         if (body.asset) {
           return body.asset;
         }
+      } else {
+        const errBody = (await res.json().catch(() => ({}))) as { error?: string };
+        showToast({
+          message: errBody.error || `Falha ao enviar imagem (${res.status}).`,
+        });
+        return null;
       }
     } catch {
-      // Fallback to data URI in offline/test environments without backend
+      if (backendConnected.value) {
+        showToast({
+          message: 'Erro de rede ao enviar a imagem para o servidor.',
+        });
+        return null;
+      }
+      // Fallback to data URI only in pure offline/test environments without backend
     }
 
     const cleanBase64 = params.dataBase64.replace(/^data:[^;]+;base64,/, '');

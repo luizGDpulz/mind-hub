@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref } from 'vue';
+import { computed, inject, onBeforeUnmount, ref, type ComputedRef } from 'vue';
 import { NodeViewWrapper, type NodeViewProps } from '@tiptap/vue-3';
 import { ArrowRight, ChevronRight, File, FileText } from 'lucide-vue-next';
 import { getBlockColorDisplayHex } from '../extensions/block-color.js';
@@ -7,6 +7,11 @@ import { parseLucideIconValue } from '../extensions/callout-icons.js';
 import type { PageReference } from '../types.js';
 
 const props = defineProps<NodeViewProps>();
+
+const subnoteStyle = inject<ComputedRef<'clean' | 'card'>>(
+  'mindSubnoteStyle',
+  computed(() => 'clean'),
+);
 
 const isHovered = ref(false);
 let hoverTimer: ReturnType<typeof setTimeout> | null = null;
@@ -101,7 +106,10 @@ onBeforeUnmount(() => {
 <template>
   <NodeViewWrapper
     class="mind-subpage-block-wrapper"
-    :class="{ 'is-selected': selected }"
+    :class="[
+      subnoteStyle === 'card' ? 'is-style-card' : 'is-style-clean',
+      { 'is-selected': selected },
+    ]"
     data-testid="subpage-block-view"
     contenteditable="false"
     @mouseenter="handleMouseEnter"
@@ -221,12 +229,10 @@ onBeforeUnmount(() => {
 
 .mind-subpage-row:hover {
   background-color: #f8f9fa;
-  border-color: #e9ecef;
 }
 
 .mind-subpage-block-wrapper.is-selected .mind-subpage-row {
-  border-color: #cbd5e1;
-  background-color: #f1f3f5;
+  background-color: #f8f9fa;
 }
 
 .mind-subpage-icon {
@@ -267,7 +273,7 @@ onBeforeUnmount(() => {
   min-width: 0;
 }
 
-/* Opção A (Clean Docmost/Linear row - default) */
+/* Opção A (Clean Docmost/Linear row - borderless, arrow on hover) */
 .mind-subpage-trailing-clean {
   display: inline-flex;
   align-items: center;
@@ -290,25 +296,30 @@ onBeforeUnmount(() => {
   flex-shrink: 0;
 }
 
-/* Opção B (Compact Obsidian-like bordered card) */
-:global(.mind-subnote-style-card) .mind-subpage-row {
-  min-height: 36px;
-  padding: 6px 12px;
+/* Opção B (Compact Obsidian-like bordered card with chevron) */
+.mind-subpage-block-wrapper.is-style-card .mind-subpage-row {
+  min-height: 38px;
+  padding: 7px 12px;
   background-color: #f8f9fa;
   border-color: #e9ecef;
-  border-radius: 7px;
+  border-radius: 8px;
 }
 
-:global(.mind-subnote-style-card) .mind-subpage-row:hover {
+.mind-subpage-block-wrapper.is-style-card .mind-subpage-row:hover {
   background-color: #f1f3f5;
   border-color: #dee2e6;
 }
 
-:global(.mind-subnote-style-card) .mind-subpage-trailing-clean {
+.mind-subpage-block-wrapper.is-style-card.is-selected .mind-subpage-row {
+  border-color: #adb5bd;
+  background-color: #f1f3f5;
+}
+
+.mind-subpage-block-wrapper.is-style-card .mind-subpage-trailing-clean {
   display: none;
 }
 
-:global(.mind-subnote-style-card) .mind-subpage-trailing-card {
+.mind-subpage-block-wrapper.is-style-card .mind-subpage-trailing-card {
   display: inline-flex;
 }
 

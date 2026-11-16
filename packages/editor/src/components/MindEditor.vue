@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref, watch, type Component } from 'vue';
+import { computed, onBeforeUnmount, provide, ref, watch, type Component } from 'vue';
 import { useEditor, EditorContent, VueNodeViewRenderer } from '@tiptap/vue-3';
 import type { NodeViewProps } from '@tiptap/core';
 import StarterKit from '@tiptap/starter-kit';
@@ -67,6 +67,11 @@ const props = withDefaults(defineProps<MindEditorProps>(), {
 });
 
 const emit = defineEmits<MindEditorEmits>();
+
+provide(
+  'mindSubnoteStyle',
+  computed(() => props.subnoteStyle ?? 'clean'),
+);
 
 const {
   frontmatterHeaderRef,

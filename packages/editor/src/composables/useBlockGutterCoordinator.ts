@@ -157,12 +157,13 @@ export function useBlockGutterCoordinator(options: UseBlockGutterCoordinatorOpti
     isGutterMenuOpen.value = isOpen;
   }
 
-  function handleAddBlockBelow(): void {
+  function handleAddBlockBelow(position: 'above' | 'below' = 'below'): void {
     const editor = options.editor.value;
     if (!editor) return;
     const pos = gutterState.value.nodePos;
     const node = editor.state.doc.nodeAt(pos);
-    const insertPos = node ? pos + node.nodeSize : pos + 1;
+    const insertPos =
+      position === 'above' ? pos : node ? pos + node.nodeSize : pos + 1;
     const isListItem = node?.type.name === 'listItem' || node?.type.name === 'taskItem';
     const contentToInsert = isListItem
       ? {

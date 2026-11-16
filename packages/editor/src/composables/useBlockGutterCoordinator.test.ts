@@ -65,4 +65,40 @@ describe('useBlockGutterCoordinator', () => {
 
     editorInstance.destroy();
   });
+
+  it('inserts new block below on click and above on Alt+click', () => {
+    const editorInstance = new Editor({
+      extensions: [StarterKit, BlockColor],
+      content: '<p>Bloco 1</p><p>Bloco 2</p>',
+    });
+    const editorRef = shallowRef<Editor | undefined>(editorInstance);
+    const coordinator = useBlockGutterCoordinator({
+      editor: editorRef,
+      selectedBlockPositions: ref<number[]>([]),
+      isMarqueeLocked: () => false,
+    });
+
+    // Target second paragraph (Bloco 2 at pos 9)
+    coordinator.handleGutterPositionChange({
+      top: 40,
+      left: 0,
+      nodePos: 9,
+      nodeType: 'paragraph',
+    });
+
+    coordinator.handleAddBlockBelow('above');
+    expect(editorInstance.getHTML()).toBe('<p>Bloco 1</p><p></p><p>Bloco 2</p>');
+
+    // Target Bloco 1 (pos 0) and insert below
+    coordinator.handleGutterPositionChange({
+      top: 12,
+      left: 0,
+      nodePos: 0,
+      nodeType: 'paragraph',
+    });
+    coordinator.handleAddBlockBelow('below');
+    expect(editorInstance.getHTML()).toBe('<p>Bloco 1</p><p></p><p></p><p>Bloco 2</p>');
+
+    editorInstance.destroy();
+  });
 });

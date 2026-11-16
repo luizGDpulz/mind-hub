@@ -175,18 +175,17 @@ onBeforeUnmount(() => {
 <style scoped>
 .mind-subpage-block-wrapper {
   position: relative;
-  margin: 2px 0;
+  margin: 2px -10px;
   user-select: none;
 }
 
 .mind-subpage-row {
   display: flex;
   align-items: center;
-  gap: 6px;
-  width: calc(100% + 6px);
-  margin-left: -6px;
-  min-height: 30px;
-  padding: 4px 6px;
+  gap: 8px;
+  width: 100%;
+  min-height: 32px;
+  padding: 5px 10px;
   border: 1px solid transparent;
   border-radius: 6px;
   background: transparent;

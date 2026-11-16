@@ -460,7 +460,19 @@ defineExpose({
       :style="marqueeRectStyle"
     />
 
-    <!-- 1. Obsidian-style Frontmatter Properties Header -->
+    <!-- 1. Separate Note Title Header (Cover + Icon + H1 Title, outside ProseMirror block canvas) -->
+    <slot name="title">
+      <NoteTitleBar
+        v-if="showTitle"
+        :model-value="title ?? frontmatter?.title ?? ''"
+        :placeholder="titlePlaceholder"
+        :read-only="readOnly"
+        @update:model-value="handleTitleUpdate"
+        @focus-editor="focusEditorStart"
+      />
+    </slot>
+
+    <!-- 2. Obsidian-style Frontmatter Properties (cleanly positioned below Title, above Canvas) -->
     <FrontmatterHeader
       v-if="isFrontmatterVisible"
       ref="frontmatterHeaderRef"
@@ -472,18 +484,6 @@ defineExpose({
       @remove-properties="handleRemoveProperties"
       @escape-to-editor="focusEditorStart"
     />
-
-    <!-- 2. Separate Note Title Header (below Properties, outside ProseMirror block canvas) -->
-    <slot name="title">
-      <NoteTitleBar
-        v-if="showTitle"
-        :model-value="title ?? frontmatter?.title ?? ''"
-        :placeholder="titlePlaceholder"
-        :read-only="readOnly"
-        @update:model-value="handleTitleUpdate"
-        @focus-editor="focusEditorStart"
-      />
-    </slot>
 
     <!-- Editor Canvas Surface -->
     <div

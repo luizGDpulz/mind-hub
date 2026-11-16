@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, provide, ref, watch, type Component } from 'vue';
+import { computed, onBeforeUnmount, ref, watch, type Component } from 'vue';
 import { useEditor, EditorContent, VueNodeViewRenderer } from '@tiptap/vue-3';
 import type { NodeViewProps } from '@tiptap/core';
 import StarterKit from '@tiptap/starter-kit';
@@ -63,15 +63,9 @@ const props = withDefaults(defineProps<MindEditorProps>(), {
   pages: () => [],
   enableFrontmatterHeader: true,
   showProperties: undefined,
-  subnoteStyle: 'clean',
 });
 
 const emit = defineEmits<MindEditorEmits>();
-
-provide(
-  'mindSubnoteStyle',
-  computed(() => props.subnoteStyle ?? 'clean'),
-);
 
 const {
   frontmatterHeaderRef,
@@ -450,13 +444,10 @@ defineExpose({
 <template>
   <div
     class="mind-editor-root"
-    :class="[
-      subnoteStyle === 'card' ? 'mind-subnote-style-card' : 'mind-subnote-style-clean',
-      {
-        'is-marquee-selecting': marqueeState.active || isPointerDown,
-        'has-block-selection': selectedBlockPositions.length > 0,
-      },
-    ]"
+    :class="{
+      'is-marquee-selecting': marqueeState.active || isPointerDown,
+      'has-block-selection': selectedBlockPositions.length > 0,
+    }"
     data-testid="mind-editor-root"
     @keydown="handleKeydown"
     @mousedown="handleRootMouseDown"

@@ -1,17 +1,12 @@
 <script setup lang="ts">
-import { computed, inject, onBeforeUnmount, ref, type ComputedRef } from 'vue';
+import { computed, onBeforeUnmount, ref } from 'vue';
 import { NodeViewWrapper, type NodeViewProps } from '@tiptap/vue-3';
-import { ArrowRight, ChevronRight, File, FileText } from 'lucide-vue-next';
+import { ArrowRight, File, FileText } from 'lucide-vue-next';
 import { getBlockColorDisplayHex } from '../extensions/block-color.js';
 import { parseLucideIconValue } from '../extensions/callout-icons.js';
 import type { PageReference } from '../types.js';
 
 const props = defineProps<NodeViewProps>();
-
-const subnoteStyle = inject<ComputedRef<'clean' | 'card'>>(
-  'mindSubnoteStyle',
-  computed(() => 'clean'),
-);
 
 const isHovered = ref(false);
 let hoverTimer: ReturnType<typeof setTimeout> | null = null;
@@ -106,10 +101,7 @@ onBeforeUnmount(() => {
 <template>
   <NodeViewWrapper
     class="mind-subpage-block-wrapper"
-    :class="[
-      subnoteStyle === 'card' ? 'is-style-card' : 'is-style-clean',
-      { 'is-selected': selected },
-    ]"
+    :class="{ 'is-selected': selected }"
     data-testid="subpage-block-view"
     contenteditable="false"
     @mouseenter="handleMouseEnter"
@@ -153,9 +145,6 @@ onBeforeUnmount(() => {
       <span class="mind-subpage-title">{{ displayTitle }}</span>
       <span class="mind-subpage-trailing-clean" aria-hidden="true">
         <ArrowRight :size="14" :stroke-width="1.75" />
-      </span>
-      <span class="mind-subpage-trailing-card" aria-hidden="true">
-        <ChevronRight :size="15" :stroke-width="1.75" />
       </span>
     </button>
 
@@ -229,6 +218,7 @@ onBeforeUnmount(() => {
 
 .mind-subpage-row:hover {
   background-color: #f8f9fa;
+  border-color: #e9ecef;
 }
 
 .mind-subpage-block-wrapper.is-selected .mind-subpage-row {
@@ -273,7 +263,6 @@ onBeforeUnmount(() => {
   min-width: 0;
 }
 
-/* Opção A (Clean Docmost/Linear row - borderless, arrow on hover) */
 .mind-subpage-trailing-clean {
   display: inline-flex;
   align-items: center;
@@ -287,40 +276,6 @@ onBeforeUnmount(() => {
 .mind-subpage-row:hover .mind-subpage-trailing-clean {
   opacity: 1;
   transform: translateX(0);
-}
-
-.mind-subpage-trailing-card {
-  display: none;
-  align-items: center;
-  color: #868e96;
-  flex-shrink: 0;
-}
-
-/* Opção B (Compact Obsidian-like bordered card with chevron) */
-.mind-subpage-block-wrapper.is-style-card .mind-subpage-row {
-  min-height: 38px;
-  padding: 7px 12px;
-  background-color: #f8f9fa;
-  border-color: #e9ecef;
-  border-radius: 8px;
-}
-
-.mind-subpage-block-wrapper.is-style-card .mind-subpage-row:hover {
-  background-color: #f1f3f5;
-  border-color: #dee2e6;
-}
-
-.mind-subpage-block-wrapper.is-style-card.is-selected .mind-subpage-row {
-  border-color: #adb5bd;
-  background-color: #f1f3f5;
-}
-
-.mind-subpage-block-wrapper.is-style-card .mind-subpage-trailing-clean {
-  display: none;
-}
-
-.mind-subpage-block-wrapper.is-style-card .mind-subpage-trailing-card {
-  display: inline-flex;
 }
 
 .mind-subpage-preview-card {

@@ -67,63 +67,19 @@
         </label>
       </div>
     </div>
-
-    <div class="mind-setting-row">
-      <div class="mind-setting-meta">
-        <label class="mind-setting-label">Links de Subnotas Internas</label>
-        <span class="mind-setting-desc">Alterna o estilo visual dos blocos de subnota dentro do editor.</span>
-      </div>
-      <div class="mind-setting-radio-group">
-        <label class="mind-setting-radio-label">
-          <input
-            type="radio"
-            value="clean"
-            :checked="currentSubnoteStyle === 'clean'"
-            data-testid="subnote-style-clean"
-            @change="setSubnoteStyle('clean')"
-          />
-          <span>Opção A (Clean)</span>
-        </label>
-        <label class="mind-setting-radio-label">
-          <input
-            type="radio"
-            value="card"
-            :checked="currentSubnoteStyle === 'card'"
-            data-testid="subnote-style-card"
-            @change="setSubnoteStyle('card')"
-          />
-          <span>Opção B (Cartão)</span>
-        </label>
-      </div>
-    </div>
   </section>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
-
-const props = withDefaults(
-  defineProps<{
-    densityMode: 'comfortable' | 'compact';
-    contentWidthMode: 'centered' | 'full';
-    subnoteStyle?: 'clean' | 'card';
-  }>(),
-  {
-    subnoteStyle: 'clean',
-  },
-);
+defineProps<{
+  densityMode: 'comfortable' | 'compact';
+  contentWidthMode: 'centered' | 'full';
+}>();
 
 const emit = defineEmits<{
   (e: 'update:densityMode', value: 'comfortable' | 'compact'): void;
   (e: 'update:contentWidthMode', value: 'centered' | 'full'): void;
-  (e: 'update:subnoteStyle', value: 'clean' | 'card'): void;
 }>();
-
-const currentSubnoteStyle = computed(() => props.subnoteStyle);
-
-function setSubnoteStyle(style: 'clean' | 'card'): void {
-  emit('update:subnoteStyle', style);
-}
 </script>
 
 <style scoped>

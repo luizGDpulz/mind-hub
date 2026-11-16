@@ -42,7 +42,6 @@
             :model-value="store.activePage.contentJson || store.activePage.contentMarkdown"
             :frontmatter="activePageFrontmatter"
             :read-only="store.editorReadMode"
-            :subnote-style="store.subnoteLinkStyle"
             :pages="mentionPageReferences"
             @update:json="handleEditorJsonUpdate"
             @update:frontmatter="handleFrontmatterUpdate"

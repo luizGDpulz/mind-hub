@@ -72,25 +72,6 @@ export const useMindStore = defineStore('mindHub', () => {
   const darkMode = ref<boolean>(false);
   const activeSurface = ref<'editor' | 'library' | 'database' | 'login'>('editor');
   const editorReadMode = ref<boolean>(false);
-  const subnoteLinkStyle = ref<'clean' | 'card'>(
-    (typeof localStorage !== 'undefined' &&
-      localStorage.getItem('mind_hub_subnote_link_style') === 'card')
-      ? 'card'
-      : 'clean',
-  );
-
-  function setSubnoteLinkStyle(style: 'clean' | 'card'): void {
-    subnoteLinkStyle.value = style;
-    try {
-      localStorage.setItem('mind_hub_subnote_link_style', style);
-    } catch {
-      // Ignore storage errors
-    }
-  }
-
-  function toggleSubnoteLinkStyle(): void {
-    setSubnoteLinkStyle(subnoteLinkStyle.value === 'clean' ? 'card' : 'clean');
-  }
   const activeToast = ref<MindToastNotification | null>(null);
   let toastTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -1636,9 +1617,6 @@ export const useMindStore = defineStore('mindHub', () => {
     darkMode,
     activeSurface,
     editorReadMode,
-    subnoteLinkStyle,
-    setSubnoteLinkStyle,
-    toggleSubnoteLinkStyle,
     rightDrawerMode,
     isCommentsDrawerOpen,
     showEmbeddedDatabase,

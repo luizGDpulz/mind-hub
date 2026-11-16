@@ -130,7 +130,6 @@ export interface MindEditorProps {
   pages?: PageReference[];
   enableFrontmatterHeader?: boolean;
   showProperties?: boolean;
-  subnoteStyle?: 'clean' | 'card';
   customSlashItems?: SlashMenuItem[];
 }
 

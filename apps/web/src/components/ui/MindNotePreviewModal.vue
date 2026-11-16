@@ -111,7 +111,6 @@
               :title="modalPage.title"
               :show-title="false"
               :pages="mentionPageReferences"
-              :subnote-style="store.subnoteLinkStyle"
               :enable-frontmatter-header="false"
               placeholder="Digite '/' para comandos ou comece a escrever..."
               @update:json="handleEditorJsonUpdate"
